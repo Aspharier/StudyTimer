@@ -28,8 +28,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -37,6 +39,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -45,6 +48,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -64,6 +68,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aspharier.studytimer.domain.model.StudySession
@@ -79,6 +85,7 @@ fun HistoryScreen(
     viewModel: HistoryViewModel = hiltViewModel(),
     selectedTheme: AppTheme = AppTheme.Midnight,
     onThemeSelected: (AppTheme) -> Unit = {},
+    onProfileClick: () -> Unit = {},
     onSessionClick: (Long) -> Unit
 ) {
     val context = LocalContext.current
@@ -95,10 +102,13 @@ fun HistoryScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val showFinishedDialog by viewModel.showFinishedDialog.collectAsState()
-    val selectedDate = LocalDate.parse(selectedDateText)
-    val selectedSessions = uiState.allSessions.filter { it.date == selectedDateText }
-    val selectedTotalSeconds = selectedSessions.sumOf { it.completedDurationSeconds }
-    val selectedTotalMinutes = (selectedTotalSeconds / 60).toInt()
+    val selectedDate = remember(selectedDateText) { LocalDate.parse(selectedDateText) }
+    val selectedSessions = remember(uiState.allSessions, selectedDateText) {
+        uiState.allSessions.filter { it.date == selectedDateText }
+    }
+    val selectedTotalMinutes = remember(selectedSessions) {
+        (selectedSessions.sumOf { it.completedDurationSeconds } / 60).toInt()
+    }
     val isToday = selectedDate == LocalDate.now()
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -185,6 +195,14 @@ fun HistoryScreen(
                 }
 
                 Row {
+                    IconButton(onClick = onProfileClick) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Profile",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
                     IconButton(onClick = { showHistorySheet = true }) {
                         Icon(
                             imageVector = Icons.Default.History,
@@ -231,7 +249,10 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(bottom = 100.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(selectedSessions) { session ->
+                items(
+                    items = selectedSessions,
+                    key = { session -> session.id }
+                ) { session ->
                     SessionCard(
                         session = session,
                         onClick = { onSessionClick(session.id) },
@@ -299,9 +320,9 @@ fun HistoryScreen(
         }
 
         if (showThemeSheet) {
-            ModalBottomSheet(
+            Dialog(
                 onDismissRequest = { showThemeSheet = false },
-                containerColor = MaterialTheme.colorScheme.surface
+                properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
                 ThemeSelectorContent(
                     selectedTheme = selectedTheme,
@@ -321,9 +342,9 @@ fun HistoryScreen(
                     .toEpochMilli()
             )
 
-            ModalBottomSheet(
+            Dialog(
                 onDismissRequest = { showHistorySheet = false },
-                containerColor = MaterialTheme.colorScheme.surface
+                properties = DialogProperties(usePlatformDefaultWidth = false)
             ) {
                 DateHistoryContent(
                     datePickerState = datePickerState,
@@ -476,65 +497,78 @@ private fun ThemeSelectorContent(
     selectedTheme: AppTheme,
     onThemeSelected: (AppTheme) -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(24.dp)
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
     ) {
-        Text(
-            text = "Theme",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        AppTheme.entries.forEach { theme ->
-            val isSelected = theme == selectedTheme
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (isSelected) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        }
-                    )
-                    .clickable { onThemeSelected(theme) }
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clip(CircleShape)
-                            .background(theme.previewColor)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = theme.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-                if (isSelected) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+            contentPadding = PaddingValues(vertical = 40.dp)
+        ) {
+            item {
+                Text(
+                    text = "Theme",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Choose the look that fits your focus",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
-        Spacer(modifier = Modifier.height(24.dp))
+            items(AppTheme.entries) { theme ->
+                val isSelected = theme == selectedTheme
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (isSelected) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            }
+                        )
+                        .clickable { onThemeSelected(theme) }
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clip(CircleShape)
+                                .background(theme.previewColor)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = theme.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+        }
     }
 }
 
@@ -545,45 +579,96 @@ private fun DateHistoryContent(
     onCancel: () -> Unit,
     onSelectDate: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
     ) {
-        Text(
-            text = "History",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 8.dp)
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        DatePicker(
-            state = datePickerState,
-            showModeToggle = false
-        )
-
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.End
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
         ) {
-            TextButton(onClick = onCancel) {
-                Text("Cancel")
+            Spacer(modifier = Modifier.height(40.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "History",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Choose any day to review sessions",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                IconButton(onClick = onCancel) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
-                onClick = onSelectDate,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                )
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(20.dp)
             ) {
-                Text("View")
+                DatePicker(
+                    state = datePickerState,
+                    showModeToggle = false,
+                    colors = DatePickerDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        headlineContentColor = MaterialTheme.colorScheme.onSurface,
+                        weekdayContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        subheadContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        yearContentColor = MaterialTheme.colorScheme.onSurface,
+                        currentYearContentColor = MaterialTheme.colorScheme.primary,
+                        selectedYearContentColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedYearContainerColor = MaterialTheme.colorScheme.primary,
+                        dayContentColor = MaterialTheme.colorScheme.onSurface,
+                        selectedDayContentColor = MaterialTheme.colorScheme.onPrimary,
+                        selectedDayContainerColor = MaterialTheme.colorScheme.primary,
+                        todayContentColor = MaterialTheme.colorScheme.primary,
+                        todayDateBorderColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onCancel) {
+                    Text("Cancel")
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Button(
+                    onClick = onSelectDate,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Text("View")
+                }
             }
         }
     }

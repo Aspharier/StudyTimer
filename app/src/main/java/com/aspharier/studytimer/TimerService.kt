@@ -15,6 +15,8 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,8 +33,11 @@ class TimerService : Service() {
     lateinit var repository: StudySessionRepository
 
     private val binder = TimerBinder()
+    private val serviceJob = SupervisorJob()
+    private val scope = CoroutineScope(serviceJob + Dispatchers.Default)
     private var timerJob: Job? = null
-    private val scope = CoroutineScope(Dispatchers.Default)
+    private var persistJob: Job? = null
+    private var lastPersistedCompletedSeconds = -1L
 
     private val _timerState = MutableStateFlow(TimerState())
     val timerState: StateFlow<TimerState> = _timerState.asStateFlow()
@@ -74,7 +79,8 @@ class TimerService : Service() {
             date = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
         )
         _onTimerFinished.value = false
-        persistTimerState(isCompleted = false, endTime = null)
+        lastPersistedCompletedSeconds = -1L
+        persistTimerState(isCompleted = false, endTime = null, force = true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
                 NOTIFICATION_ID,
@@ -102,7 +108,7 @@ class TimerService : Service() {
                         formatTime(_timerState.value.remainingSeconds)
                     )
                 } else {
-                    delay(100)
+                    delay(1000)
                 }
             }
             if (_timerState.value.remainingSeconds <= 0) {
@@ -113,17 +119,17 @@ class TimerService : Service() {
 
     private fun pauseTimer() {
         _timerState.value = _timerState.value.copy(isPaused = true)
-        persistTimerState(isCompleted = false, endTime = null)
+        persistTimerState(isCompleted = false, endTime = null, force = true)
         updateNotification(_timerState.value.label, formatTime(_timerState.value.remainingSeconds) + " (Paused)")
     }
 
     private fun resumeTimer() {
         _timerState.value = _timerState.value.copy(isPaused = false)
-        persistTimerState(isCompleted = false, endTime = null)
+        persistTimerState(isCompleted = false, endTime = null, force = true)
     }
 
     private fun stopTimer() {
-        persistTimerState(isCompleted = false, endTime = System.currentTimeMillis())
+        persistTimerState(isCompleted = false, endTime = System.currentTimeMillis(), force = true)
         timerJob?.cancel()
         _timerState.value = TimerState()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -136,7 +142,7 @@ class TimerService : Service() {
             isRunning = false,
             isCompleted = true
         )
-        persistTimerState(isCompleted = true, endTime = System.currentTimeMillis())
+        persistTimerState(isCompleted = true, endTime = System.currentTimeMillis(), force = true)
         _onTimerFinished.value = true
         showFinishedNotification()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -194,17 +200,23 @@ class TimerService : Service() {
         return String.format("%02d:%02d", mins, secs)
     }
 
-    private fun persistTimerState(isCompleted: Boolean, endTime: Long?) {
+    private fun persistTimerState(isCompleted: Boolean, endTime: Long?, force: Boolean = false) {
         val state = _timerState.value
         if (state.sessionId == 0L || state.totalSeconds == 0L) return
+        val completedSeconds = state.totalSeconds - state.remainingSeconds
+        if (!force && completedSeconds - lastPersistedCompletedSeconds < PERSIST_INTERVAL_SECONDS) {
+            return
+        }
+        lastPersistedCompletedSeconds = completedSeconds
 
-        scope.launch(Dispatchers.IO) {
+        persistJob?.cancel()
+        persistJob = scope.launch(Dispatchers.IO) {
             repository.updateSession(
                 StudySession(
                     id = state.sessionId,
                     label = state.label,
                     durationMinutes = (state.totalSeconds / 60).toInt(),
-                    completedDurationSeconds = state.totalSeconds - state.remainingSeconds,
+                    completedDurationSeconds = completedSeconds,
                     date = state.date,
                     startTime = state.startedAtMillis,
                     endTime = endTime,
@@ -216,6 +228,12 @@ class TimerService : Service() {
 
     override fun onDestroy() {
         timerJob?.cancel()
+        val activePersistJob = persistJob
+        if (activePersistJob?.isActive == true) {
+            activePersistJob.invokeOnCompletion { serviceJob.cancel() }
+        } else {
+            serviceJob.cancel()
+        }
         super.onDestroy()
     }
 
@@ -231,6 +249,7 @@ class TimerService : Service() {
 
         private const val NOTIFICATION_ID = 1
         private const val FINISHED_NOTIFICATION_ID = 2
+        private const val PERSIST_INTERVAL_SECONDS = 5L
     }
 }
 

@@ -1,14 +1,7 @@
 package com.aspharier.studytimer.ui.navigation
 
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.res.vectorResource
-import com.aspharier.studytimer.R
 
 sealed class Screen(
     val route: String,
@@ -33,5 +26,11 @@ sealed class Screen(
         route = "history",
         title = "History",
         icon = { Text("H") }
+    )
+
+    data object Profile : Screen(
+        route = "profile",
+        title = "Profile",
+        icon = { Text("P") }
     )
 }
