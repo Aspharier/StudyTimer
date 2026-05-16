@@ -5,9 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.view.WindowManager
+import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -43,11 +43,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.rememberLottieComposition
 import com.aspharier.studytimer.TimerService
 import com.aspharier.studytimer.TimerState
 import kotlinx.coroutines.flow.collectLatest
@@ -100,8 +99,12 @@ fun TimerScreen(
         }
     }
 
+    // Keep screen on while this timer screen is displayed
     DisposableEffect(Unit) {
+        val window = (context as? ComponentActivity)?.window
+        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             try {
                 context.unbindService(connection)
             } catch (e: Exception) { }
@@ -128,18 +131,7 @@ fun TimerScreen(
         savedSessionState ?: timerState
     }
     val isViewingActiveTimer = timerState.sessionId == sessionId && timerState.totalSeconds > 0
-    val progress by animateFloatAsState(
-        targetValue = if (displayState.totalSeconds > 0) {
-            (displayState.totalSeconds - displayState.remainingSeconds).toFloat() / displayState.totalSeconds
-        } else {
-            0f
-        },
-        animationSpec = tween(250),
-        label = "progress"
-    )
-    val progressComposition by rememberLottieComposition(
-        LottieCompositionSpec.Asset("progress bar.json")
-    )
+
 
     Box(
         modifier = Modifier
@@ -166,9 +158,13 @@ fun TimerScreen(
             ) {
                 Text(
                     text = formatClock(displayState.remainingSeconds),
-                    style = MaterialTheme.typography.displayLarge,
+                    fontSize = 72.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 4.sp,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = "hours   minutes   seconds",
@@ -187,16 +183,6 @@ fun TimerScreen(
                         color = MaterialTheme.colorScheme.error
                     )
                 }
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                LottieAnimation(
-                    composition = progressComposition,
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(190.dp)
-                )
             }
 
             Spacer(modifier = Modifier.height(32.dp))
