@@ -8,10 +8,15 @@ sealed class Screen(
     val title: String,
     val icon: @Composable () -> Unit = {}
 ) {
+    data object Onboarding : Screen(
+        route = "onboarding",
+        title = "Welcome"
+    )
+
     data object Home : Screen(
         route = "home",
-        title = "Timer",
-        icon = { Text("T") }
+        title = "Timer Setup",
+        icon = { Text("H") }
     )
 
     data object Timer : Screen(
@@ -21,12 +26,6 @@ sealed class Screen(
     ) {
         fun createRoute(sessionId: Long) = "timer/$sessionId"
     }
-
-    data object History : Screen(
-        route = "history",
-        title = "History",
-        icon = { Text("H") }
-    )
 
     data object Profile : Screen(
         route = "profile",

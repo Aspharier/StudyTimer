@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.aspharier.studytimer.ui.navigation.Screen
 import com.aspharier.studytimer.ui.navigation.StudyTimerNavHost
 import com.aspharier.studytimer.ui.theme.AppTheme
 import com.aspharier.studytimer.ui.theme.StudyTimerTheme
@@ -24,6 +25,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val preferences = remember { getSharedPreferences("settings", MODE_PRIVATE) }
+            val hasCompletedOnboarding = remember {
+                preferences.getBoolean("has_completed_onboarding", false)
+            }
+            
             var selectedTheme by rememberSaveable {
                 mutableStateOf(
                     runCatching {
@@ -38,6 +43,7 @@ class MainActivity : ComponentActivity() {
             StudyTimerTheme(appTheme = selectedTheme) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     StudyTimerNavHost(
+                        startDestination = if (hasCompletedOnboarding) Screen.Home.route else Screen.Onboarding.route,
                         selectedTheme = selectedTheme,
                         onThemeSelected = { theme ->
                             selectedTheme = theme

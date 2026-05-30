@@ -15,7 +15,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.aspharier.studytimer.ui.screens.history.HistoryScreen
+import com.aspharier.studytimer.ui.screens.home.HomeScreen
+import com.aspharier.studytimer.ui.screens.onboarding.OnboardingScreen
 import com.aspharier.studytimer.ui.screens.profile.ProfileScreen
 import com.aspharier.studytimer.ui.screens.timer.TimerScreen
 import com.aspharier.studytimer.ui.theme.AppTheme
@@ -23,6 +24,7 @@ import com.aspharier.studytimer.ui.theme.AppTheme
 @Composable
 fun StudyTimerNavHost(
     navController: NavHostController = rememberNavController(),
+    startDestination: String = Screen.Onboarding.route,
     selectedTheme: AppTheme = AppTheme.Midnight,
     onThemeSelected: (AppTheme) -> Unit = {}
 ) {
@@ -36,7 +38,7 @@ fun StudyTimerNavHost(
         ) {
             NavHost(
                 navController = navController,
-                startDestination = Screen.History.route,
+                startDestination = startDestination,
                 enterTransition = {
                     slideIntoContainer(
                         towards = AnimatedContentTransitionScope.SlideDirection.Left,
@@ -62,14 +64,39 @@ fun StudyTimerNavHost(
                     )
                 }
             ) {
-                composable(Screen.History.route) {
-                    HistoryScreen(
+                composable(Screen.Onboarding.route) {
+                    OnboardingScreen(
+                        onFinishOnboarding = {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Onboarding.route) { inclusive = true }
+                            }
+                        }
+                    )
+                }
+
+                composable(Screen.Home.route) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    HomeScreen(
                         selectedTheme = selectedTheme,
                         onThemeSelected = onThemeSelected,
                         onProfileClick = {
                             navController.navigate(Screen.Profile.route)
                         },
-                        onSessionClick = { sessionId ->
+                        onStartTimer = { sessionId, label, focusMinutes, shortBreakMinutes, longBreakMinutes, cycles ->
+                            val intent = android.content.Intent(context, com.aspharier.studytimer.TimerService::class.java).apply {
+                                action = com.aspharier.studytimer.TimerService.ACTION_START
+                                putExtra(com.aspharier.studytimer.TimerService.EXTRA_SESSION_ID, sessionId)
+                                putExtra(com.aspharier.studytimer.TimerService.EXTRA_LABEL, label)
+                                putExtra(com.aspharier.studytimer.TimerService.EXTRA_FOCUS_DURATION, focusMinutes)
+                                putExtra(com.aspharier.studytimer.TimerService.EXTRA_SHORT_BREAK_DURATION, shortBreakMinutes)
+                                putExtra(com.aspharier.studytimer.TimerService.EXTRA_LONG_BREAK_DURATION, longBreakMinutes)
+                                putExtra(com.aspharier.studytimer.TimerService.EXTRA_CYCLES, cycles)
+                            }
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                context.startForegroundService(intent)
+                            } else {
+                                context.startService(intent)
+                            }
                             navController.navigate(Screen.Timer.createRoute(sessionId))
                         }
                     )
