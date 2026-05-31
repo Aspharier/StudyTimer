@@ -9,10 +9,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface StudySessionDao {
-    @Insert
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
     suspend fun insert(session: StudySessionEntity): Long
 
-    @Update
+    @Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
     suspend fun update(session: StudySessionEntity)
 
     @Query("DELETE FROM study_sessions WHERE id = :id")

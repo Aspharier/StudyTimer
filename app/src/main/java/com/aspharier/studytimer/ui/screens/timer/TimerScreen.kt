@@ -7,6 +7,7 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -59,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -83,6 +86,7 @@ fun TimerScreen(
     var timerState by remember { mutableStateOf(TimerState()) }
     var isBound by remember { mutableStateOf(false) }
     var dimMode by rememberSaveable { mutableStateOf(false) }
+    var showExitWarning by rememberSaveable { mutableStateOf(false) }
 
     val uiState by viewModel.uiState.collectAsState()
 
@@ -125,13 +129,13 @@ fun TimerScreen(
     // Keep screen on or dim it
     DisposableEffect(dimMode) {
         val window = (context as? ComponentActivity)?.window
+        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
         if (dimMode) {
-            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             val params = window?.attributes
             params?.screenBrightness = 0.01f // very dim
             window?.attributes = params
         } else {
-            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             val params = window?.attributes
             params?.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
             window?.attributes = params
@@ -173,6 +177,36 @@ fun TimerScreen(
         savedSessionState ?: timerState
     }
     val isViewingActiveTimer = timerState.sessionId == sessionId && timerState.totalSeconds > 0
+    val isTimerActivelyRunning = isViewingActiveTimer && displayState.isRunning && !displayState.isCompleted
+
+    BackHandler(enabled = isTimerActivelyRunning) {
+        showExitWarning = true
+    }
+
+    if (showExitWarning) {
+        AlertDialog(
+            onDismissRequest = { showExitWarning = false },
+            title = { Text("Stop Session?") },
+            text = { Text("Leaving this screen will stop the current timer. Are you sure you want to exit?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExitWarning = false
+                    val intent = Intent(context, TimerService::class.java).apply {
+                        action = TimerService.ACTION_STOP
+                    }
+                    context.startService(intent)
+                    onNavigateBack()
+                }) {
+                    Text("Exit", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExitWarning = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     val animatedProgress by animateFloatAsState(
         targetValue = if (displayState.totalSeconds > 0) 
@@ -205,7 +239,11 @@ fun TimerScreen(
         ) {
             IconButton(onClick = { 
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onNavigateBack() 
+                if (isTimerActivelyRunning) {
+                    showExitWarning = true
+                } else {
+                    onNavigateBack() 
+                }
             }) {
                 Icon(
                     imageVector = Icons.Default.Close,
@@ -271,6 +309,7 @@ fun TimerScreen(
             ) {
                 val ringColor = if (dimMode) Color.DarkGray.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surfaceVariant
                 val progressColor = if (dimMode) Color.Gray else MaterialTheme.colorScheme.primary
+                val dashEffect = remember { PathEffect.dashPathEffect(floatArrayOf(30f, 15f), 0f) }
                 
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawArc(
@@ -278,14 +317,14 @@ fun TimerScreen(
                         startAngle = -90f,
                         sweepAngle = 360f,
                         useCenter = false,
-                        style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect)
                     )
                     drawArc(
                         color = progressColor,
                         startAngle = -90f,
                         sweepAngle = 360f * animatedProgress,
                         useCenter = false,
-                        style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = 12.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect)
                     )
                 }
                 

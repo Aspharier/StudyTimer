@@ -42,6 +42,7 @@ data class TimerState(
     val label: String = "",
     val totalSeconds: Long = 0,
     val remainingSeconds: Long = 0,
+    val accumulatedCompletedSeconds: Long = 0,
     val isRunning: Boolean = false,
     val isPaused: Boolean = false,
     val isCompleted: Boolean = false,
@@ -188,7 +189,8 @@ class TimerService : Service() {
         val currentState = _timerState.value
         
         if (currentState.currentPhase == PomodoroPhase.FOCUS) {
-            persistTimerState(isCompleted = true, endTime = System.currentTimeMillis(), force = true)
+            val isLastCycle = currentState.currentCycle >= currentState.totalCycles
+            persistTimerState(isCompleted = isLastCycle, endTime = if (isLastCycle) System.currentTimeMillis() else null, force = true)
         }
 
         when (currentState.currentPhase) {
@@ -218,7 +220,14 @@ class TimerService : Service() {
             PomodoroPhase.LONG_BREAK -> currentState.longBreakMinutes * 60L
         }
         
+        val newAccumulated = if (currentState.currentPhase == PomodoroPhase.FOCUS) {
+            currentState.accumulatedCompletedSeconds + currentState.focusMinutes * 60L
+        } else {
+            currentState.accumulatedCompletedSeconds
+        }
+        
         _timerState.value = currentState.copy(
+            accumulatedCompletedSeconds = newAccumulated,
             currentPhase = phase,
             label = phase.label,
             totalSeconds = totalSeconds,
@@ -283,6 +292,7 @@ class TimerService : Service() {
             isRunning = false,
             isCompleted = true
         )
+        persistTimerState(isCompleted = true, endTime = System.currentTimeMillis(), force = true)
         _onTimerFinished.value = true
         showFinishedNotification()
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -338,24 +348,33 @@ class TimerService : Service() {
 
     private fun persistTimerState(isCompleted: Boolean, endTime: Long?, force: Boolean = false) {
         val state = _timerState.value
-        if (state.sessionId == 0L || state.totalSeconds == 0L || state.currentPhase != PomodoroPhase.FOCUS) return
-        val completedSeconds = state.totalSeconds - state.remainingSeconds
-        if (!force && completedSeconds - lastPersistedCompletedSeconds < PERSIST_INTERVAL_SECONDS) {
+        if (state.sessionId == 0L) return
+        
+        val currentFocusCompleted = if (state.currentPhase == PomodoroPhase.FOCUS) {
+             state.totalSeconds - state.remainingSeconds
+        } else 0L
+        
+        val totalCompletedSeconds = state.accumulatedCompletedSeconds + currentFocusCompleted
+        
+        if (totalCompletedSeconds == 0L && !isCompleted) return
+        
+        if (!force && totalCompletedSeconds - lastPersistedCompletedSeconds < PERSIST_INTERVAL_SECONDS) {
             return
         }
-        lastPersistedCompletedSeconds = completedSeconds
+        lastPersistedCompletedSeconds = totalCompletedSeconds
 
         persistJob?.cancel()
         persistJob = scope.launch(Dispatchers.IO) {
+            val totalDurationMins = state.focusMinutes * state.totalCycles
             repository.updateSession(
                 StudySession(
                     id = state.sessionId,
                     label = state.sessionName,
-                    durationMinutes = (state.totalSeconds / 60).toInt(),
-                    completedDurationSeconds = completedSeconds,
+                    durationMinutes = totalDurationMins,
+                    completedDurationSeconds = totalCompletedSeconds,
                     date = state.date,
                     startTime = state.startedAtMillis,
-                    endTime = endTime,
+                    endTime = endTime ?: state.startedAtMillis + (totalCompletedSeconds * 1000),
                     isCompleted = isCompleted
                 )
             )
