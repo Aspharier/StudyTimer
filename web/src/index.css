@@ -560,17 +560,92 @@ body {
   margin-top: 4px;
 }
 
-/* Heatmap Calendar */
-.heatmap-container {
+/* Heatmap Calendar & Responsiveness */
+:root {
+  --heatmap-cell-size: 34px;
+  --heatmap-gap: 6px;
+  --heatmap-width: calc(7 * var(--heatmap-cell-size) + 6 * var(--heatmap-gap));
+}
+
+@media (max-width: 480px) {
+  :root {
+    --heatmap-cell-size: 28px;
+    --heatmap-gap: 4px;
+  }
+}
+
+.heatmap-card {
+  max-width: 390px;
+  margin: 24px auto 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+@media (max-width: 480px) {
+  .heatmap-card {
+    max-width: 280px;
+    padding: 16px;
+  }
+}
+
+.heatmap-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  width: var(--heatmap-width);
+}
+
+.heatmap-nav-btn {
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heatmap-month-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--primary-color);
+}
+
+.heatmap-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--heatmap-width);
+  padding-bottom: 8px;
+}
+
+.heatmap-weekdays {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
-  margin-top: 16px;
+  grid-template-columns: repeat(7, var(--heatmap-cell-size));
+  gap: var(--heatmap-gap);
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--surface-variant);
+  padding-bottom: 8px;
+  width: var(--heatmap-width);
+}
+
+.heatmap-weekday {
+  text-align: center;
+  font-size: 11px;
+  color: var(--secondary-color);
+  font-weight: 600;
+}
+
+.heatmap-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, var(--heatmap-cell-size));
+  gap: var(--heatmap-gap);
+  width: var(--heatmap-width);
 }
 
 .heatmap-day {
-  aspect-ratio: 1;
-  background-color: var(--surface-variant);
+  width: var(--heatmap-cell-size);
+  height: var(--heatmap-cell-size);
   border-radius: 4px;
   cursor: pointer;
   transition: var(--transition);
@@ -582,8 +657,30 @@ body {
   z-index: 10;
 }
 
+.heatmap-day-empty {
+  width: var(--heatmap-cell-size);
+  height: var(--heatmap-cell-size);
+}
+
+.heatmap-legend {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  font-size: 11px;
+  color: var(--secondary-color);
+  align-items: center;
+  width: var(--heatmap-width);
+}
+
+.heatmap-legend-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
 /* Heatmap Levels (matching Android opacities of selected theme primary color) */
-.level-0 { background-color: var(--surface-variant); opacity: 0.45; }
+.level-0 { background-color: var(--primary-color); opacity: 0.08; }
 .level-1 { background-color: var(--accent-color); opacity: 0.35; }
 .level-2 { background-color: var(--accent-color); opacity: 0.55; }
 .level-3 { background-color: var(--accent-color); opacity: 0.75; }
@@ -875,8 +972,4 @@ body {
   color: var(--primary-color) !important;
 }
 
-.heatmap-card {
-  max-width: 390px;
-  margin: 24px auto 0;
-  width: 100%;
-}
+

@@ -781,7 +781,8 @@ private fun MonthActivitySection(
                     text = day,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
         }
@@ -1167,7 +1168,7 @@ private fun HeatLegend() {
 @Composable
 private fun activityColor(seconds: Long): Color {
     return when {
-        seconds <= 0 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        seconds <= 0 -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
         seconds < 30 * 60 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
         seconds < 60 * 60 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
         seconds < 120 * 60 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)

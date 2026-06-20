@@ -1206,39 +1206,37 @@ function AnalyticsView({ sessions, subjects }) {
 
       {/* Heatmap Grid (Navigable Calendar Month) */}
       <div className="card heatmap-card">
-        <div className="flex-row-between" style={{ alignItems: 'center', marginBottom: '20px' }}>
+        <div className="heatmap-header-row">
           <button 
-            className="btn btn-secondary" 
-            style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+            className="btn btn-secondary heatmap-nav-btn" 
             onClick={handlePrevMonth}
           >
             <ChevronLeft size={16} />
           </button>
-          <span style={{ fontWeight: '700', fontSize: '16px', color: 'var(--primary-color)' }}>
-            {selectedMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+          <span className="heatmap-month-title">
+            {selectedMonth.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
           </span>
           <button 
-            className="btn btn-secondary" 
-            style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+            className="btn btn-secondary heatmap-nav-btn" 
             onClick={handleNextMonth}
           >
             <ChevronRight size={16} />
           </button>
         </div>
 
-        <div style={{ maxWidth: '340px', margin: '0 auto', width: '100%', paddingBottom: '12px' }}>
-          <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid var(--surface-variant)', paddingBottom: '8px' }}>
+        <div className="heatmap-body">
+          <div className="heatmap-weekdays">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
-              <div key={idx} style={{ flex: 1, textAlign: 'center', fontSize: '11px', color: 'var(--secondary-color)', fontWeight: '600' }}>
+              <div key={idx} className="heatmap-weekday">
                 {day}
               </div>
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '6px' }}>
+          <div className="heatmap-days-grid">
             {monthCells.map((cell, idx) => {
               if (cell === null) {
-                return <div key={`empty-${idx}`} style={{ aspectRatio: '1' }} />;
+                return <div key={`empty-${idx}`} className="heatmap-day-empty" />;
               }
               const pad = (n) => String(n).padStart(2, '0');
               const dateStr = `${cell.getFullYear()}-${pad(cell.getMonth() + 1)}-${pad(cell.getDate())}`;
@@ -1258,20 +1256,19 @@ function AnalyticsView({ sessions, subjects }) {
                 <div
                   key={`day-${cell.getDate()}`}
                   className={`heatmap-day level-${level}`}
-                  style={{ borderRadius: '3px', aspectRatio: '1' }}
                   title={`${cell.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}: ${hours.toFixed(1)}h studied`}
                 />
               );
             })}
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px', fontSize: '11px', color: 'var(--secondary-color)', alignItems: 'center' }}>
+          <div className="heatmap-legend">
             <span>Less</span>
-            <div style={{ width: '12px', height: '12px', borderRadius: '2px' }} className="level-0" />
-            <div style={{ width: '12px', height: '12px', borderRadius: '2px' }} className="level-1" />
-            <div style={{ width: '12px', height: '12px', borderRadius: '2px' }} className="level-2" />
-            <div style={{ width: '12px', height: '12px', borderRadius: '2px' }} className="level-3" />
-            <div style={{ width: '12px', height: '12px', borderRadius: '2px' }} className="level-4" />
+            <div className="heatmap-legend-cell level-0" />
+            <div className="heatmap-legend-cell level-1" />
+            <div className="heatmap-legend-cell level-2" />
+            <div className="heatmap-legend-cell level-3" />
+            <div className="heatmap-legend-cell level-4" />
             <span>More</span>
           </div>
         </div>
