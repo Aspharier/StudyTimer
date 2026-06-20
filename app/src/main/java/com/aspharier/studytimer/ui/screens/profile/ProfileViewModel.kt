@@ -22,6 +22,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import com.aspharier.studytimer.data.local.StudyTimerDatabase
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
@@ -29,6 +32,7 @@ class ProfileViewModel @Inject constructor(
     syllabusRepository: SyllabusRepository,
     private val auth: FirebaseAuth,
     private val syncManager: SyncManager,
+    private val database: StudyTimerDatabase,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -86,6 +90,13 @@ class ProfileViewModel @Inject constructor(
     fun logout() {
         auth.signOut()
         syncStatus.value = null
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                database.clearAllTables()
+            }
+            preferences.edit().remove("last_sync_time").apply()
+            _lastSyncTime.value = null
+        }
     }
 
     fun signInWithGoogleToken(idToken: String) {

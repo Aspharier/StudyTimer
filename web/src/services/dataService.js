@@ -110,16 +110,29 @@ if (auth) {
       });
       firestoreUnsubs.push(sessionsUnsub);
     } else {
-      // Logged out: clean up Firestore, reload from LocalStorage
+      // Logged out: clean up Firestore and clear local cache
       clearFirestoreSubscriptions();
-      examGoals = JSON.parse(localStorage.getItem('focusly_exam_goals') || '[]');
-      subjects = JSON.parse(localStorage.getItem('focusly_subjects') || '[]');
-      topics = JSON.parse(localStorage.getItem('focusly_topics') || '[]');
-      sessions = JSON.parse(localStorage.getItem('focusly_sessions') || '[]');
+
+      // Clear local storage cache
+      localStorage.removeItem('focusly_exam_goals');
+      localStorage.removeItem('focusly_subjects');
+      localStorage.removeItem('focusly_topics');
+      localStorage.removeItem('focusly_sessions');
+      localStorage.removeItem('focusly_last_sync_time');
+
+      // Reset memory cache
+      examGoals = [];
+      subjects = [];
+      topics = [];
+      sessions = [];
+
       notify('examGoals', examGoals);
       notify('subjects', subjects);
       notify('topics', topics);
       notify('sessions', sessions);
+
+      // Notify last sync time listeners
+      listeners.lastSyncTime.forEach(cb => cb(null));
     }
     listeners.auth.forEach(cb => cb(user));
   });

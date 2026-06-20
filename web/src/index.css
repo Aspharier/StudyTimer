@@ -874,3 +874,9 @@ body {
 .recharts-tooltip-item {
   color: var(--primary-color) !important;
 }
+
+.heatmap-card {
+  max-width: 390px;
+  margin: 24px auto 0;
+  width: 100%;
+}

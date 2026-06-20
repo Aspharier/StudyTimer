@@ -1205,7 +1205,7 @@ function AnalyticsView({ sessions, subjects }) {
       </div>
 
       {/* Heatmap Grid (Navigable Calendar Month) */}
-      <div className="card" style={{ marginTop: '24px' }}>
+      <div className="card heatmap-card">
         <div className="flex-row-between" style={{ alignItems: 'center', marginBottom: '20px' }}>
           <button 
             className="btn btn-secondary" 
@@ -1226,7 +1226,7 @@ function AnalyticsView({ sessions, subjects }) {
           </button>
         </div>
 
-        <div style={{ maxWidth: '340px', margin: '0 auto', width: '100%' }}>
+        <div style={{ maxWidth: '340px', margin: '0 auto', width: '100%', paddingBottom: '12px' }}>
           <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid var(--surface-variant)', paddingBottom: '8px' }}>
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
               <div key={idx} style={{ flex: 1, textAlign: 'center', fontSize: '11px', color: 'var(--secondary-color)', fontWeight: '600' }}>
