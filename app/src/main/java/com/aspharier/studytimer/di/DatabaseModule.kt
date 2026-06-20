@@ -3,7 +3,10 @@ package com.aspharier.studytimer.di
 import android.content.Context
 import androidx.room.Room
 import com.aspharier.studytimer.data.local.StudyTimerDatabase
+import com.aspharier.studytimer.data.local.dao.ExamGoalDao
 import com.aspharier.studytimer.data.local.dao.StudySessionDao
+import com.aspharier.studytimer.data.local.dao.SubjectDao
+import com.aspharier.studytimer.data.local.dao.TopicDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -22,12 +25,32 @@ object DatabaseModule {
             context,
             StudyTimerDatabase::class.java,
             "study_timer_database"
-        ).build()
+        )
+            .addMigrations(StudyTimerDatabase.MIGRATION_1_2)
+            .build()
     }
 
     @Provides
     @Singleton
     fun provideStudySessionDao(database: StudyTimerDatabase): StudySessionDao {
         return database.studySessionDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideExamGoalDao(database: StudyTimerDatabase): ExamGoalDao {
+        return database.examGoalDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideSubjectDao(database: StudyTimerDatabase): SubjectDao {
+        return database.subjectDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideTopicDao(database: StudyTimerDatabase): TopicDao {
+        return database.topicDao()
     }
 }

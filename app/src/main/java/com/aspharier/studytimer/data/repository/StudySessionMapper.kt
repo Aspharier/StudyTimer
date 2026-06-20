@@ -11,7 +11,10 @@ fun StudySessionEntity.toModel(): StudySession = StudySession(
     date = date,
     startTime = startTime,
     endTime = endTime,
-    isCompleted = isCompleted
+    isCompleted = isCompleted,
+    notes = notes,
+    tag = tag,
+    subjectId = subjectId
 )
 
 fun StudySession.toEntity(): StudySessionEntity = StudySessionEntity(
@@ -22,5 +25,8 @@ fun StudySession.toEntity(): StudySessionEntity = StudySessionEntity(
     date = date,
     startTime = startTime,
     endTime = endTime,
-    isCompleted = isCompleted
+    isCompleted = isCompleted,
+    notes = notes,
+    tag = tag,
+    subjectId = subjectId
 )

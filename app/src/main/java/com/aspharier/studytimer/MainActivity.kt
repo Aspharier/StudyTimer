@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
             StudyTimerTheme(appTheme = selectedTheme) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     StudyTimerNavHost(
-                        startDestination = if (hasCompletedOnboarding) Screen.Home.route else Screen.Onboarding.route,
+                        startDestination = if (hasCompletedOnboarding) Screen.Dashboard.route else Screen.Onboarding.route,
                         selectedTheme = selectedTheme,
                         onThemeSelected = { theme ->
                             selectedTheme = theme

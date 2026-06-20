@@ -32,4 +32,7 @@ interface StudySessionDao {
 
     @Query("SELECT SUM(completedDurationSeconds) FROM study_sessions WHERE date = :date")
     fun getTotalSecondsForDate(date: String): Flow<Long?>
+
+    @Query("SELECT * FROM study_sessions WHERE subjectId = :subjectId ORDER BY date DESC, startTime ASC")
+    fun getSessionsBySubjectId(subjectId: Long): Flow<List<StudySessionEntity>>
 }

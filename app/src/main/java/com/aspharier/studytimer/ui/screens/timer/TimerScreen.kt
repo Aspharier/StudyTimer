@@ -48,6 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -206,6 +207,54 @@ fun TimerScreen(
                 }
             }
         )
+    }
+
+    if (displayState.isCompleted) {
+        var completedNotes by rememberSaveable { mutableStateOf("") }
+        var hasSavedNotes by remember { mutableStateOf(false) }
+
+        if (!hasSavedNotes) {
+            AlertDialog(
+                onDismissRequest = { 
+                    hasSavedNotes = true
+                    onNavigateBack()
+                },
+                title = { Text("Session Completed! 🔥") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Excellent work! You completed your focus session. Add any notes about what you covered:")
+                        OutlinedTextField(
+                            value = completedNotes,
+                            onValueChange = { completedNotes = it },
+                            placeholder = { Text("e.g. Completed Digital Logic chapter 1 questions") },
+                            modifier = Modifier.fillMaxWidth(),
+                            maxLines = 4
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.updateSessionNotes(sessionId, completedNotes.trim().ifBlank { null })
+                            hasSavedNotes = true
+                            onNavigateBack()
+                        }
+                    ) {
+                        Text("Save & Exit")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            hasSavedNotes = true
+                            onNavigateBack()
+                        }
+                    ) {
+                        Text("Exit")
+                    }
+                }
+            )
+        }
     }
 
     val animatedProgress by animateFloatAsState(

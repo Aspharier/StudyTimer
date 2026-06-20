@@ -60,4 +60,10 @@ class StudySessionRepository @Inject constructor(
     fun getTotalSecondsForDate(date: String): Flow<Long> {
         return studySessionDao.getTotalSecondsForDate(date).map { it ?: 0L }
     }
+
+    fun getSessionsBySubjectId(subjectId: Long): Flow<List<StudySession>> {
+        return studySessionDao.getSessionsBySubjectId(subjectId).map { entities ->
+            entities.map { it.toModel() }
+        }
+    }
 }

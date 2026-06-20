@@ -13,6 +13,12 @@ sealed class Screen(
         title = "Welcome"
     )
 
+    data object Dashboard : Screen(
+        route = "dashboard",
+        title = "Dashboard",
+        icon = { Text("D") }
+    )
+
     data object Home : Screen(
         route = "home",
         title = "Timer Setup",
@@ -31,5 +37,16 @@ sealed class Screen(
         route = "profile",
         title = "Profile",
         icon = { Text("P") }
+    )
+
+    data object Syllabus : Screen(
+        route = "syllabus",
+        title = "Syllabus",
+        icon = { Text("B") }
+    )
+
+    data object ExamSetup : Screen(
+        route = "exam_setup",
+        title = "Exam Setup"
     )
 }

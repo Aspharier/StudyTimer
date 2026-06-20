@@ -31,4 +31,13 @@ class TimerViewModel @Inject constructor(
             _uiState.value = TimerUiState(session = session)
         }
     }
+
+    fun updateSessionNotes(sessionId: Long, notes: String?) {
+        viewModelScope.launch {
+            val currentSession = repository.getSessionById(sessionId) ?: return@launch
+            val updated = currentSession.copy(notes = notes)
+            repository.updateSession(updated)
+            _uiState.value = TimerUiState(session = updated)
+        }
+    }
 }

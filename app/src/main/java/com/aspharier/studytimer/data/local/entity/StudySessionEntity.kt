@@ -13,5 +13,8 @@ data class StudySessionEntity(
     val date: String,
     val startTime: Long,
     val endTime: Long? = null,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val notes: String? = null,
+    val tag: String? = null,
+    val subjectId: Long? = null
 )

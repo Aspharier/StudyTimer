@@ -53,7 +53,10 @@ data class TimerState(
     val totalCycles: Int = 4,
     val focusMinutes: Int = 25,
     val shortBreakMinutes: Int = 5,
-    val longBreakMinutes: Int = 15
+    val longBreakMinutes: Int = 15,
+    val subjectId: Long? = null,
+    val tag: String? = null,
+    val notes: String? = null
 )
 
 @AndroidEntryPoint
@@ -90,7 +93,11 @@ class TimerService : Service() {
                 val shortBreakMinutes = intent.getIntExtra(EXTRA_SHORT_BREAK_DURATION, 5)
                 val longBreakMinutes = intent.getIntExtra(EXTRA_LONG_BREAK_DURATION, 15)
                 val cycles = intent.getIntExtra(EXTRA_CYCLES, 4)
-                startTimer(sessionId, sessionName, focusMinutes, shortBreakMinutes, longBreakMinutes, cycles)
+                val subjectIdValue = intent.getLongExtra(EXTRA_SUBJECT_ID, -1L)
+                val subjectId = if (subjectIdValue == -1L) null else subjectIdValue
+                val tag = intent.getStringExtra(EXTRA_TAG)
+                val notes = intent.getStringExtra(EXTRA_NOTES)
+                startTimer(sessionId, sessionName, focusMinutes, shortBreakMinutes, longBreakMinutes, cycles, subjectId, tag, notes)
             }
             ACTION_PAUSE -> pauseTimer()
             ACTION_RESUME -> resumeTimer()
@@ -106,7 +113,10 @@ class TimerService : Service() {
         focusMinutes: Int, 
         shortBreakMinutes: Int, 
         longBreakMinutes: Int, 
-        cycles: Int
+        cycles: Int,
+        subjectId: Long?,
+        tag: String?,
+        notes: String?
     ) {
         val totalSeconds = focusMinutes * 60L
         _timerState.value = TimerState(
@@ -124,7 +134,10 @@ class TimerService : Service() {
             totalCycles = cycles,
             focusMinutes = focusMinutes,
             shortBreakMinutes = shortBreakMinutes,
-            longBreakMinutes = longBreakMinutes
+            longBreakMinutes = longBreakMinutes,
+            subjectId = subjectId,
+            tag = tag,
+            notes = notes
         )
         _onTimerFinished.value = false
         lastPersistedCompletedSeconds = -1L
@@ -375,7 +388,10 @@ class TimerService : Service() {
                     date = state.date,
                     startTime = state.startedAtMillis,
                     endTime = endTime ?: state.startedAtMillis + (totalCompletedSeconds * 1000),
-                    isCompleted = isCompleted
+                    isCompleted = isCompleted,
+                    notes = state.notes,
+                    tag = state.tag,
+                    subjectId = state.subjectId
                 )
             )
         }
@@ -405,6 +421,9 @@ class TimerService : Service() {
         const val EXTRA_LONG_BREAK_DURATION = "extra_long_break_duration"
         const val EXTRA_CYCLES = "extra_cycles"
         const val EXTRA_LABEL = "extra_label" // legacy
+        const val EXTRA_SUBJECT_ID = "extra_subject_id"
+        const val EXTRA_TAG = "extra_tag"
+        const val EXTRA_NOTES = "extra_notes"
 
         private const val NOTIFICATION_ID = 1
         private const val FINISHED_NOTIFICATION_ID = 2
