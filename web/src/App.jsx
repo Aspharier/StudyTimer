@@ -275,134 +275,170 @@ function DashboardView({ activeGoal, sessions, subjects, setActiveTab }) {
 
   return (
     <>
+      {/* ── Page Header ── */}
       <div className="page-header">
-        <h1>Overview</h1>
+        <div>
+          <h1 style={{ fontSize: '26px', fontWeight: '700', letterSpacing: '-0.03em' }}>Overview</h1>
+          <p style={{ color: 'var(--secondary-color)', fontSize: '13px', marginTop: '2px' }}>
+            {activeGoal ? activeGoal.name : 'No exam goal set'}
+          </p>
+        </div>
         <button className="btn btn-accent" onClick={() => setActiveTab('timer')}>
-          <Play size={15} /> Start Focusing
+          <Play size={14} /> Start Focusing
         </button>
       </div>
 
-      {/* Top Stats Row — all inside one unified card */}
-      <div className="card gradient-border" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="dash-stats-row">
+      {/* ── Hero Stats Row ── */}
+      <div className="db-hero-strip">
 
-          {/* Exam Countdown block */}
-          <div className="dash-stat-block">
-            <div className="card-title" style={{ marginBottom: '10px' }}>
-              🎯 {activeGoal ? activeGoal.name : 'Exam Goal'}
-            </div>
-            {activeGoal ? (
-              <>
-                <div className="dash-stat-value">{daysRemaining}</div>
-                <div className="dash-stat-label">days remaining</div>
-                <button
-                  className="btn btn-secondary"
-                  style={{ marginTop: '16px', alignSelf: 'flex-start' }}
-                  onClick={() => setActiveTab('account')}
-                >
-                  Manage Goals
-                </button>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: '14px', color: 'var(--secondary-color)', margin: '8px 0 16px' }}>
-                  No active exam goal set
-                </div>
-                <button className="btn btn-accent" style={{ alignSelf: 'flex-start' }} onClick={() => setActiveTab('account')}>
-                  Set Goal
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Daily Progress block */}
-          <div className="dash-stat-block" style={{ gap: '14px' }}>
-            <div className="card-title" style={{ marginBottom: '4px' }}>📈 Today's Progress</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              {/* Mini ring */}
-              <div style={{ width: '80px', height: '80px', position: 'relative', flexShrink: 0 }}>
-                <svg className="timer-svg" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="40" className="timer-circle-bg" strokeWidth="10" />
-                  <circle
-                    cx="50" cy="50" r="40"
-                    className="timer-circle-progress"
-                    strokeWidth="10"
-                    style={{ strokeDashoffset: 251.3 - (251.3 * progressPercent) }}
-                  />
-                </svg>
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
-                }}>
-                  <span style={{ fontSize: '14px', fontWeight: '800', lineHeight: 1 }}>
-                    {(todaySeconds / 3600).toFixed(1)}h
-                  </span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ fontSize: '11px', color: 'var(--secondary-color)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Target
-                </div>
-                <div style={{ fontSize: '22px', fontWeight: '700', color: 'var(--primary-color)' }}>
-                  {(dailyTargetMinutes / 60).toFixed(1)}h
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Streak block */}
-          <div className="dash-stat-block">
-            <div className="card-title" style={{ marginBottom: '10px' }}>🔥 Streak</div>
-            <div className="dash-stat-value" style={{ color: currentStreak > 0 ? '#F97316' : 'var(--secondary-color)', textShadow: currentStreak > 0 ? '0 0 20px rgba(249,115,22,0.4)' : 'none' }}>
-              {currentStreak}
-            </div>
-            <div className="dash-stat-label">
-              {currentStreak === 1 ? 'day streak' : 'day streak'}
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--secondary-color)', marginTop: '8px' }}>
-              {currentStreak > 0 ? 'Amazing consistency!' : 'Study today to start one'}
-            </div>
-          </div>
-
+        {/* Exam Countdown */}
+        <div className="db-stat-block db-stat-accent">
+          {activeGoal ? (
+            <>
+              <span className="db-stat-eyebrow">
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="4"/></svg>
+                {activeGoal.name}
+              </span>
+              <div className="db-stat-number" style={{ color: 'var(--accent-color)' }}>{daysRemaining}</div>
+              <div className="db-stat-label">days remaining</div>
+              <button
+                className="db-stat-link"
+                onClick={() => setActiveTab('account')}
+              >Manage Goals →</button>
+            </>
+          ) : (
+            <>
+              <span className="db-stat-eyebrow">Exam Goal</span>
+              <div className="db-stat-number" style={{ color: 'var(--tertiary-color)', fontSize: '28px' }}>—</div>
+              <div className="db-stat-label">no goal set</div>
+              <button className="db-stat-link" onClick={() => setActiveTab('account')}>Set Goal →</button>
+            </>
+          )}
         </div>
+
+        {/* Divider */}
+        <div className="db-divider" />
+
+        {/* Daily Progress Ring */}
+        <div className="db-stat-block db-stat-center">
+          <span className="db-stat-eyebrow">
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{color:'var(--accent-color)'}}><circle cx="4" cy="4" r="4"/></svg>
+            Today's Progress
+          </span>
+          <div className="db-ring-wrap">
+            <svg viewBox="0 0 100 100" className="db-ring-svg">
+              <circle cx="50" cy="50" r="38" fill="none" stroke="var(--surface-variant)" strokeWidth="7"/>
+              <circle
+                cx="50" cy="50" r="38" fill="none"
+                stroke="var(--accent-color)"
+                strokeWidth="7"
+                strokeLinecap="round"
+                strokeDasharray="238.76"
+                strokeDashoffset={238.76 - 238.76 * progressPercent}
+                style={{ transition: 'stroke-dashoffset 1s ease', filter: 'drop-shadow(0 0 6px var(--accent-glow))' }}
+              />
+            </svg>
+            <div className="db-ring-inner">
+              <span className="db-ring-val">{(todaySeconds / 3600).toFixed(1)}h</span>
+              <span className="db-ring-sub">of {(dailyTargetMinutes / 60).toFixed(1)}h</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="db-divider" />
+
+        {/* Streak */}
+        <div className="db-stat-block">
+          <span className="db-stat-eyebrow">
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{color:'#F97316'}}><circle cx="4" cy="4" r="4"/></svg>
+            Streak
+          </span>
+          <div className="db-stat-number" style={{ color: currentStreak > 0 ? '#F97316' : 'var(--secondary-color)' }}>
+            {currentStreak}
+          </div>
+          <div className="db-stat-label">day streak</div>
+          <div className="db-streak-msg">
+            {currentStreak > 0 ? '🔥 Amazing consistency!' : 'Study today to start'}
+          </div>
+        </div>
+
       </div>
 
-      {/* Syllabus Completion */}
+      {/* ── Syllabus Completion Card ── */}
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div className="card-title" style={{ marginBottom: 0 }}>📚 Syllabus Completion</div>
-          <button className="btn btn-secondary" style={{ fontSize: '12px', padding: '7px 14px' }} onClick={() => setActiveTab('syllabus')}>
-            View All <ChevronRight size={13} />
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div className="card-title" style={{ marginBottom: 0 }}>
+            <BookOpen size={16} style={{ opacity: 0.7 }} /> Syllabus Completion
+          </div>
+          {subjectsWithRates.length > 0 && (
+            <button
+              className="db-stat-link"
+              onClick={() => setActiveTab('syllabus')}
+              style={{ fontSize: '12px' }}
+            >View All →</button>
+          )}
         </div>
+
         {subjectsWithRates.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             {subjectsWithRates.map(s => (
-              <div key={s.id}>
+              <div key={s.id} className="db-syllabus-row">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontWeight: '600', fontSize: '14px', color: 'var(--primary-color)' }}>{s.name}</span>
-                  <span style={{ color: s.colorHex, fontWeight: '700', fontSize: '13px' }}>
-                    {(s.rate * 100).toFixed(0)}% <span style={{ color: 'var(--secondary-color)', fontWeight: '400' }}>({s.completed}/{s.total})</span>
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span
+                      style={{
+                        width: '8px', height: '8px', borderRadius: '50%',
+                        backgroundColor: s.colorHex, flexShrink: 0,
+                        boxShadow: `0 0 6px ${s.colorHex}88`
+                      }}
+                    />
+                    <span style={{ fontWeight: '600', fontSize: '14px', color: 'var(--primary-color)' }}>{s.name}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--secondary-color)' }}>
+                      {s.completed}/{s.total} topics
+                    </span>
+                    <span style={{
+                      fontSize: '12px', fontWeight: '700', color: s.colorHex,
+                      background: `${s.colorHex}18`, padding: '2px 8px',
+                      borderRadius: '9999px', border: `1px solid ${s.colorHex}35`
+                    }}>
+                      {(s.rate * 100).toFixed(0)}%
+                    </span>
+                  </div>
                 </div>
-                <div className="progress-bar-bg">
-                  <div
-                    className="progress-bar-fill"
-                    style={{ width: `${s.rate * 100}%`, background: `linear-gradient(90deg, ${s.colorHex}, ${s.colorHex}dd)` }}
-                  />
+                <div style={{
+                  width: '100%', height: '4px',
+                  background: 'var(--surface-variant)',
+                  borderRadius: '9999px', overflow: 'hidden'
+                }}>
+                  <div style={{
+                    width: `${s.rate * 100}%`, height: '100%',
+                    background: s.colorHex,
+                    borderRadius: '9999px',
+                    transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)',
+                    boxShadow: `0 0 8px ${s.colorHex}66`
+                  }} />
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="empty-state">
-            <div className="empty-state-icon">📖</div>
-            <p>No subjects yet. Add your first subject to track progress.</p>
-            <button className="btn btn-secondary" onClick={() => setActiveTab('syllabus')}>Add Subjects</button>
+          <div style={{ textAlign: 'center', padding: '32px 20px' }}>
+            <div style={{
+              width: '48px', height: '48px', borderRadius: '50%',
+              background: 'var(--accent-dim)', border: '1px solid var(--border-accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 12px', color: 'var(--accent-color)'
+            }}>
+              <BookOpen size={20} />
+            </div>
+            <p style={{ color: 'var(--secondary-color)', marginBottom: '16px', fontSize: '14px' }}>No subjects in your syllabus yet.</p>
+            <button className="btn btn-secondary" style={{ fontSize: '13px' }} onClick={() => setActiveTab('syllabus')}>Add Subjects</button>
           </div>
         )}
       </div>
-
     </>
   );
 }

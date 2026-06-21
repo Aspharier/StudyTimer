@@ -511,8 +511,20 @@ h1, h2, h3, h4 {
   padding: 36px 40px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 28px;
   position: relative;
+}
+
+/* Dot grid background pattern */
+.main-content::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--border-color) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
 }
 
 .main-content > * {
@@ -527,25 +539,17 @@ h1, h2, h3, h4 {
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
 }
 
 .page-header h1 {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   color: var(--primary-color);
   letter-spacing: -0.03em;
 }
 
-.page-header p {
-  font-size: 13px;
-  color: var(--secondary-color);
-  margin-top: 3px;
-}
-
 /* ============================================
-   CARDS — Clean Panel Design
+   GLASSMORPHISM CARDS
    ============================================ */
 .card {
   background: var(--surface-color);
@@ -554,48 +558,46 @@ h1, h2, h3, h4 {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
   padding: 24px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: var(--transition);
   position: relative;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
 .card::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(160deg, rgba(255,255,255,0.025) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 50%);
   pointer-events: none;
   border-radius: inherit;
 }
 
 .card:hover {
-  border-color: rgba(255, 255, 255, 0.13);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .card-title {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  margin-bottom: 18px;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 20px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  color: var(--secondary-color);
+  gap: 8px;
+  color: var(--primary-color);
+  letter-spacing: -0.01em;
 }
 
 .card-title svg {
   color: var(--accent-color);
-  opacity: 0.9;
+  opacity: 0.8;
 }
 
 /* Accent card variant */
 .card-accent {
   border-color: var(--border-accent);
-  background: linear-gradient(135deg, var(--accent-dim) 0%, var(--surface-color) 80%);
+  background: linear-gradient(135deg, var(--accent-dim) 0%, var(--surface-color) 100%);
 }
 
 /* Gradient accent top bar */
@@ -607,67 +609,7 @@ h1, h2, h3, h4 {
   right: 0;
   height: 2px;
   background: linear-gradient(90deg, var(--accent-color), var(--accent-2, #6C63FF));
-  box-shadow: 0 0 12px var(--accent-glow);
-}
-
-/* ============================================
-   GRID LAYOUTS — Always equal-height rows
-   ============================================ */
-.grid-2 {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 18px;
-  align-items: stretch;
-}
-
-.grid-3 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  align-items: stretch;
-}
-
-.flex-row-between {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* Dashboard top stats: side-by-side stat blocks inside one card */
-.dash-stats-row {
-  display: flex;
-  gap: 0;
-  align-items: stretch;
-}
-
-.dash-stat-block {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  padding: 16px 20px;
-}
-
-.dash-stat-block + .dash-stat-block {
-  border-left: 1px solid var(--border-color);
-}
-
-.dash-stat-value {
-  font-size: 42px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  color: var(--accent-color);
-  text-shadow: 0 0 20px var(--accent-glow);
-}
-
-.dash-stat-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--secondary-color);
+  box-shadow: 0 0 16px var(--accent-glow);
 }
 
 /* ============================================
@@ -895,8 +837,26 @@ select option:checked {
   box-shadow: 0 0 6px var(--accent-glow);
 }
 
+/* ============================================
+   GRID LAYOUTS
+   ============================================ */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
 
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
 
+.flex-row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
 /* ============================================
    POMODORO TIMER RING
@@ -1387,34 +1347,189 @@ select option:checked {
 }
 
 /* ============================================
-   DASHBOARD STATS ROW RESPONSIVE
+   DASHBOARD — Hero Stats Strip
    ============================================ */
-.dashboard-progress-flex {
+
+/* Full-width horizontal panel containing the 3 stat blocks */
+.db-hero-strip {
   display: flex;
-  gap: 24px;
+  align-items: stretch;
+  background: var(--surface-color);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  position: relative;
+}
+
+/* Subtle top accent line */
+.db-hero-strip::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent-color) 50%, transparent 100%);
+  opacity: 0.4;
+}
+
+/* Each stat block inside the strip */
+.db-stat-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 28px 32px;
+  position: relative;
+}
+
+/* Center-aligned stat (progress ring) */
+.db-stat-block.db-stat-center {
   align-items: center;
 }
 
-@media (max-width: 480px) {
-  .dashboard-progress-flex {
-    flex-direction: column;
-    text-align: center;
-  }
+/* Accent left border on the first block */
+.db-stat-block.db-stat-accent {
+  border-left: 2px solid var(--border-accent);
 }
 
-@media (max-width: 700px) {
-  .dash-stats-row {
+/* Thin vertical divider between blocks */
+.db-divider {
+  width: 1px;
+  background: var(--border-color);
+  flex-shrink: 0;
+  margin: 20px 0;
+}
+
+/* Small uppercase eyebrow label */
+.db-stat-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--secondary-color);
+  margin-bottom: 6px;
+}
+
+/* Large metric number */
+.db-stat-number {
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+/* Small descriptor below the number */
+.db-stat-label {
+  font-size: 12px;
+  color: var(--secondary-color);
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+/* Subtle streak message */
+.db-streak-msg {
+  font-size: 12px;
+  color: var(--secondary-color);
+  margin-top: 4px;
+}
+
+/* Ghost link-style button */
+.db-stat-link {
+  background: none;
+  border: none;
+  color: var(--accent-color);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  margin-top: 8px;
+  transition: var(--transition-fast);
+  letter-spacing: 0;
+  text-align: left;
+}
+.db-stat-link:hover {
+  opacity: 0.75;
+  text-decoration: underline;
+}
+
+/* Progress ring */
+.db-ring-wrap {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin-top: 8px;
+}
+
+.db-ring-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.db-ring-inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.db-ring-val {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--primary-color);
+  line-height: 1;
+}
+
+.db-ring-sub {
+  font-size: 10px;
+  color: var(--secondary-color);
+  font-weight: 500;
+}
+
+/* Syllabus rows */
+.db-syllabus-row {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-color);
+}
+.db-syllabus-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* ── Responsive collapse ── */
+@media (max-width: 768px) {
+  .db-hero-strip {
     flex-direction: column;
   }
-  .dash-stat-block + .dash-stat-block {
+  .db-divider {
+    width: 100%;
+    height: 1px;
+    margin: 0 20px;
+    width: calc(100% - 40px);
+  }
+  .db-stat-block {
+    padding: 20px 24px;
+  }
+  .db-stat-block.db-stat-accent {
     border-left: none;
-    border-top: 1px solid var(--border-color);
+    border-bottom: 2px solid var(--border-accent);
   }
-  .dash-stat-value {
-    font-size: 32px;
-  }
+  .db-stat-number { font-size: 40px; }
+  .db-ring-wrap { width: 100px; height: 100px; }
+  .db-ring-val { font-size: 17px; }
 }
-
 
 /* ============================================
    ANALYTICS CHART CARDS
