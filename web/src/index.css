@@ -751,6 +751,23 @@ select.input-field {
   cursor: pointer;
 }
 
+/* Fix: native <option> elements need explicit colors or text is invisible */
+select.input-field option,
+select option {
+  background-color: var(--surface-solid, #1a1a2e);
+  color: var(--primary-color, #f0f0f8);
+  font-family: inherit;
+  padding: 8px 12px;
+}
+
+select.input-field option:hover,
+select option:hover,
+select.input-field option:checked,
+select option:checked {
+  background-color: var(--accent-dim, rgba(0,217,165,0.15));
+  color: var(--accent-color, #00D9A5);
+}
+
 .input-field:focus {
   border-color: var(--border-accent);
   box-shadow: 0 0 0 3px var(--accent-dim);
