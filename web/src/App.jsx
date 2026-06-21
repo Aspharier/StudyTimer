@@ -776,6 +776,8 @@ function SyllabusView({ activeGoal, subjects, topics }) {
   const [topicName, setTopicName] = useState('');
 
   const [expandedSubjId, setExpandedSubjId] = useState(null);
+  const [activeAddSubTopicId, setActiveAddSubTopicId] = useState(null);
+  const [subTopicName, setSubTopicName] = useState('');
 
   const colors = ["#4D96FF", "#FF6B6B", "#6BCB77", "#FFD93D", "#95CD41", "#F473B9", "#A855F7", "#F97316"];
 
@@ -797,7 +799,8 @@ function SyllabusView({ activeGoal, subjects, topics }) {
       name: topicName.trim(),
       subjectId: showAddTopicSubjId,
       status: 'NOT_STARTED',
-      sortOrder: topics.filter(t => t.subjectId === showAddTopicSubjId).length
+      sortOrder: topics.filter(t => t.subjectId === showAddTopicSubjId).length,
+      subTopics: []
     });
     setTopicName('');
     setShowAddTopicSubjId(null);
@@ -809,6 +812,47 @@ function SyllabusView({ activeGoal, subjects, topics }) {
     DataService.saveTopic({
       ...topic,
       status: statuses[nextIndex]
+    });
+  };
+
+  const handleAddSubTopic = (topic) => {
+    if (!subTopicName.trim()) return;
+    const newSub = {
+      id: String(Date.now()),
+      name: subTopicName.trim(),
+      status: 'NOT_STARTED'
+    };
+    const updatedSubTopics = [...(topic.subTopics || []), newSub];
+    DataService.saveTopic({
+      ...topic,
+      subTopics: updatedSubTopics
+    });
+    setSubTopicName('');
+    setActiveAddSubTopicId(null);
+  };
+
+  const handleDeleteSubTopic = (topic, subTopicId) => {
+    if (confirm("Delete this sub-topic?")) {
+      const updatedSubTopics = (topic.subTopics || []).filter(sub => sub.id !== subTopicId);
+      DataService.saveTopic({
+        ...topic,
+        subTopics: updatedSubTopics
+      });
+    }
+  };
+
+  const handleCycleSubTopicStatus = (topic, subTopicId) => {
+    const statuses = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'];
+    const updatedSubTopics = (topic.subTopics || []).map(sub => {
+      if (sub.id === subTopicId) {
+        const nextIndex = (statuses.indexOf(sub.status) + 1) % statuses.length;
+        return { ...sub, status: statuses[nextIndex] };
+      }
+      return sub;
+    });
+    DataService.saveTopic({
+      ...topic,
+      subTopics: updatedSubTopics
     });
   };
 
@@ -891,20 +935,79 @@ function SyllabusView({ activeGoal, subjects, topics }) {
                         const conf = statusColors[t.status] || statusColors.NOT_STARTED;
 
                         return (
-                          <div key={t.id} className="flex-row-between" style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)' }}>
-                            <span style={{ fontSize: '14px', fontWeight: '500' }}>{t.name}</span>
-                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                              <span 
-                                className="chip"
-                                style={{ backgroundColor: conf.bg, color: conf.text }}
-                                onClick={() => handleCycleStatus(t)}
-                              >
-                                {conf.label}
-                              </span>
-                              <button className="btn btn-secondary" style={{ padding: '4px' }} onClick={() => DataService.deleteTopic(t.id)}>
-                                <Trash2 size={14} color="rgba(255, 107, 107, 0.6)" />
-                              </button>
+                          <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', padding: '8px 12px' }}>
+                            <div className="flex-row-between" style={{ width: '100%' }}>
+                              <span style={{ fontSize: '14px', fontWeight: '500' }}>{t.name}</span>
+                              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                <span 
+                                  className="chip"
+                                  style={{ backgroundColor: conf.bg, color: conf.text }}
+                                  onClick={() => handleCycleStatus(t)}
+                                >
+                                  {conf.label}
+                                </span>
+                                <button 
+                                  className="btn btn-secondary" 
+                                  style={{ padding: '4px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }} 
+                                  onClick={() => {
+                                    setActiveAddSubTopicId(activeAddSubTopicId === t.id ? null : t.id);
+                                    setSubTopicName('');
+                                  }}
+                                >
+                                  <Plus size={12} /> Sub-topic
+                                </button>
+                                <button className="btn btn-secondary" style={{ padding: '4px' }} onClick={() => DataService.deleteTopic(t.id)}>
+                                  <Trash2 size={14} color="rgba(255, 107, 107, 0.6)" />
+                                </button>
+                              </div>
                             </div>
+
+                            {/* Subtopics rendering */}
+                            {(t.subTopics || []).map(sub => {
+                              const subStatusColors = {
+                                NOT_STARTED: { bg: 'var(--surface-variant)', text: 'var(--secondary-color)', label: 'Not Started' },
+                                IN_PROGRESS: { bg: 'rgba(59, 130, 246, 0.15)', text: '#3B82F6', label: 'In Progress' },
+                                COMPLETED: { bg: 'rgba(16, 185, 129, 0.15)', text: '#10B981', label: 'Finished' }
+                              };
+                              const subConf = subStatusColors[sub.status] || subStatusColors.NOT_STARTED;
+                              return (
+                                <div key={sub.id} className="flex-row-between" style={{ padding: '6px 12px 6px 20px', background: 'transparent', borderLeft: '2px solid var(--surface-variant)', marginLeft: '12px', marginTop: '4px' }}>
+                                  <span style={{ fontSize: '13px', color: 'var(--text-color)', opacity: 0.9 }}>{sub.name}</span>
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <span 
+                                      className="chip"
+                                      style={{ backgroundColor: subConf.bg, color: subConf.text, fontSize: '11px', padding: '2px 8px' }}
+                                      onClick={() => handleCycleSubTopicStatus(t, sub.id)}
+                                    >
+                                      {subConf.label}
+                                    </span>
+                                    <button className="btn btn-secondary" style={{ padding: '3px' }} onClick={() => handleDeleteSubTopic(t, sub.id)}>
+                                      <Trash2 size={12} color="rgba(255, 107, 107, 0.6)" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {/* Add subtopic inline input */}
+                            {activeAddSubTopicId === t.id && (
+                              <div style={{ paddingLeft: '20px', borderLeft: '2px solid var(--accent-color)', marginLeft: '12px', marginTop: '6px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <input 
+                                  type="text" 
+                                  className="input-field" 
+                                  style={{ padding: '4px 8px', fontSize: '12px', width: '180px', margin: 0 }}
+                                  placeholder="Sub-topic name..." 
+                                  value={subTopicName}
+                                  onChange={(e) => setSubTopicName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleAddSubTopic(t);
+                                  }}
+                                  autoFocus
+                                />
+                                <button className="btn btn-accent" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => handleAddSubTopic(t)}>Add</button>
+                                <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => { setActiveAddSubTopicId(null); setSubTopicName(''); }}>Cancel</button>
+                              </div>
+                            )}
                           </div>
                         );
                       })

@@ -5,5 +5,6 @@ data class Topic(
     val name: String,
     val subjectId: Long,
     val status: TopicStatus = TopicStatus.NOT_STARTED,
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val subTopics: List<SubTopic> = emptyList()
 )

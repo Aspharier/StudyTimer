@@ -4,6 +4,8 @@ import com.aspharier.studytimer.data.local.dao.SubjectDao
 import com.aspharier.studytimer.data.local.dao.TopicDao
 import com.aspharier.studytimer.data.local.entity.SubjectEntity
 import com.aspharier.studytimer.data.local.entity.TopicEntity
+import com.aspharier.studytimer.data.local.entity.toJsonString
+import com.aspharier.studytimer.data.local.entity.toSubTopicsList
 import com.aspharier.studytimer.domain.model.Subject
 import com.aspharier.studytimer.domain.model.Topic
 import com.aspharier.studytimer.domain.model.TopicStatus
@@ -96,7 +98,7 @@ class SyllabusRepository @Inject constructor(
         topicDao.updateStatus(id, status.name)
     }
 
-    // Mappers
+// Mappers
     private fun Subject.toEntity() = SubjectEntity(
         id = id,
         name = name,
@@ -120,7 +122,8 @@ class SyllabusRepository @Inject constructor(
         name = name,
         subjectId = subjectId,
         status = status.name,
-        sortOrder = sortOrder
+        sortOrder = sortOrder,
+        subTopicsJson = subTopics.toJsonString()
     )
 
     private fun TopicEntity.toModel() = Topic(
@@ -128,6 +131,7 @@ class SyllabusRepository @Inject constructor(
         name = name,
         subjectId = subjectId,
         status = runCatching { TopicStatus.valueOf(status) }.getOrDefault(TopicStatus.NOT_STARTED),
-        sortOrder = sortOrder
+        sortOrder = sortOrder,
+        subTopics = subTopicsJson.toSubTopicsList()
     )
 }

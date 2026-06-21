@@ -161,7 +161,13 @@ const syncLocalToCloud = async (uid) => {
 
     topics.forEach(t => {
       const ref = doc(db, 'users', uid, 'topics', String(t.id));
-      batch.set(ref, { name: t.name, subjectId: t.subjectId, status: t.status, sortOrder: t.sortOrder });
+      batch.set(ref, { 
+        name: t.name, 
+        subjectId: t.subjectId, 
+        status: t.status, 
+        sortOrder: t.sortOrder,
+        subTopics: t.subTopics || []
+      });
     });
 
     sessions.forEach(se => {
@@ -327,7 +333,12 @@ export const DataService = {
   // Topics CRUD
   saveTopic: async (topic) => {
     const id = topic.id || String(Date.now());
-    const newTopic = { ...topic, id, status: topic.status || 'NOT_STARTED' };
+    const newTopic = { 
+      ...topic, 
+      id, 
+      status: topic.status || 'NOT_STARTED',
+      subTopics: topic.subTopics || []
+    };
 
     topics = topics.filter(x => x.id !== id);
     topics.push(newTopic);
@@ -340,7 +351,8 @@ export const DataService = {
         name: newTopic.name,
         subjectId: newTopic.subjectId,
         status: newTopic.status,
-        sortOrder: newTopic.sortOrder || 0
+        sortOrder: newTopic.sortOrder || 0,
+        subTopics: newTopic.subTopics
       });
     }
   },

@@ -7,6 +7,7 @@ import com.aspharier.studytimer.data.repository.SyllabusRepository
 import com.aspharier.studytimer.domain.model.Subject
 import com.aspharier.studytimer.domain.model.Topic
 import com.aspharier.studytimer.domain.model.TopicStatus
+import com.aspharier.studytimer.domain.model.SubTopic
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -146,5 +147,43 @@ class SyllabusViewModel @Inject constructor(
             TopicStatus.NEEDS_REVISION -> TopicStatus.NOT_STARTED
         }
         updateTopicStatus(topic.id, nextStatus)
+    }
+
+    fun addSubTopic(topic: Topic, name: String) {
+        val newSub = SubTopic(
+            id = System.currentTimeMillis().toString(),
+            name = name,
+            status = TopicStatus.NOT_STARTED
+        )
+        val updated = topic.subTopics + newSub
+        viewModelScope.launch {
+            syllabusRepository.updateTopic(topic.copy(subTopics = updated))
+        }
+    }
+
+    fun deleteSubTopic(topic: Topic, subTopicId: String) {
+        val updated = topic.subTopics.filterNot { it.id == subTopicId }
+        viewModelScope.launch {
+            syllabusRepository.updateTopic(topic.copy(subTopics = updated))
+        }
+    }
+
+    fun cycleSubTopicStatus(topic: Topic, subTopicId: String) {
+        val updated = topic.subTopics.map { sub ->
+            if (sub.id == subTopicId) {
+                val nextStatus = when (sub.status) {
+                    TopicStatus.NOT_STARTED -> TopicStatus.IN_PROGRESS
+                    TopicStatus.IN_PROGRESS -> TopicStatus.COMPLETED
+                    TopicStatus.COMPLETED -> TopicStatus.NOT_STARTED
+                    else -> TopicStatus.NOT_STARTED
+                }
+                sub.copy(status = nextStatus)
+            } else {
+                sub
+            }
+        }
+        viewModelScope.launch {
+            syllabusRepository.updateTopic(topic.copy(subTopics = updated))
+        }
     }
 }

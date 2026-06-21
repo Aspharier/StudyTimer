@@ -8,6 +8,7 @@ import com.aspharier.studytimer.domain.model.StudySession
 import com.aspharier.studytimer.domain.model.Subject
 import com.aspharier.studytimer.domain.model.Topic
 import com.aspharier.studytimer.domain.model.TopicStatus
+import com.aspharier.studytimer.domain.model.SubTopic
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
@@ -82,9 +83,20 @@ class SyncManager @Inject constructor(
             val statusStr = doc.getString("status") ?: "NOT_STARTED"
             val sortOrder = doc.getLong("sortOrder")?.toInt() ?: 0
             
+            // Sync sub-topics list from document if it exists
+            @Suppress("UNCHECKED_CAST")
+            val subTopicsDataList = doc.get("subTopics") as? List<Map<String, Any>>
+            val subTopics = subTopicsDataList?.mapNotNull { subMap ->
+                val subId = subMap["id"] as? String ?: return@mapNotNull null
+                val subName = subMap["name"] as? String ?: return@mapNotNull null
+                val subStatusStr = subMap["status"] as? String ?: "NOT_STARTED"
+                val subStatus = runCatching { TopicStatus.valueOf(subStatusStr) }.getOrDefault(TopicStatus.NOT_STARTED)
+                SubTopic(id = subId, name = subName, status = subStatus)
+            } ?: emptyList()
+
             val status = runCatching { TopicStatus.valueOf(statusStr) }.getOrDefault(TopicStatus.NOT_STARTED)
 
-            val topic = Topic(id = id, name = name, subjectId = subjectId, status = status, sortOrder = sortOrder)
+            val topic = Topic(id = id, name = name, subjectId = subjectId, status = status, sortOrder = sortOrder, subTopics = subTopics)
             syllabusRepository.insertTopic(topic)
         }
 
@@ -150,16 +162,22 @@ class SyncManager @Inject constructor(
         }
 
         // Upload Topics
-        // Since getTopicsBySubject is per-subject, we can load them for each subject, or we can load all topics?
-        // Wait, did we add a way to get all topics? SyllabusRepository has getTopicsBySubject. We can query subjects first, then fetch topics.
         for (subj in subjects) {
             val topics = syllabusRepository.getTopicsBySubject(subj.id).first()
             for (topic in topics) {
+                val subTopicsList = topic.subTopics.map { sub ->
+                    mapOf(
+                        "id" to sub.id,
+                        "name" to sub.name,
+                        "status" to sub.status.name
+                    )
+                }
                 val data = mapOf(
                     "name" to topic.name,
                     "subjectId" to topic.subjectId,
                     "status" to topic.status.name,
-                    "sortOrder" to topic.sortOrder
+                    "sortOrder" to topic.sortOrder,
+                    "subTopics" to subTopicsList
                 )
                 userDocRef.collection("topics").document(topic.id.toString()).set(data).await()
             }

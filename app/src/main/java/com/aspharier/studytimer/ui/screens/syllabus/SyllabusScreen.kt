@@ -196,7 +196,10 @@ fun SyllabusScreen(
                             onDeleteTopic = { topicId -> viewModel.deleteTopic(topicId) },
                             onCycleTopicStatus = { topic -> viewModel.cycleTopicStatus(topic) },
                             onEditClick = { showEditSubjectDialog = subject },
-                            onDeleteClick = { showDeleteSubjectDialog = subject }
+                            onDeleteClick = { showDeleteSubjectDialog = subject },
+                            onAddSubTopic = { topic, name -> viewModel.addSubTopic(topic, name) },
+                            onDeleteSubTopic = { topic, subId -> viewModel.deleteSubTopic(topic, subId) },
+                            onCycleSubTopicStatus = { topic, subId -> viewModel.cycleSubTopicStatus(topic, subId) }
                         )
                     }
                 }
@@ -418,7 +421,10 @@ fun SubjectCard(
     onDeleteTopic: (Long) -> Unit,
     onCycleTopicStatus: (Topic) -> Unit,
     onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onAddSubTopic: (Topic, String) -> Unit,
+    onDeleteSubTopic: (Topic, String) -> Unit,
+    onCycleSubTopicStatus: (Topic, String) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val progress = subject.completionPercentage
@@ -529,7 +535,10 @@ fun SubjectCard(
                             TopicRowItem(
                                 topic = topic,
                                 onCycleStatus = { onCycleTopicStatus(topic) },
-                                onDelete = { onDeleteTopic(topic.id) }
+                                onDelete = { onDeleteTopic(topic.id) },
+                                onAddSubTopic = { name -> onAddSubTopic(topic, name) },
+                                onDeleteSubTopic = { subId -> onDeleteSubTopic(topic, subId) },
+                                onCycleSubTopicStatus = { subId -> onCycleSubTopicStatus(topic, subId) }
                             )
                         }
                     } else {
@@ -566,68 +575,209 @@ fun SubjectCard(
 fun TopicRowItem(
     topic: Topic,
     onCycleStatus: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onAddSubTopic: (String) -> Unit,
+    onDeleteSubTopic: (String) -> Unit,
+    onCycleSubTopicStatus: (String) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    var showAddSubTopicDialog by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            text = topic.name,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Status Chip
-            val (chipColor, textColor, text) = when (topic.status) {
-                TopicStatus.NOT_STARTED -> Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "Not Started")
-                TopicStatus.IN_PROGRESS -> Triple(Color(0xFF3B82F6).copy(alpha = 0.2f), Color(0xFF3B82F6), "In Progress")
-                TopicStatus.COMPLETED -> Triple(Color(0xFF10B981).copy(alpha = 0.2f), Color(0xFF10B981), "Completed")
-                TopicStatus.NEEDS_REVISION -> Triple(Color(0xFFF97316).copy(alpha = 0.2f), Color(0xFFF97316), "Needs Revision")
-            }
+            Text(
+                text = topic.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
 
-            Surface(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onCycleStatus()
-                },
-                shape = CircleShape,
-                color = chipColor,
-                modifier = Modifier.height(28.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    text = text,
-                    color = textColor,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                )
-            }
+                // Status Chip
+                val (chipColor, textColor, text) = when (topic.status) {
+                    TopicStatus.NOT_STARTED -> Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "Not Started")
+                    TopicStatus.IN_PROGRESS -> Triple(Color(0xFF3B82F6).copy(alpha = 0.2f), Color(0xFF3B82F6), "In Progress")
+                    TopicStatus.COMPLETED -> Triple(Color(0xFF10B981).copy(alpha = 0.2f), Color(0xFF10B981), "Completed")
+                    TopicStatus.NEEDS_REVISION -> Triple(Color(0xFFF97316).copy(alpha = 0.2f), Color(0xFFF97316), "Needs Revision")
+                }
 
-            IconButton(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onDelete()
-                },
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete Topic",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                    modifier = Modifier.size(18.dp)
-                )
+                Surface(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onCycleStatus()
+                    },
+                    shape = CircleShape,
+                    color = chipColor,
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Text(
+                        text = text,
+                        color = textColor,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showAddSubTopicDialog = true
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Sub-topic",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onDelete()
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete Topic",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
+
+        // Subtopics List
+        if (topic.subTopics.isNotEmpty()) {
+            topic.subTopics.forEach { subTopic ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, top = 2.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        // Small indicator dot/dash
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = subTopic.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Subtopic Status Chip
+                        val (subChipColor, subTextColor, subText) = when (subTopic.status) {
+                            TopicStatus.NOT_STARTED -> Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "Not Started")
+                            TopicStatus.IN_PROGRESS -> Triple(Color(0xFF3B82F6).copy(alpha = 0.2f), Color(0xFF3B82F6), "In Progress")
+                            TopicStatus.COMPLETED -> Triple(Color(0xFF10B981).copy(alpha = 0.2f), Color(0xFF10B981), "Finished")
+                            else -> Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "Not Started")
+                        }
+
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onCycleSubTopicStatus(subTopic.id)
+                            },
+                            shape = CircleShape,
+                            color = subChipColor,
+                            modifier = Modifier.height(24.dp)
+                        ) {
+                            Text(
+                                text = subText,
+                                color = subTextColor,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onDeleteSubTopic(subTopic.id)
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete Sub-topic",
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Add Sub-topic Dialog
+    if (showAddSubTopicDialog) {
+        var subTopicNameInput by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddSubTopicDialog = false },
+            title = { Text("Add Sub-topic") },
+            text = {
+                OutlinedTextField(
+                    value = subTopicNameInput,
+                    onValueChange = { subTopicNameInput = it },
+                    label = { Text("Sub-topic Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (subTopicNameInput.isNotBlank()) {
+                            onAddSubTopic(subTopicNameInput.trim())
+                            showAddSubTopicDialog = false
+                        }
+                    }
+                ) {
+                    Text("Add")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddSubTopicDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

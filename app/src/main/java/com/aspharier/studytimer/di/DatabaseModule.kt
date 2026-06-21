@@ -26,7 +26,7 @@ object DatabaseModule {
             StudyTimerDatabase::class.java,
             "study_timer_database"
         )
-            .addMigrations(StudyTimerDatabase.MIGRATION_1_2)
+            .addMigrations(StudyTimerDatabase.MIGRATION_1_2, StudyTimerDatabase.MIGRATION_2_3)
             .build()
     }
 

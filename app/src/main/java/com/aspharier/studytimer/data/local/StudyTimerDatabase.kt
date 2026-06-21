@@ -20,7 +20,7 @@ import com.aspharier.studytimer.data.local.entity.TopicEntity
         SubjectEntity::class,
         TopicEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class StudyTimerDatabase : RoomDatabase() {
@@ -74,6 +74,12 @@ abstract class StudyTimerDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_topics_subjectId ON topics(subjectId)")
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE topics ADD COLUMN subTopicsJson TEXT DEFAULT NULL")
             }
         }
     }
