@@ -47,6 +47,7 @@ class SyncManager @Inject constructor(
         // Download Exam Goals
         val goalsSnapshot = firestore.collection("users").document(uid).collection("exam_goals")
             .get().await()
+        val validGoalIds = mutableSetOf<Long>()
         for (doc in goalsSnapshot.documents) {
             val id = doc.id.toLongOrNull() ?: continue
             val name = doc.getString("name") ?: continue
@@ -57,20 +58,31 @@ class SyncManager @Inject constructor(
 
             val goal = ExamGoal(id = id, name = name, examDate = examDate, dailyTargetMinutes = dailyTargetMinutes, createdAt = createdAt, isActive = isActive)
             examGoalRepository.insertExamGoal(goal)
+            validGoalIds.add(id)
         }
 
         // Download Subjects
         val subjectsSnapshot = firestore.collection("users").document(uid).collection("subjects")
             .get().await()
+        val validSubjectIds = mutableSetOf<Long>()
         for (doc in subjectsSnapshot.documents) {
             val id = doc.id.toLongOrNull() ?: continue
             val name = doc.getString("name") ?: continue
             val examGoalId = doc.getLongSafely("examGoalId") ?: continue
+            
+            // Relational Integrity: Check if the referenced exam goal exists
+            if (!validGoalIds.contains(examGoalId)) {
+                if (examGoalRepository.getExamGoalById(examGoalId) == null) {
+                    continue // Skip inserting subject if parent exam goal does not exist
+                }
+            }
+
             val colorHex = doc.getString("colorHex") ?: "#4D96FF"
             val sortOrder = doc.getIntSafely("sortOrder") ?: 0
 
             val subject = Subject(id = id, name = name, examGoalId = examGoalId, colorHex = colorHex, sortOrder = sortOrder)
             syllabusRepository.insertSubject(subject)
+            validSubjectIds.add(id)
         }
 
         // Download Topics
@@ -80,6 +92,14 @@ class SyncManager @Inject constructor(
             val id = doc.id.toLongOrNull() ?: continue
             val name = doc.getString("name") ?: continue
             val subjectId = doc.getLongSafely("subjectId") ?: continue
+            
+            // Relational Integrity: Check if the referenced subject exists
+            if (!validSubjectIds.contains(subjectId)) {
+                if (syllabusRepository.getSubjectById(subjectId) == null) {
+                    continue // Skip inserting topic if parent subject does not exist
+                }
+            }
+
             val statusStr = doc.getString("status") ?: "NOT_STARTED"
             val sortOrder = doc.getIntSafely("sortOrder") ?: 0
             
