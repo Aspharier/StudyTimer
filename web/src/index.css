@@ -585,8 +585,25 @@ body {
 
 @media (max-width: 480px) {
   .heatmap-card {
-    max-width: 280px;
+    max-width: 100%;
     padding: 16px;
+    box-sizing: border-box;
+  }
+}
+
+.mobile-day {
+  display: none;
+}
+.desktop-day {
+  display: inline;
+}
+
+@media (max-width: 480px) {
+  .mobile-day {
+    display: inline;
+  }
+  .desktop-day {
+    display: none;
   }
 }
 

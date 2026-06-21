@@ -174,41 +174,41 @@ export default function App() {
 
       {/* Main Contents */}
       <main className="main-content">
-        {activeTab === 'dashboard' && (
+        <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
           <DashboardView 
             activeGoal={activeGoal} 
             sessions={sessions} 
             subjects={subjects}
             setActiveTab={setActiveTab}
           />
-        )}
-        {activeTab === 'timer' && (
+        </div>
+        <div style={{ display: activeTab === 'timer' ? 'block' : 'none' }}>
           <TimerView 
             subjects={subjects} 
             onSaveSession={DataService.saveSession}
           />
-        )}
-        {activeTab === 'syllabus' && (
+        </div>
+        <div style={{ display: activeTab === 'syllabus' ? 'block' : 'none' }}>
           <SyllabusView 
             activeGoal={activeGoal} 
             subjects={subjects} 
             topics={topics}
           />
-        )}
-        {activeTab === 'history' && (
+        </div>
+        <div style={{ display: activeTab === 'history' ? 'block' : 'none' }}>
           <HistoryView 
             sessions={sessions} 
             subjects={subjects} 
             onDeleteSession={DataService.deleteSession}
           />
-        )}
-        {activeTab === 'analytics' && (
+        </div>
+        <div style={{ display: activeTab === 'analytics' ? 'block' : 'none' }}>
           <AnalyticsView 
             sessions={sessions} 
             subjects={subjects}
           />
-        )}
-        {activeTab === 'account' && (
+        </div>
+        <div style={{ display: activeTab === 'account' ? 'block' : 'none' }}>
           <AccountView 
             user={user} 
             examGoals={examGoals}
@@ -217,7 +217,7 @@ export default function App() {
             onDeleteGoal={DataService.deleteExamGoal}
             onSetActiveGoal={DataService.setActiveExamGoal}
           />
-        )}
+        </div>
       </main>
     </div>
   );
@@ -424,6 +424,7 @@ function TimerView({ subjects, onSaveSession }) {
   const [sessionNotesInput, setSessionNotesInput] = useState('');
 
   const intervalRef = useRef(null);
+  const expectedEndTimeRef = useRef(null);
   const totalPhaseSeconds = currentPhase === 'FOCUS' ? focusMinutes * 60 : (currentPhase === 'SHORT_BREAK' ? shortBreakMinutes * 60 : longBreakMinutes * 60);
   const progressPercent = Math.min((totalPhaseSeconds - timerSecondsLeft) / totalPhaseSeconds, 1);
 
@@ -435,53 +436,72 @@ function TimerView({ subjects, onSaveSession }) {
     }
   }, [selectedSubjectId, subjects]);
 
+  // Clean up interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
   const tick = () => {
-    setTimerSecondsLeft(prev => {
-      if (prev <= 1) {
-        // Phase complete
-        clearInterval(intervalRef.current);
-        handlePhaseEnd();
-        return 0;
-      }
-      return prev - 1;
-    });
+    if (!expectedEndTimeRef.current) return;
+    const secondsLeft = Math.max(0, Math.round((expectedEndTimeRef.current - Date.now()) / 1000));
+    setTimerSecondsLeft(secondsLeft);
+    if (secondsLeft <= 0) {
+      clearInterval(intervalRef.current);
+      handlePhaseEnd();
+    }
   };
 
   const handlePhaseEnd = () => {
-    // Play sound or vibration if API existed
-    setIsTimerRunning(false);
-
     if (currentPhase === 'FOCUS') {
       const completedFocusSecs = focusMinutes * 60;
       setAccumulatedCompletedSeconds(prev => prev + completedFocusSecs);
       
       const isLastCycle = currentCycle >= totalCycles;
       if (isLastCycle) {
-        // Complete Pomodoro cycle
+        setIsTimerRunning(false);
+        expectedEndTimeRef.current = null;
+        if (intervalRef.current) clearInterval(intervalRef.current);
         handleFinishSession(true);
       } else {
         // Go to Break
         const isLongBreak = currentCycle % 4 === 0;
+        const breakSeconds = isLongBreak ? longBreakMinutes * 60 : shortBreakMinutes * 60;
+        
         setCurrentPhase(isLongBreak ? 'LONG_BREAK' : 'SHORT_BREAK');
-        setTimerSecondsLeft(isLongBreak ? longBreakMinutes * 60 : shortBreakMinutes * 60);
+        setTimerSecondsLeft(breakSeconds);
+        
+        // Auto-start break!
+        expectedEndTimeRef.current = Date.now() + (breakSeconds * 1000);
+        intervalRef.current = setInterval(tick, 1000);
       }
     } else {
       // Break over, go back to Focus
+      const nextCycle = currentCycle + 1;
+      const focusSeconds = focusMinutes * 60;
+      
       setCurrentPhase('FOCUS');
-      setTimerSecondsLeft(focusMinutes * 60);
-      setCurrentCycle(prev => prev + 1);
+      setTimerSecondsLeft(focusSeconds);
+      setCurrentCycle(nextCycle);
+      
+      // Auto-start next focus!
+      expectedEndTimeRef.current = Date.now() + (focusSeconds * 1000);
+      intervalRef.current = setInterval(tick, 1000);
     }
   };
 
   const startTimer = () => {
     if (isTimerRunning) return;
     setIsTimerRunning(true);
+    expectedEndTimeRef.current = Date.now() + (timerSecondsLeft * 1000);
     intervalRef.current = setInterval(tick, 1000);
   };
 
   const pauseTimer = () => {
     setIsTimerRunning(false);
     clearInterval(intervalRef.current);
+    expectedEndTimeRef.current = null;
   };
 
   const skipPhase = () => {
@@ -538,7 +558,24 @@ function TimerView({ subjects, onSaveSession }) {
     setCurrentCycle(1);
     setAccumulatedCompletedSeconds(0);
     setSessionNotesInput('');
+    expectedEndTimeRef.current = null;
   };
+
+  // Sync with background tab visibility
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && isTimerRunning && expectedEndTimeRef.current) {
+        const secondsLeft = Math.max(0, Math.round((expectedEndTimeRef.current - Date.now()) / 1000));
+        setTimerSecondsLeft(secondsLeft);
+        if (secondsLeft <= 0) {
+          clearInterval(intervalRef.current);
+          handlePhaseEnd();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [isTimerRunning]);
 
   // Adjusters
   useEffect(() => {
@@ -577,7 +614,7 @@ function TimerView({ subjects, onSaveSession }) {
                 className="timer-circle-progress" 
                 strokeWidth="6"
                 style={{
-                  strokeDashoffset: 251.3 - (251.3 * progressPercent),
+                  strokeDashoffset: 251.3 * progressPercent,
                   stroke: currentPhase === 'FOCUS' ? 'var(--accent-color)' : '#3B82F6'
                 }}
               />
@@ -960,6 +997,52 @@ function HistoryView({ sessions, subjects, onDeleteSession }) {
     ? sessions.filter(s => String(s.subjectId) === String(filterSubjectId))
     : sessions;
 
+  const sorted = [...filteredSessions].sort((a, b) => b.startTime - a.startTime);
+  
+  const todayStr = new Date().toISOString().split('T')[0];
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  const todaySessions = sorted.filter(s => s.date === todayStr);
+  const yesterdaySessions = sorted.filter(s => s.date === yesterdayStr);
+  const earlierSessions = sorted.filter(s => s.date !== todayStr && s.date !== yesterdayStr);
+
+  const renderSessionCard = (s) => {
+    const dateObj = new Date(s.startTime);
+    const dateLabel = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeLabel = dateObj.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const durationMins = Math.round(s.completedDurationSeconds / 60);
+
+    return (
+      <div key={s.id} className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ fontWeight: '700', fontSize: '16px' }}>{s.label}</div>
+          <div style={{ fontSize: '12px', color: 'var(--secondary-color)', display: 'flex', gap: '12px' }}>
+            <span>{dateLabel} at {timeLabel}</span>
+            {s.tag && <span style={{ color: 'var(--accent-color)', fontWeight: '600' }}>#{s.tag}</span>}
+          </div>
+          {s.notes && (
+            <div style={{ fontSize: '13px', color: 'var(--primary-color)', background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: '4px', marginTop: '6px' }}>
+              {s.notes}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+          <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-color)' }}>{durationMins}m</span>
+          <button className="btn btn-secondary" style={{ padding: '6px' }} onClick={() => {
+            if (confirm("Delete this session record?")) {
+              onDeleteSession(s.id);
+            }
+          }}>
+            <Trash2 size={16} color="var(--error-color)" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <div className="flex-row-between">
@@ -987,41 +1070,33 @@ function HistoryView({ sessions, subjects, onDeleteSession }) {
           <p style={{ color: 'var(--secondary-color)' }}>No study sessions recorded yet.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {filteredSessions.sort((a,b) => b.startTime - a.startTime).map(s => {
-            const dateObj = new Date(s.startTime);
-            const dateLabel = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-            const timeLabel = dateObj.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-            const durationMins = Math.round(s.completedDurationSeconds / 60);
-
-            return (
-              <div key={s.id} className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  <div style={{ fontWeight: '700', fontSize: '16px' }}>{s.label}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--secondary-color)', display: 'flex', gap: '12px' }}>
-                    <span>{dateLabel} at {timeLabel}</span>
-                    {s.tag && <span style={{ color: 'var(--accent-color)', fontWeight: '600' }}>#{s.tag}</span>}
-                  </div>
-                  {s.notes && (
-                    <div style={{ fontSize: '13px', color: 'var(--primary-color)', background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: '4px', marginTop: '6px' }}>
-                      {s.notes}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-color)' }}>{durationMins}m</span>
-                  <button className="btn btn-secondary" style={{ padding: '6px' }} onClick={() => {
-                    if (confirm("Delete this session record?")) {
-                      onDeleteSession(s.id);
-                    }
-                  }}>
-                    <Trash2 size={16} color="var(--error-color)" />
-                  </button>
-                </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px' }}>
+          {todaySessions.length > 0 && (
+            <div>
+              <h3 style={{ marginBottom: '12px', color: 'var(--accent-color)', fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '800' }}>Today</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {todaySessions.map(renderSessionCard)}
               </div>
-            );
-          })}
+            </div>
+          )}
+          
+          {yesterdaySessions.length > 0 && (
+            <div>
+              <h3 style={{ marginBottom: '12px', color: 'var(--secondary-color)', fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '800' }}>Yesterday</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {yesterdaySessions.map(renderSessionCard)}
+              </div>
+            </div>
+          )}
+
+          {earlierSessions.length > 0 && (
+            <div>
+              <h3 style={{ marginBottom: '12px', color: 'var(--secondary-color)', fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '800' }}>Earlier</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {earlierSessions.map(renderSessionCard)}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>
@@ -1033,6 +1108,14 @@ function HistoryView({ sessions, subjects, onDeleteSession }) {
 // ----------------------------------------------------
 function AnalyticsView({ sessions, subjects }) {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  const getDaySessions = (date) => {
+    if (!date) return [];
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    return sessions.filter(s => s.date === dateStr);
+  };
 
   // 1. Data mapping for Recharts Pie (Subjects study share)
   const getPieData = () => {
@@ -1228,7 +1311,8 @@ function AnalyticsView({ sessions, subjects }) {
           <div className="heatmap-weekdays">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
               <div key={idx} className="heatmap-weekday">
-                {day}
+                <span className="desktop-day">{day}</span>
+                <span className="mobile-day">{day[0]}</span>
               </div>
             ))}
           </div>
@@ -1257,6 +1341,7 @@ function AnalyticsView({ sessions, subjects }) {
                   key={`day-${cell.getDate()}`}
                   className={`heatmap-day level-${level}`}
                   title={`${cell.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}: ${hours.toFixed(1)}h studied`}
+                  onClick={() => setSelectedDate(cell)}
                 />
               );
             })}
@@ -1273,6 +1358,62 @@ function AnalyticsView({ sessions, subjects }) {
           </div>
         </div>
       </div>
+
+      {/* Heatmap Day Detail Modal */}
+      {selectedDate && (() => {
+        const daySessions = getDaySessions(selectedDate);
+        const totalSeconds = daySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+        const totalHours = totalSeconds / 3600;
+        
+        return (
+          <div className="modal-overlay" onClick={() => setSelectedDate(null)}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px', width: '90%' }}>
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '16px', fontWeight: '700' }}>
+                  {selectedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
+                </span>
+                <button className="btn btn-secondary" style={{ padding: '4px 8px', minWidth: 'auto', background: 'none', border: 'none', fontSize: '18px', color: 'var(--primary-color)', cursor: 'pointer' }} onClick={() => setSelectedDate(null)}>✕</button>
+              </div>
+              
+              <div style={{ margin: '16px 0', fontSize: '15px' }}>
+                Total Study Time: <span style={{ fontWeight: '800', color: 'var(--accent-color)' }}>{totalHours.toFixed(1)}h</span>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
+                {daySessions.length === 0 ? (
+                  <p style={{ color: 'var(--secondary-color)', textAlign: 'center', margin: '20px 0' }}>No study sessions logged for this day.</p>
+                ) : (
+                  daySessions.map(s => {
+                    const timeStr = new Date(s.startTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+                    const mins = Math.round(s.completedDurationSeconds / 60);
+                    return (
+                      <div key={s.id} className="card" style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--surface-variant)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                          <span style={{ fontWeight: '700', fontSize: '14px' }}>{s.label}</span>
+                          <span style={{ fontWeight: '800', color: 'var(--accent-color)', fontSize: '13px' }}>{mins}m</span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--secondary-color)', display: 'flex', gap: '8px' }}>
+                          <span>{timeStr}</span>
+                          {s.tag && <span>#{s.tag}</span>}
+                        </div>
+                        {s.notes && (
+                          <div style={{ fontSize: '12px', color: 'var(--primary-color)', marginTop: '8px', padding: '6px 8px', background: 'rgba(255,255,255,0.02)', borderRadius: '4px' }}>
+                            {s.notes}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button className="btn btn-primary" onClick={() => setSelectedDate(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }
