@@ -9,10 +9,16 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+
 @Singleton
 class StudySessionRepository @Inject constructor(
-    private val studySessionDao: StudySessionDao
+    private val studySessionDao: StudySessionDao,
+    @ApplicationContext private val context: Context
 ) {
+    private val preferences = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+
     suspend fun insertSession(session: StudySession): Long {
         return studySessionDao.insert(session.toEntity())
     }
@@ -22,6 +28,13 @@ class StudySessionRepository @Inject constructor(
     }
 
     suspend fun deleteSession(sessionId: Long) {
+        studySessionDao.deleteById(sessionId)
+        val deleted = preferences.getStringSet("deleted_session_ids", emptySet()) ?: emptySet()
+        val updated = deleted + sessionId.toString()
+        preferences.edit().putStringSet("deleted_session_ids", updated).apply()
+    }
+
+    suspend fun deleteSessionFromSync(sessionId: Long) {
         studySessionDao.deleteById(sessionId)
     }
 

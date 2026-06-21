@@ -42,6 +42,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -144,7 +147,8 @@ fun ProfileScreen(
             date = selectedDate!!,
             totalSeconds = dayTotal,
             sessions = daySessions,
-            onDismiss = { selectedDate = null }
+            onDismiss = { selectedDate = null },
+            onDeleteSession = { viewModel.deleteSession(it) }
         )
     }
 
@@ -401,9 +405,11 @@ private fun DayDetailDialog(
     date: LocalDate,
     totalSeconds: Long,
     sessions: List<StudySession>,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onDeleteSession: (Long) -> Unit
 ) {
     val dateLabel = date.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy"))
+    var sessionToDelete by remember { mutableStateOf<StudySession?>(null) }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -481,7 +487,10 @@ private fun DayDetailDialog(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     sessions.forEachIndexed { index, session ->
-                        SessionRow(session)
+                        SessionRow(
+                            session = session,
+                            onDeleteClick = { sessionToDelete = session }
+                        )
                         if (index < sessions.lastIndex) {
                             HorizontalDivider(
                                 modifier = Modifier.padding(vertical = 6.dp),
@@ -501,10 +510,37 @@ private fun DayDetailDialog(
             }
         }
     }
+
+    if (sessionToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { sessionToDelete = null },
+            title = { Text("Delete Session?") },
+            text = { Text("Are you sure you want to delete '${sessionToDelete?.label.orEmpty().ifBlank { "Study Session" }}'? This cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        sessionToDelete?.let { onDeleteSession(it.id) }
+                        sessionToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.onError)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
-private fun SessionRow(session: StudySession) {
+private fun SessionRow(
+    session: StudySession,
+    onDeleteClick: () -> Unit
+) {
     val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a")
     val startFormatted = remember(session.startTime) {
         Instant.ofEpochMilli(session.startTime)
@@ -537,12 +573,28 @@ private fun SessionRow(session: StudySession) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Text(
-            text = duration,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = duration,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            IconButton(
+                onClick = onDeleteClick,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete Session",
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
     }
 }
 

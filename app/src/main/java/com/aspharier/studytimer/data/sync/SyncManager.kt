@@ -18,19 +18,54 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+
 @Singleton
 class SyncManager @Inject constructor(
     private val auth: FirebaseAuth,
     private val firestore: FirebaseFirestore,
     private val sessionRepository: StudySessionRepository,
     private val syllabusRepository: SyllabusRepository,
-    private val examGoalRepository: ExamGoalRepository
+    private val examGoalRepository: ExamGoalRepository,
+    @ApplicationContext private val context: Context
 ) {
+    private val preferences = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+
+    private fun getSyncedSessionIds(): MutableSet<Long> {
+        val stringSet = preferences.getStringSet("synced_session_ids", emptySet()) ?: emptySet()
+        return stringSet.mapNotNull { it.toLongOrNull() }.toMutableSet()
+    }
+
+    private fun saveSyncedSessionIds(ids: Set<Long>) {
+        preferences.edit().putStringSet("synced_session_ids", ids.map { it.toString() }.toSet()).apply()
+    }
+
+    private fun getDeletedSessionIds(): MutableSet<Long> {
+        val stringSet = preferences.getStringSet("deleted_session_ids", emptySet()) ?: emptySet()
+        return stringSet.mapNotNull { it.toLongOrNull() }.toMutableSet()
+    }
+
+    private fun saveDeletedSessionIds(ids: Set<Long>) {
+        preferences.edit().putStringSet("deleted_session_ids", ids.map { it.toString() }.toSet()).apply()
+    }
 
     suspend fun sync(): Result<Unit> = withContext(Dispatchers.IO) {
         val uid = auth.currentUser?.uid ?: return@withContext Result.failure(Exception("User not authenticated"))
         
         try {
+            val userDocRef = firestore.collection("users").document(uid)
+            
+            // Delete locally deleted sessions from Firestore
+            val deletedIds = getDeletedSessionIds()
+            val syncedIds = getSyncedSessionIds()
+            for (id in deletedIds) {
+                userDocRef.collection("sessions").document(id.toString()).delete().await()
+                syncedIds.remove(id)
+            }
+            saveSyncedSessionIds(syncedIds)
+            saveDeletedSessionIds(emptySet())
+
             // 1. Download from Cloud to Local
             downloadCloudToLocal(uid)
 
@@ -123,6 +158,9 @@ class SyncManager @Inject constructor(
         // Download Sessions
         val sessionsSnapshot = firestore.collection("users").document(uid).collection("sessions")
             .get().await()
+        val downloadedSessionIds = mutableSetOf<Long>()
+        val syncedIds = getSyncedSessionIds()
+
         for (doc in sessionsSnapshot.documents) {
             val id = doc.id.toLongOrNull() ?: continue
             val label = doc.getString("label") ?: "Study Session"
@@ -150,7 +188,20 @@ class SyncManager @Inject constructor(
                 subjectId = subjectId
             )
             sessionRepository.insertSession(session)
+            downloadedSessionIds.add(id)
+            syncedIds.add(id)
         }
+
+        // Sync Cloud Deletions back to Room:
+        // Any local session that was previously synced but is now missing in cloud must be deleted
+        val localSessions = sessionRepository.getAllSessions().first()
+        for (localSession in localSessions) {
+            if (syncedIds.contains(localSession.id) && !downloadedSessionIds.contains(localSession.id)) {
+                sessionRepository.deleteSessionFromSync(localSession.id)
+                syncedIds.remove(localSession.id)
+            }
+        }
+        saveSyncedSessionIds(syncedIds)
     }
 
     private suspend fun uploadLocalToCloud(uid: String) {
@@ -205,6 +256,7 @@ class SyncManager @Inject constructor(
 
         // Upload Sessions
         val sessions = sessionRepository.getAllSessions().first()
+        val syncedIds = getSyncedSessionIds()
         for (session in sessions) {
             val data = mapOf(
                 "label" to session.label,
@@ -219,7 +271,9 @@ class SyncManager @Inject constructor(
                 "subjectId" to session.subjectId
             )
             userDocRef.collection("sessions").document(session.id.toString()).set(data).await()
+            syncedIds.add(session.id)
         }
+        saveSyncedSessionIds(syncedIds)
     }
 
     private fun com.google.firebase.firestore.DocumentSnapshot.getLongSafely(field: String): Long? {

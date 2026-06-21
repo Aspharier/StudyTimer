@@ -28,7 +28,7 @@ import com.aspharier.studytimer.data.local.StudyTimerDatabase
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    repository: StudySessionRepository,
+    private val sessionRepository: StudySessionRepository,
     syllabusRepository: SyllabusRepository,
     private val auth: FirebaseAuth,
     private val syncManager: SyncManager,
@@ -38,12 +38,18 @@ class ProfileViewModel @Inject constructor(
 
     private val preferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
-    val sessions: StateFlow<List<StudySession>> = repository.getAllSessions()
+    val sessions: StateFlow<List<StudySession>> = sessionRepository.getAllSessions()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList()
         )
+
+    fun deleteSession(sessionId: Long) {
+        viewModelScope.launch {
+            sessionRepository.deleteSession(sessionId)
+        }
+    }
 
     val subjects: StateFlow<List<Subject>> = syllabusRepository.getAllSubjects()
         .stateIn(
