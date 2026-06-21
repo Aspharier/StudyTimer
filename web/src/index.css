@@ -511,20 +511,8 @@ h1, h2, h3, h4 {
   padding: 36px 40px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
   position: relative;
-}
-
-/* Dot grid background pattern */
-.main-content::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: radial-gradient(circle, var(--border-color) 1px, transparent 1px);
-  background-size: 32px 32px;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.4;
 }
 
 .main-content > * {
@@ -539,17 +527,25 @@ h1, h2, h3, h4 {
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .page-header h1 {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
   color: var(--primary-color);
   letter-spacing: -0.03em;
 }
 
+.page-header p {
+  font-size: 13px;
+  color: var(--secondary-color);
+  margin-top: 3px;
+}
+
 /* ============================================
-   GLASSMORPHISM CARDS
+   CARDS — Clean Panel Design
    ============================================ */
 .card {
   background: var(--surface-color);
@@ -558,46 +554,48 @@ h1, h2, h3, h4 {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
   padding: 24px;
-  transition: var(--transition);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .card::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 50%);
+  background: linear-gradient(160deg, rgba(255,255,255,0.025) 0%, transparent 60%);
   pointer-events: none;
   border-radius: inherit;
 }
 
 .card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
 }
 
 .card-title {
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 18px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--primary-color);
-  letter-spacing: -0.01em;
+  gap: 7px;
+  color: var(--secondary-color);
 }
 
 .card-title svg {
   color: var(--accent-color);
-  opacity: 0.8;
+  opacity: 0.9;
 }
 
 /* Accent card variant */
 .card-accent {
   border-color: var(--border-accent);
-  background: linear-gradient(135deg, var(--accent-dim) 0%, var(--surface-color) 100%);
+  background: linear-gradient(135deg, var(--accent-dim) 0%, var(--surface-color) 80%);
 }
 
 /* Gradient accent top bar */
@@ -609,7 +607,67 @@ h1, h2, h3, h4 {
   right: 0;
   height: 2px;
   background: linear-gradient(90deg, var(--accent-color), var(--accent-2, #6C63FF));
-  box-shadow: 0 0 16px var(--accent-glow);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+/* ============================================
+   GRID LAYOUTS — Always equal-height rows
+   ============================================ */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.flex-row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Dashboard top stats: side-by-side stat blocks inside one card */
+.dash-stats-row {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+}
+
+.dash-stat-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 16px 20px;
+}
+
+.dash-stat-block + .dash-stat-block {
+  border-left: 1px solid var(--border-color);
+}
+
+.dash-stat-value {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--accent-color);
+  text-shadow: 0 0 20px var(--accent-glow);
+}
+
+.dash-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--secondary-color);
 }
 
 /* ============================================
@@ -837,26 +895,8 @@ select option:checked {
   box-shadow: 0 0 6px var(--accent-glow);
 }
 
-/* ============================================
-   GRID LAYOUTS
-   ============================================ */
-.grid-2 {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-}
 
-.grid-3 {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-}
 
-.flex-row-between {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 
 /* ============================================
    POMODORO TIMER RING
@@ -1347,7 +1387,7 @@ select option:checked {
 }
 
 /* ============================================
-   DASHBOARD PROGRESS FLEX
+   DASHBOARD STATS ROW RESPONSIVE
    ============================================ */
 .dashboard-progress-flex {
   display: flex;
@@ -1361,6 +1401,20 @@ select option:checked {
     text-align: center;
   }
 }
+
+@media (max-width: 700px) {
+  .dash-stats-row {
+    flex-direction: column;
+  }
+  .dash-stat-block + .dash-stat-block {
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+  }
+  .dash-stat-value {
+    font-size: 32px;
+  }
+}
+
 
 /* ============================================
    ANALYTICS CHART CARDS
