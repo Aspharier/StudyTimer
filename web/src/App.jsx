@@ -72,11 +72,11 @@ export default function App() {
       {/* Mobile Header */}
       <header className="mobile-header">
         <button className="menu-toggle-btn" onClick={() => setIsSidebarOpen(true)}>
-          <Menu size={24} />
+          <Menu size={22} />
         </button>
-        <span className="mobile-logo">Focusly</span>
+        <span className="mobile-logo">Focusly<span>.</span></span>
         <div className="mobile-avatar" onClick={() => { setActiveTab('account'); setIsSidebarOpen(false); }}>
-          {user ? (user.photoURL ? <img src={user.photoURL} alt="" /> : user.displayName?.charAt(0)) : 'L'}
+          {user ? (user.photoURL ? <img src={user.photoURL} alt="" /> : user.displayName?.charAt(0)) : 'F'}
         </div>
       </header>
 
@@ -86,6 +86,10 @@ export default function App() {
       {/* Sidebar Navigation */}
       <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="logo">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
+            <circle cx="11" cy="11" r="10" stroke="var(--accent-color)" strokeWidth="1.5" strokeDasharray="62.83" strokeDashoffset="15" strokeLinecap="round"/>
+            <circle cx="11" cy="11" r="4" fill="var(--accent-color)" opacity="0.8"/>
+          </svg>
           Focusly<span>.</span>
         </div>
         <nav className="nav-links">
@@ -128,42 +132,32 @@ export default function App() {
         </nav>
 
         {/* Theme Selector inside sidebar */}
-        <div style={{ padding: '0 8px', marginBottom: '16px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '8px' }}>
-            <Palette size={14} /> Web Theme
-          </label>
+        <div style={{ padding: '0 6px', marginBottom: '12px' }}>
+          <div className="section-label" style={{ marginBottom: '8px' }}>
+            <Palette size={11} /> Theme
+          </div>
           <select 
             value={theme} 
             onChange={(e) => setTheme(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '10px 12px',
-              borderRadius: 'var(--radius-sm)',
-              backgroundColor: 'var(--surface-variant)',
-              color: 'var(--primary-color)',
-              border: '1px solid var(--surface-variant)',
-              outline: 'none',
-              fontFamily: 'inherit',
-              fontSize: '13px',
-              cursor: 'pointer'
-            }}
+            className="input-field"
+            style={{ fontSize: '13px', padding: '9px 12px' }}
           >
-            <option value="midnight" style={{ backgroundColor: '#0A0A0A', color: '#E8E8E8' }}>Midnight</option>
-            <option value="ocean" style={{ backgroundColor: '#0D1B2A', color: '#EAF6FF' }}>Ocean</option>
-            <option value="forest" style={{ backgroundColor: '#0E2015', color: '#EAF7ED' }}>Forest</option>
-            <option value="paper" style={{ backgroundColor: '#FFF4E6', color: '#1F1A14' }}>Paper</option>
-            <option value="sakura" style={{ backgroundColor: '#FFE7EC', color: '#241115' }}>Sakura</option>
-            <option value="aurora" style={{ backgroundColor: '#17142F', color: '#F3F0FF' }}>Aurora</option>
-            <option value="ember" style={{ backgroundColor: '#24100A', color: '#FFF1E8' }}>Ember</option>
-            <option value="lavender" style={{ backgroundColor: '#F1E7FF', color: '#1D1527' }}>Lavender</option>
-            <option value="mint" style={{ backgroundColor: '#E4F8F2', color: '#10211E' }}>Mint</option>
+            <option value="midnight">🌑 Midnight</option>
+            <option value="ocean">🌊 Ocean</option>
+            <option value="forest">🌿 Forest</option>
+            <option value="paper">📄 Paper</option>
+            <option value="sakura">🌸 Sakura</option>
+            <option value="aurora">🌌 Aurora</option>
+            <option value="ember">🔥 Ember</option>
+            <option value="lavender">💜 Lavender</option>
+            <option value="mint">🌱 Mint</option>
           </select>
         </div>
 
         {/* User Status at bottom of sidebar */}
         <div className="user-profile-section">
           <div className="user-avatar">
-            {user ? (user.photoURL ? <img src={user.photoURL} alt="" /> : user.displayName?.charAt(0)) : 'L'}
+            {user ? (user.photoURL ? <img src={user.photoURL} alt="" /> : user.displayName?.charAt(0)) : '✦'}
           </div>
           <div className="user-info">
             <span className="user-name">{user ? user.displayName : 'Local User'}</span>
@@ -281,10 +275,10 @@ function DashboardView({ activeGoal, sessions, subjects, setActiveTab }) {
 
   return (
     <>
-      <div className="flex-row-between">
+      <div className="page-header">
         <h1>Overview</h1>
         <button className="btn btn-accent" onClick={() => setActiveTab('timer')}>
-          <Play size={16} /> Start Focusing
+          <Play size={15} /> Start Focusing
         </button>
       </div>
 
@@ -605,7 +599,7 @@ function TimerView({ subjects, onSaveSession }) {
 
   return (
     <>
-      <div className="flex-row-between">
+      <div className="page-header">
         <h1>Pomodoro Timer</h1>
       </div>
 
@@ -871,14 +865,14 @@ function SyllabusView({ activeGoal, subjects, topics }) {
 
   return (
     <>
-      <div className="flex-row-between">
+      <div className="page-header">
         <div>
           <h1>Syllabus</h1>
           <p style={{ color: 'var(--secondary-color)', fontSize: '14px' }}>Track and check off subjects and preparation topics.</p>
         </div>
         {activeGoal && (
           <button className="btn btn-accent" onClick={() => setShowAddSubj(true)}>
-            <Plus size={16} /> Add Subject
+            <Plus size={15} /> Add Subject
           </button>
         )}
       </div>
@@ -1161,7 +1155,7 @@ function HistoryView({ sessions, subjects, onDeleteSession }) {
 
   return (
     <>
-      <div className="flex-row-between">
+      <div className="page-header">
         <div>
           <h1>Session History</h1>
           <p style={{ color: 'var(--secondary-color)', fontSize: '14px' }}>Overview of your logged study sessions.</p>
@@ -1333,11 +1327,11 @@ function AnalyticsView({ sessions, subjects }) {
 
   return (
     <>
-      <div className="flex-row-between" style={{ alignItems: 'flex-start' }}>
+      <div className="page-header">
         <div>
           <h1>Study Analytics</h1>
           <p style={{ color: 'var(--secondary-color)', fontSize: '14px' }}>
-            {sessionCount} sessions logged - Current streak: {streak} days
+            {sessionCount} sessions logged · {streak} day streak
           </p>
         </div>
       </div>
@@ -1578,9 +1572,9 @@ function AccountView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, 
 
   return (
     <>
-      <div className="flex-row-between">
+      <div className="page-header">
         <div>
-          <h1>Account & Sync</h1>
+          <h1>Account &amp; Sync</h1>
           <p style={{ color: 'var(--secondary-color)', fontSize: '14px' }}>Link a Google Account to synchronize study data across laptop and phone.</p>
         </div>
         {user ? (
