@@ -443,16 +443,6 @@ function TimerView({ subjects, onSaveSession }) {
     };
   }, []);
 
-  const tick = () => {
-    if (!expectedEndTimeRef.current) return;
-    const secondsLeft = Math.max(0, Math.round((expectedEndTimeRef.current - Date.now()) / 1000));
-    setTimerSecondsLeft(secondsLeft);
-    if (secondsLeft <= 0) {
-      clearInterval(intervalRef.current);
-      handlePhaseEnd();
-    }
-  };
-
   const handlePhaseEnd = () => {
     if (currentPhase === 'FOCUS') {
       const completedFocusSecs = focusMinutes * 60;
@@ -462,7 +452,6 @@ function TimerView({ subjects, onSaveSession }) {
       if (isLastCycle) {
         setIsTimerRunning(false);
         expectedEndTimeRef.current = null;
-        if (intervalRef.current) clearInterval(intervalRef.current);
         handleFinishSession(true);
       } else {
         // Go to Break
@@ -474,7 +463,6 @@ function TimerView({ subjects, onSaveSession }) {
         
         // Auto-start break!
         expectedEndTimeRef.current = Date.now() + (breakSeconds * 1000);
-        intervalRef.current = setInterval(tick, 1000);
       }
     } else {
       // Break over, go back to Focus
@@ -487,7 +475,6 @@ function TimerView({ subjects, onSaveSession }) {
       
       // Auto-start next focus!
       expectedEndTimeRef.current = Date.now() + (focusSeconds * 1000);
-      intervalRef.current = setInterval(tick, 1000);
     }
   };
 
@@ -495,19 +482,46 @@ function TimerView({ subjects, onSaveSession }) {
     if (isTimerRunning) return;
     setIsTimerRunning(true);
     expectedEndTimeRef.current = Date.now() + (timerSecondsLeft * 1000);
-    intervalRef.current = setInterval(tick, 1000);
   };
 
   const pauseTimer = () => {
     setIsTimerRunning(false);
-    clearInterval(intervalRef.current);
     expectedEndTimeRef.current = null;
   };
 
   const skipPhase = () => {
-    pauseTimer();
     handlePhaseEnd();
   };
+
+  // Main tick interval manager
+  useEffect(() => {
+    if (!isTimerRunning) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
+    const tick = () => {
+      if (!expectedEndTimeRef.current) return;
+      const secondsLeft = Math.max(0, Math.round((expectedEndTimeRef.current - Date.now()) / 1000));
+      setTimerSecondsLeft(secondsLeft);
+      if (secondsLeft <= 0) {
+        handlePhaseEnd();
+      }
+    };
+
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(tick, 1000);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [isTimerRunning, currentPhase, currentCycle, focusMinutes, shortBreakMinutes, longBreakMinutes, totalCycles]);
 
   const stopTimer = () => {
     pauseTimer();
@@ -568,14 +582,13 @@ function TimerView({ subjects, onSaveSession }) {
         const secondsLeft = Math.max(0, Math.round((expectedEndTimeRef.current - Date.now()) / 1000));
         setTimerSecondsLeft(secondsLeft);
         if (secondsLeft <= 0) {
-          clearInterval(intervalRef.current);
           handlePhaseEnd();
         }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [isTimerRunning]);
+  }, [isTimerRunning, currentPhase, currentCycle, focusMinutes, shortBreakMinutes, longBreakMinutes, totalCycles]);
 
   // Adjusters
   useEffect(() => {
