@@ -51,8 +51,8 @@ class SyncManager @Inject constructor(
             val id = doc.id.toLongOrNull() ?: continue
             val name = doc.getString("name") ?: continue
             val examDate = doc.getString("examDate") ?: continue
-            val dailyTargetMinutes = doc.getLong("dailyTargetMinutes")?.toInt() ?: 360
-            val createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
+            val dailyTargetMinutes = doc.getIntSafely("dailyTargetMinutes") ?: 360
+            val createdAt = doc.getLongSafely("createdAt") ?: System.currentTimeMillis()
             val isActive = doc.getBoolean("isActive") ?: false
 
             val goal = ExamGoal(id = id, name = name, examDate = examDate, dailyTargetMinutes = dailyTargetMinutes, createdAt = createdAt, isActive = isActive)
@@ -65,9 +65,9 @@ class SyncManager @Inject constructor(
         for (doc in subjectsSnapshot.documents) {
             val id = doc.id.toLongOrNull() ?: continue
             val name = doc.getString("name") ?: continue
-            val examGoalId = doc.getLong("examGoalId") ?: continue
+            val examGoalId = doc.getLongSafely("examGoalId") ?: continue
             val colorHex = doc.getString("colorHex") ?: "#4D96FF"
-            val sortOrder = doc.getLong("sortOrder")?.toInt() ?: 0
+            val sortOrder = doc.getIntSafely("sortOrder") ?: 0
 
             val subject = Subject(id = id, name = name, examGoalId = examGoalId, colorHex = colorHex, sortOrder = sortOrder)
             syllabusRepository.insertSubject(subject)
@@ -79,9 +79,9 @@ class SyncManager @Inject constructor(
         for (doc in topicsSnapshot.documents) {
             val id = doc.id.toLongOrNull() ?: continue
             val name = doc.getString("name") ?: continue
-            val subjectId = doc.getLong("subjectId") ?: continue
+            val subjectId = doc.getLongSafely("subjectId") ?: continue
             val statusStr = doc.getString("status") ?: "NOT_STARTED"
-            val sortOrder = doc.getLong("sortOrder")?.toInt() ?: 0
+            val sortOrder = doc.getIntSafely("sortOrder") ?: 0
             
             // Sync sub-topics list from document if it exists
             @Suppress("UNCHECKED_CAST")
@@ -106,15 +106,15 @@ class SyncManager @Inject constructor(
         for (doc in sessionsSnapshot.documents) {
             val id = doc.id.toLongOrNull() ?: continue
             val label = doc.getString("label") ?: "Study Session"
-            val durationMinutes = doc.getLong("durationMinutes")?.toInt() ?: 25
-            val completedDurationSeconds = doc.getLong("completedDurationSeconds") ?: 0L
+            val durationMinutes = doc.getIntSafely("durationMinutes") ?: 25
+            val completedDurationSeconds = doc.getLongSafely("completedDurationSeconds") ?: 0L
             val date = doc.getString("date") ?: continue
-            val startTime = doc.getLong("startTime") ?: continue
-            val endTime = doc.getLong("endTime")
+            val startTime = doc.getLongSafely("startTime") ?: continue
+            val endTime = doc.getLongSafely("endTime")
             val isCompleted = doc.getBoolean("isCompleted") ?: false
             val notes = doc.getString("notes")
             val tag = doc.getString("tag")
-            val subjectId = doc.getLong("subjectId")
+            val subjectId = doc.getLongSafely("subjectId")
 
             val session = StudySession(
                 id = id,
@@ -199,6 +199,24 @@ class SyncManager @Inject constructor(
                 "subjectId" to session.subjectId
             )
             userDocRef.collection("sessions").document(session.id.toString()).set(data).await()
+        }
+    }
+
+    private fun com.google.firebase.firestore.DocumentSnapshot.getLongSafely(field: String): Long? {
+        val value = get(field) ?: return null
+        return when (value) {
+            is Number -> value.toLong()
+            is String -> value.toLongOrNull()
+            else -> null
+        }
+    }
+
+    private fun com.google.firebase.firestore.DocumentSnapshot.getIntSafely(field: String): Int? {
+        val value = get(field) ?: return null
+        return when (value) {
+            is Number -> value.toInt()
+            is String -> value.toIntOrNull()
+            else -> null
         }
     }
 }
