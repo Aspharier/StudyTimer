@@ -531,7 +531,7 @@ body {
 .timer-circle-progress {
   fill: none;
   stroke: var(--accent-color);
-  stroke-dasharray: 283;
+  stroke-dasharray: 251.3;
   stroke-linecap: round;
   transition: stroke-dashoffset 1s linear;
 }

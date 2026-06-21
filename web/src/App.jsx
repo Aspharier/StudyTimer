@@ -329,7 +329,7 @@ function DashboardView({ activeGoal, sessions, subjects, setActiveTab }) {
                   className="timer-circle-progress" 
                   strokeWidth="8"
                   style={{
-                    strokeDashoffset: 251 - (251 * progressPercent)
+                    strokeDashoffset: 251.3 - (251.3 * progressPercent)
                   }}
                 />
               </svg>
@@ -577,7 +577,7 @@ function TimerView({ subjects, onSaveSession }) {
                 className="timer-circle-progress" 
                 strokeWidth="6"
                 style={{
-                  strokeDashoffset: 251 - (251 * progressPercent),
+                  strokeDashoffset: 251.3 - (251.3 * progressPercent),
                   stroke: currentPhase === 'FOCUS' ? 'var(--accent-color)' : '#3B82F6'
                 }}
               />
