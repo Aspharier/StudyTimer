@@ -165,8 +165,6 @@ export default function App() {
 
       {/* Main Contents */}
       <main className="main-content">
-        {/* Waybar-style status strip */}
-        <WmBar user={user} sessions={sessions} activeTab={activeTab} />
         <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
           <DashboardView 
             activeGoal={activeGoal} 
