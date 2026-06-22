@@ -72,11 +72,11 @@ export default function App() {
       {/* Mobile Header */}
       <header className="mobile-header">
         <button className="menu-toggle-btn" onClick={() => setIsSidebarOpen(true)}>
-          <Menu size={22} />
+          <Menu size={20} />
         </button>
-        <span className="mobile-logo">Focusly<span>.</span></span>
+        <span className="mobile-logo">&gt;_ <span>FOCUSLY</span></span>
         <div className="mobile-avatar" onClick={() => { setActiveTab('account'); setIsSidebarOpen(false); }}>
-          {user ? (user.photoURL ? <img src={user.photoURL} alt="" /> : user.displayName?.charAt(0)) : 'F'}
+          {user ? (user.photoURL ? <img src={user.photoURL} alt="" /> : user.displayName?.charAt(0)?.toUpperCase()) : '\u2665'}
         </div>
       </header>
 
@@ -86,11 +86,8 @@ export default function App() {
       {/* Sidebar Navigation */}
       <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="logo">
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" style={{flexShrink:0}}>
-            <circle cx="11" cy="11" r="10" stroke="var(--accent-color)" strokeWidth="1.5" strokeDasharray="62.83" strokeDashoffset="15" strokeLinecap="round"/>
-            <circle cx="11" cy="11" r="4" fill="var(--accent-color)" opacity="0.8"/>
-          </svg>
-          Focusly<span>.</span>
+          <span className="logo-prompt">&gt;_</span>
+          <span>FOCUSLY</span>
         </div>
         <nav className="nav-links">
           <button 
@@ -168,6 +165,8 @@ export default function App() {
 
       {/* Main Contents */}
       <main className="main-content">
+        {/* Waybar-style status strip */}
+        <WmBar user={user} sessions={sessions} activeTab={activeTab} />
         <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
           <DashboardView 
             activeGoal={activeGoal} 
@@ -221,7 +220,63 @@ export default function App() {
 // VIEW COMPONENTS
 // ----------------------------------------------------
 
+function WmBar({ user, sessions, activeTab }) {
+  const [time, setTime] = React.useState(new Date());
+
+  React.useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todaySessions = sessions.filter(s => s.date === todayStr);
+  const todaySeconds = todaySessions.reduce((a, s) => a + s.completedDurationSeconds, 0);
+  const todayHours = (todaySeconds / 3600).toFixed(1);
+
+  const hh = String(time.getHours()).padStart(2, '0');
+  const mm = String(time.getMinutes()).padStart(2, '0');
+  const ss = String(time.getSeconds()).padStart(2, '0');
+
+  const PAGE_LABELS = {
+    dashboard: 'OVERVIEW',
+    timer: 'T1M3R',
+    syllabus: 'SYLLABUS',
+    history: 'HISTORY',
+    analytics: 'ANALYTICS',
+    account: 'ACCOUNT',
+  };
+
+  return (
+    <div className="wm-bar">
+      <div className="wm-bar-left">
+        <span style={{ color: 'var(--accent-color)', letterSpacing: '0.12em', fontWeight: 800 }}>
+          &gt;_ {PAGE_LABELS[activeTab] || 'FOCUSLY'}
+        </span>
+        <div className="wm-bar-module">
+          <span style={{ color: 'var(--clr-green, #a6e3a1)' }}>STD</span>
+          <span style={{ color: 'var(--primary-color)' }}>{todayHours}h</span>
+        </div>
+        <div className="wm-bar-module">
+          <span>SES</span>
+          <span style={{ color: 'var(--primary-color)' }}>{todaySessions.length}</span>
+        </div>
+      </div>
+      <div className="wm-bar-right">
+        <div className="wm-bar-module">
+          <span style={{ color: user ? 'var(--clr-green, #a6e3a1)' : 'var(--clr-yellow, #f9e2af)' }}>
+            {user ? 'SYNCED' : 'LOCAL'}
+          </span>
+        </div>
+        <div className="wm-bar-module wm-bar-module-accent">
+          <span>{hh}:{mm}:{ss}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DashboardView({ activeGoal, sessions, subjects, setActiveTab }) {
+
   const todayStr = new Date().toISOString().split('T')[0];
   const todaySessions = sessions.filter(s => s.date === todayStr);
   const todaySeconds = todaySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
