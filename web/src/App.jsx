@@ -1904,49 +1904,50 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
             </div>
 
             <div className="github-heatmap-grid">
-              <div className="github-heatmap-weekdays">
-                <span></span>
-                <span>Mon</span>
-                <span></span>
-                <span>Wed</span>
-                <span></span>
-                <span>Fri</span>
-                <span></span>
-              </div>
+              {/* Weekday labels */}
+              <span className="github-heatmap-weekday-label" style={{ gridRow: 2, gridColumn: 1 }}>Mon</span>
+              <span className="github-heatmap-weekday-label" style={{ gridRow: 4, gridColumn: 1 }}>Wed</span>
+              <span className="github-heatmap-weekday-label" style={{ gridRow: 6, gridColumn: 1 }}>Fri</span>
 
-              {weeks.map((week, wIdx) => (
-                <div key={wIdx} className="github-heatmap-column">
-                  {week.map((day, dIdx) => {
-                    const isOutOfRange = day < startDate || day > today;
-                    if (isOutOfRange) {
-                      return <div key={dIdx} className="github-heatmap-cell empty" />;
-                    }
-
-                    const pad = (n) => String(n).padStart(2, '0');
-                    const dateStr = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
-                    const daySessions = sessions.filter(s => s.date === dateStr);
-                    const seconds = daySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
-                    const hours = seconds / 3600;
-
-                    let level = 0;
-                    if (seconds > 0) {
-                      if (seconds < 30 * 60) level = 1;
-                      else if (seconds < 60 * 60) level = 2;
-                      else if (seconds < 120 * 60) level = 3;
-                      else level = 4;
-                    }
-
+              {/* Cells */}
+              {weeks.flatMap((week, wIdx) => 
+                week.map((day, dIdx) => {
+                  const isOutOfRange = day < startDate || day > today;
+                  if (isOutOfRange) {
                     return (
                       <div
-                        key={dIdx}
-                        className={`github-heatmap-cell level-${level}`}
-                        title={`${day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}: ${hours.toFixed(1)}h studied`}
-                        onClick={() => setSelectedDate(day)}
+                        key={`cell-${wIdx}-${dIdx}`}
+                        className="github-heatmap-cell empty"
+                        style={{ gridRow: dIdx + 1, gridColumn: wIdx + 2 }}
                       />
                     );
-                  })}
-                </div>
-              ))}
+                  }
+
+                  const pad = (n) => String(n).padStart(2, '0');
+                  const dateStr = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+                  const daySessions = sessions.filter(s => s.date === dateStr);
+                  const seconds = daySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+                  const hours = seconds / 3600;
+
+                  let level = 0;
+                  if (seconds > 0) {
+                    if (seconds < 30 * 60) level = 1;
+                    else if (seconds < 60 * 60) level = 2;
+                    else if (seconds < 120 * 60) level = 3;
+                    else level = 4;
+                  }
+
+                  return (
+                    <div
+                      key={`cell-${wIdx}-${dIdx}`}
+                      className={`github-heatmap-cell level-${level}`}
+                      style={{ gridRow: dIdx + 1, gridColumn: wIdx + 2 }}
+                      title={`${day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}: ${hours.toFixed(1)}h studied`}
+                      onClick={() => setSelectedDate(day)}
+                    />
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
