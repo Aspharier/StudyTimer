@@ -564,7 +564,7 @@ h1, h2, h3, h4 {
   padding: 20px 22px;
   transition: var(--transition);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .card::before {

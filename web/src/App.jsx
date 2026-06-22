@@ -1582,49 +1582,104 @@ function AnalyticsView({ sessions, subjects }) {
         
         return (
           <div className="modal-overlay" onClick={() => setSelectedDate(null)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px', width: '90%' }}>
-              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '16px', fontWeight: '700' }}>
-                  {selectedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}
-                </span>
-                <button className="btn btn-secondary" style={{ padding: '4px 8px', minWidth: 'auto', background: 'none', border: 'none', fontSize: '18px', color: 'var(--primary-color)', cursor: 'pointer' }} onClick={() => setSelectedDate(null)}>✕</button>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px', width: '92%' }}>
+
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--secondary-color)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
+                    Day Summary
+                  </div>
+                  <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--primary-color)', letterSpacing: '0.04em' }}>
+                    {selectedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedDate(null)}
+                  style={{ background: 'var(--surface-variant)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--secondary-color)', cursor: 'pointer', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}
+                >✕</button>
               </div>
-              
-              <div style={{ margin: '16px 0', fontSize: '15px' }}>
-                Total Study Time: <span style={{ fontWeight: '800', color: 'var(--accent-color)' }}>{totalHours.toFixed(1)}h</span>
+
+              {/* Total stat */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '14px 16px', background: 'var(--accent-dim)', border: '1px solid var(--border-accent)', borderRadius: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--secondary-color)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '2px' }}>Total Study Time</div>
+                  <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--accent-color)', lineHeight: 1, letterSpacing: '-0.02em' }}>{totalHours.toFixed(1)}<span style={{ fontSize: '14px', fontWeight: '600', marginLeft: '2px' }}>h</span></div>
+                </div>
+                <div style={{ width: '1px', height: '36px', background: 'var(--border-accent)' }} />
+                <div>
+                  <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--secondary-color)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '2px' }}>Sessions</div>
+                  <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--primary-color)', lineHeight: 1 }}>{daySessions.length}</div>
+                </div>
               </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto', paddingRight: '4px' }}>
+
+              {/* Session list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto', paddingRight: '2px' }}>
                 {daySessions.length === 0 ? (
-                  <p style={{ color: 'var(--secondary-color)', textAlign: 'center', margin: '20px 0' }}>No study sessions logged for this day.</p>
+                  <p style={{ color: 'var(--secondary-color)', textAlign: 'center', margin: '24px 0', fontSize: '13px' }}>No sessions logged for this day.</p>
                 ) : (
                   daySessions.map(s => {
                     const timeStr = new Date(s.startTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
                     const mins = Math.round(s.completedDurationSeconds / 60);
                     return (
-                      <div key={s.id} className="card" style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--surface-variant)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
-                          <span style={{ fontWeight: '700', fontSize: '14px' }}>{s.label}</span>
-                          <span style={{ fontWeight: '800', color: 'var(--accent-color)', fontSize: '13px' }}>{mins}m</span>
+                      <div key={s.id} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 14px',
+                        background: 'var(--surface-variant)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        minHeight: '0',
+                        overflow: 'visible',
+                      }}>
+                        {/* Time badge */}
+                        <div style={{
+                          flexShrink: 0,
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          color: 'var(--secondary-color)',
+                          fontFamily: 'inherit',
+                          letterSpacing: '0.04em',
+                          minWidth: '40px',
+                          textAlign: 'center',
+                          lineHeight: 1.4,
+                        }}>
+                          {timeStr}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--secondary-color)', display: 'flex', gap: '8px' }}>
-                          <span>{timeStr}</span>
-                          {s.tag && <span>#{s.tag}</span>}
-                        </div>
-                        {s.notes && (
-                          <div style={{ fontSize: '12px', color: 'var(--primary-color)', marginTop: '8px', padding: '6px 8px', background: 'rgba(255,255,255,0.02)', borderRadius: '4px' }}>
-                            {s.notes}
+                        {/* Separator */}
+                        <div style={{ width: '1px', height: '32px', background: 'var(--border-color)', flexShrink: 0 }} />
+                        {/* Label */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: '700', fontSize: '13px', color: 'var(--primary-color)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.02em' }}>
+                            {s.label}
                           </div>
-                        )}
+                          {s.tag && (
+                            <div style={{ fontSize: '10px', color: 'var(--accent-color)', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                              #{s.tag}
+                            </div>
+                          )}
+                          {s.notes && (
+                            <div style={{ fontSize: '11px', color: 'var(--secondary-color)', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {s.notes}
+                            </div>
+                          )}
+                        </div>
+                        {/* Duration */}
+                        <div style={{ flexShrink: 0, fontWeight: '800', color: 'var(--accent-color)', fontSize: '13px', letterSpacing: '0.04em' }}>
+                          {mins}m
+                        </div>
                       </div>
                     );
                   })
                 )}
               </div>
-              
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-                <button className="btn btn-primary" onClick={() => setSelectedDate(null)}>Close</button>
+
+              {/* Footer */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn btn-accent" onClick={() => setSelectedDate(null)}>Close</button>
               </div>
+
             </div>
           </div>
         );
