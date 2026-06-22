@@ -1489,6 +1489,218 @@ function HistoryView({ sessions, subjects, onDeleteSession }) {
   );
 }
 
+function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete }) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [testName, setTestName] = useState('');
+  const [subjectId, setSubjectId] = useState(subjects[0]?.id || '');
+  const [obtainedMarks, setObtainedMarks] = useState('');
+  const [totalMarks, setTotalMarks] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState('');
+
+  if (!activeGoal) return null;
+
+  const goalTests = mockTests
+    .filter(t => String(t.examGoalId) === String(activeGoal.id))
+    .sort((a, b) => new Date(a.date) - new Date(b.date)); // chronological for chart
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!testName || !obtainedMarks || !totalMarks || !subjectId) return;
+
+    const obtained = parseFloat(obtainedMarks);
+    const total = parseFloat(totalMarks);
+    const scorePercentage = total > 0 ? (obtained / total) * 100 : 0;
+
+    onSave({
+      examGoalId: activeGoal.id,
+      subjectId: subjectId,
+      testName,
+      scorePercentage,
+      obtainedMarks: obtained,
+      totalMarks: total,
+      notes,
+      date,
+      createdAt: Date.now()
+    });
+
+    setTestName('');
+    setObtainedMarks('');
+    setTotalMarks('');
+    setNotes('');
+    setShowAddForm(false);
+  };
+
+  const chartData = goalTests.map(t => {
+    const subj = subjects.find(s => String(s.id) === String(t.subjectId));
+    return {
+      date: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      score: Math.round(t.scorePercentage),
+      name: t.testName,
+      subject: subj?.name || 'Subject'
+    };
+  });
+
+  return (
+    <div className="card" style={{ marginTop: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: '800' }}>Mock Test Performance</h3>
+        {subjects.length > 0 && (
+          <button 
+            className="btn btn-primary" 
+            onClick={() => setShowAddForm(!showAddForm)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <Plus size={16} /> Log Score
+          </button>
+        )}
+      </div>
+
+      {showAddForm && (
+        <form onSubmit={handleSubmit} className="card" style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', marginBottom: '24px', border: '1px solid var(--border-color)' }}>
+          <h4 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: '700' }}>Log Mock Test Record</h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Test Name</label>
+              <input 
+                type="text" 
+                className="input-field" 
+                value={testName} 
+                onChange={e => setTestName(e.target.value)} 
+                required 
+                placeholder="e.g. Midterm, Practice Test 1"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Subject</label>
+              <select 
+                className="input-field" 
+                value={subjectId} 
+                onChange={e => setSubjectId(e.target.value)} 
+                required
+              >
+                {subjects.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Obtained Marks</label>
+              <input 
+                type="number" 
+                step="any" 
+                className="input-field" 
+                value={obtainedMarks} 
+                onChange={e => setObtainedMarks(e.target.value)} 
+                required 
+                placeholder="e.g. 85"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Total Marks</label>
+              <input 
+                type="number" 
+                step="any" 
+                className="input-field" 
+                value={totalMarks} 
+                onChange={e => setTotalMarks(e.target.value)} 
+                required 
+                placeholder="e.g. 100"
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Date</label>
+              <input 
+                type="date" 
+                className="input-field" 
+                value={date} 
+                onChange={e => setDate(e.target.value)} 
+                required 
+              />
+            </div>
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Notes</label>
+            <textarea 
+              className="input-field" 
+              value={notes} 
+              onChange={e => setNotes(e.target.value)} 
+              placeholder="Any comments, weaknesses noticed, etc. (optional)"
+              style={{ minHeight: '60px', fontFamily: 'inherit' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary">Save Score</button>
+          </div>
+        </form>
+      )}
+
+      {chartData.length > 0 && (
+        <div style={{ height: '220px', marginBottom: '24px', width: '100%' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <XAxis dataKey="date" stroke="var(--secondary-color)" fontSize={11} tickLine={false} />
+              <YAxis stroke="var(--secondary-color)" fontSize={11} tickLine={false} domain={[0, 100]} unit="%" />
+              <Tooltip 
+                contentStyle={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)', borderRadius: '8px', color: 'var(--clr-text)' }}
+                labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
+              />
+              <Line type="monotone" dataKey="score" stroke="var(--accent-color)" strokeWidth={3} dot={{ fill: 'var(--accent-color)', r: 5 }} activeDot={{ r: 7 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {goalTests.slice().reverse().map(t => {
+          const subj = subjects.find(s => String(s.id) === String(t.subjectId));
+          const score = Math.round(t.scorePercentage);
+          return (
+            <div key={t.id} className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: subj?.colorHex || 'var(--accent-color)', background: `${subj?.colorHex || 'var(--accent-color)'}1A`, padding: '2px 6px', borderRadius: '4px' }}>
+                    {subj?.name || 'Subject'}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--secondary-color)' }}>{t.date}</span>
+                </div>
+                <h4 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '4px' }}>{t.testName}</h4>
+                <div style={{ fontSize: '12px', color: 'var(--secondary-color)' }}>
+                  Marks: {t.obtainedMarks} / {t.totalMarks}
+                </div>
+                {t.notes && (
+                  <p style={{ fontSize: '12px', color: 'var(--clr-text)', background: 'rgba(255,255,255,0.02)', padding: '6px 10px', borderRadius: '4px', marginTop: '6px', maxWidth: '500px' }}>
+                    {t.notes}
+                  </p>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '900', color: score >= 75 ? 'var(--clr-green, #a6e3a1)' : score >= 50 ? 'var(--clr-yellow, #f9e2af)' : 'var(--clr-red, #f38ba8)' }}>
+                  {score}%
+                </span>
+                <button className="btn btn-secondary" style={{ padding: '6px' }} onClick={() => {
+                  if (confirm("Delete this mock test score record?")) {
+                    onDelete(t.id);
+                  }
+                }}>
+                  <Trash2 size={16} color="var(--error-color)" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {goalTests.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--secondary-color)', fontSize: '13px' }}>
+            No mock tests recorded for this goal yet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSaveMockTest, onDeleteMockTest }) {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
