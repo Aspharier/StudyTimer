@@ -380,15 +380,15 @@ function DashboardView({ activeGoal, sessions, subjects, setActiveTab }) {
           </span>
           <div className="db-ring-wrap">
             <svg viewBox="0 0 100 100" className="db-ring-svg">
-              <circle cx="50" cy="50" r="38" fill="none" stroke="var(--surface-variant)" strokeWidth="7"/>
+              <circle cx="50" cy="50" r="42" fill="none" stroke="var(--surface-variant)" strokeWidth="6"/>
               <circle
-                cx="50" cy="50" r="38" fill="none"
+                cx="50" cy="50" r="42" fill="none"
                 stroke="var(--accent-color)"
-                strokeWidth="7"
+                strokeWidth="6"
                 strokeLinecap="round"
-                strokeDasharray="238.76"
-                strokeDashoffset={238.76 - 238.76 * progressPercent}
-                style={{ transition: 'stroke-dashoffset 1s ease', filter: 'drop-shadow(0 0 6px var(--accent-glow))' }}
+                strokeDasharray="263.89"
+                strokeDashoffset={263.89 - 263.89 * progressPercent}
+                style={{ transition: 'stroke-dashoffset 1s ease', filter: 'drop-shadow(0 0 8px var(--accent-glow))' }}
               />
             </svg>
             <div className="db-ring-inner">

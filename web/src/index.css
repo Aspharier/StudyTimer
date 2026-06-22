@@ -1234,8 +1234,8 @@ select.input-field option:checked, select option:checked {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 24px 28px;
+  gap: 6px;
+  padding: 36px 36px;
   position: relative;
 }
 
@@ -1246,7 +1246,7 @@ select.input-field option:checked, select option:checked {
   width: 1px;
   background: var(--border-color);
   flex-shrink: 0;
-  margin: 18px 0;
+  margin: 28px 0;
 }
 
 .db-stat-eyebrow {
@@ -1262,16 +1262,16 @@ select.input-field option:checked, select option:checked {
 }
 
 .db-stat-number {
-  font-size: 50px;
+  font-size: 72px;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   line-height: 1;
-  margin-bottom: 2px;
-  text-shadow: 0 0 30px var(--accent-glow);
+  margin-bottom: 4px;
+  text-shadow: 0 0 40px var(--accent-glow);
 }
 
-.db-stat-label { font-size: 10px; color: var(--secondary-color); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
-.db-streak-msg { font-size: 11px; color: var(--secondary-color); margin-top: 6px; }
+.db-stat-label { font-size: 11px; color: var(--secondary-color); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+.db-streak-msg { font-size: 13px; color: var(--secondary-color); margin-top: 10px; font-weight: 500; }
 
 .db-stat-link {
   background: none;
@@ -1290,17 +1290,17 @@ select.input-field option:checked, select option:checked {
 }
 .db-stat-link:hover { opacity: 0.7; text-decoration: underline; }
 
-.db-ring-wrap { position: relative; width: 110px; height: 110px; margin-top: 8px; }
+.db-ring-wrap { position: relative; width: 180px; height: 180px; margin-top: 12px; }
 .db-ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .db-ring-inner {
   position: absolute;
   inset: 0;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  gap: 2px;
+  gap: 4px;
 }
-.db-ring-val { font-size: 19px; font-weight: 800; color: var(--primary-color); line-height: 1; }
-.db-ring-sub { font-size: 9px; color: var(--secondary-color); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.db-ring-val { font-size: 32px; font-weight: 800; color: var(--primary-color); line-height: 1; }
+.db-ring-sub { font-size: 11px; color: var(--secondary-color); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
 
 .db-syllabus-row { padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
 .db-syllabus-row:last-child { border-bottom: none; padding-bottom: 0; }
