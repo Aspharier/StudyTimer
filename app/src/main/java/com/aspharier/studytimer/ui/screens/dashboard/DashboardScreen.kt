@@ -204,6 +204,9 @@ fun DashboardScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Min),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Button(
@@ -214,9 +217,18 @@ fun DashboardScreen(
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 ),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                             ) {
-                                Text("Manage Goals", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = "Manage Goals",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
                             }
 
                             Button(
@@ -227,9 +239,18 @@ fun DashboardScreen(
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                                 ),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                             ) {
-                                Text("Mock Tests & Analytics", color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    text = "Mock Tests & Analytics",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
                             }
                         }
                     } else {
