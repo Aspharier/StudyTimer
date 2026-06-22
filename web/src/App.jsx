@@ -351,9 +351,6 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
     return topics.filter(t => String(t.subjectId) === String(subjectId));
   }
 
-  const recommendations = React.useMemo(() => {
-    return getDailyRecommendations(topics, sessions, activeGoal);
-  }, [topics, sessions, activeGoal]);
 
   return (
     <>
@@ -446,47 +443,6 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
         </div>
 
       </div>
-
-      {/* ── Daily Recommendations Card ── */}
-      {activeGoal && recommendations.length > 0 && (
-        <div className="card recommendation-card">
-          <div className="card-title">
-            <span className="pulse-indicator"></span>
-            &nbsp;🧠 Recommended for Today
-          </div>
-          <div className="recommendation-list">
-            {recommendations.map(t => {
-              const s = subjects.find(x => String(x.id) === String(t.subjectId));
-              const subColor = s ? s.colorHex : 'var(--accent-color)';
-              const statusLabels = {
-                'NEEDS_REVISION': 'Needs Revision',
-                'IN_PROGRESS': 'In Progress',
-                'NOT_STARTED': 'Not Started'
-              };
-              const statusLabel = statusLabels[t.status] || t.status;
-              
-              return (
-                <div key={t.id} className="rec-item">
-                  <div className="rec-meta">
-                    <span className="rec-subject-pill" style={{ '--sub-color': subColor, color: subColor, borderColor: `${subColor}40` }}>
-                      {s ? s.name : 'Unknown'}
-                    </span>
-                    <span className={`rec-reason ${t.status === 'NEEDS_REVISION' ? 'orange-text' : 'blue-text'}`} style={{ fontSize: '11px', opacity: 0.8, fontFamily: 'var(--font-mono)' }}>
-                      {statusLabel}
-                    </span>
-                  </div>
-                  <div className="rec-topic-name">
-                    {t.name}
-                  </div>
-                  <button className="rec-action-btn" onClick={() => onFocusNow(t.subjectId, t.name)}>
-                    &gt;_ Focus Now
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* ── Syllabus Completion Card ── */}
       <div className="card">
@@ -1702,8 +1658,77 @@ function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete }) 
 }
 
 function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSaveMockTest, onDeleteMockTest }) {
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
+
+  const weeks = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 364);
+
+    const startSunday = new Date(startDate);
+    startSunday.setDate(startDate.getDate() - startDate.getDay());
+
+    const endSaturday = new Date(today);
+    endSaturday.setDate(today.getDate() + (6 - today.getDay()));
+
+    const weeksList = [];
+    let currentDay = new Date(startSunday);
+    
+    while (currentDay <= endSaturday) {
+      const week = [];
+      for (let i = 0; i < 7; i++) {
+        week.push(new Date(currentDay));
+        currentDay.setDate(currentDay.getDate() + 1);
+      }
+      weeksList.push(week);
+    }
+    return weeksList;
+  }, [sessions]);
+
+  const monthLabels = React.useMemo(() => {
+    const labels = [];
+    let lastMonthName = '';
+    weeks.forEach((week, wIdx) => {
+      const midWeekDay = week[3];
+      const monthName = midWeekDay.toLocaleDateString(undefined, { month: 'short' });
+      if (monthName !== lastMonthName) {
+        labels.push({ text: monthName, colIndex: wIdx });
+        lastMonthName = monthName;
+      }
+    });
+    return labels;
+  }, [weeks]);
+
+  const trackingSinceStr = React.useMemo(() => {
+    if (sessions.length === 0) {
+      const today = new Date();
+      return `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()}`;
+    }
+    const dates = sessions.map(s => new Date(s.date).getTime());
+    const minDate = new Date(Math.min(...dates));
+    return `${minDate.getMonth() + 1}/${minDate.getDate()}/${minDate.getFullYear()}`;
+  }, [sessions]);
+
+  const sessionsInPastYear = React.useMemo(() => {
+    const oneYearAgo = new Date();
+    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+    return sessions.filter(s => new Date(s.date) >= oneYearAgo && s.completedDurationSeconds > 0).length;
+  }, [sessions]);
+
+  const startDate = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const d = new Date(today);
+    d.setDate(today.getDate() - 364);
+    return d;
+  }, []);
+
+  const today = React.useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
 
   const getDaySessions = (date) => {
     if (!date) return [];
@@ -1780,84 +1805,7 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
   const streak = getStreak();
   const sessionCount = sessions.filter(s => s.completedDurationSeconds > 0).length;
 
-  const handlePrevMonth = () => {
-    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
 
-  const handleNextMonth = () => {
-    setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
-
-  const getMonthCells = () => {
-    const year = selectedMonth.getFullYear();
-    const month = selectedMonth.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDayIndex = new Date(year, month, 1).getDay();
-    
-    const cells = [];
-    for (let i = 0; i < firstDayIndex; i++) {
-      cells.push(null);
-    }
-    for (let day = 1; day <= daysInMonth; day++) {
-      cells.push(new Date(year, month, day));
-    }
-    return cells;
-  };
-
-  const monthCells = getMonthCells();
-
-  const projections = React.useMemo(() => {
-    if (!activeGoal || topics.length === 0) return null;
-
-    const totalTopics = topics.length;
-    const completedTopics = topics.filter(t => t.status === 'COMPLETED').length;
-    const remainingTopics = totalTopics - completedTopics;
-
-    const now = new Date();
-    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-    const fourteenDaysSessions = sessions.filter(s => {
-      const sDate = new Date(s.date);
-      return sDate >= fourteenDaysAgo && s.completedDurationSeconds > 0;
-    });
-    const totalSeconds14 = fourteenDaysSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
-    const avgDailyHours = (totalSeconds14 / 3600) / 14;
-
-    const totalSecondsAll = sessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
-    const totalHoursAll = totalSecondsAll / 3600;
-    const avgHoursPerTopic = totalHoursAll / Math.max(1, completedTopics);
-
-    const hoursNeeded = remainingTopics * avgHoursPerTopic;
-    const daysRemaining = Math.max(0, Math.ceil((new Date(activeGoal.examDate) - now) / (1000 * 60 * 60 * 24)));
-    
-    const targetHoursDaily = daysRemaining > 0 ? (hoursNeeded / daysRemaining) : 0;
-    const projectedDaysToComplete = avgDailyHours > 0.05 ? (hoursNeeded / avgDailyHours) : 999;
-    
-    const isBehind = projectedDaysToComplete > daysRemaining;
-    const projectedDate = new Date(now.getTime() + projectedDaysToComplete * 24 * 60 * 60 * 1000);
-    const projectedDateStr = projectedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-
-    return {
-      totalTopics,
-      completedTopics,
-      remainingTopics,
-      avgDailyHours: parseFloat(avgDailyHours.toFixed(1)),
-      targetHoursDaily: parseFloat(targetHoursDaily.toFixed(1)),
-      projectedDaysToComplete: Math.round(projectedDaysToComplete),
-      daysRemaining,
-      isBehind,
-      projectedDateStr
-    };
-  }, [topics, sessions, activeGoal]);
-
-  const subjectStudyProgress = React.useMemo(() => {
-    return subjects.map(s => {
-      const subjSessions = sessions.filter(se => String(se.subjectId) === String(s.id) && se.completedDurationSeconds > 0);
-      const actualHours = subjSessions.reduce((acc, se) => acc + se.completedDurationSeconds, 0) / 3600;
-      const target = s.targetHours || 0;
-      const isUnderstudied = s.priority === 'HIGH' && target > 0 && actualHours < (target * 0.4);
-      return { ...s, actualHours: parseFloat(actualHours.toFixed(1)), target, isUnderstudied };
-    });
-  }, [subjects, sessions]);
 
   return (
     <>
@@ -1870,30 +1818,6 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
         </div>
       </div>
 
-      {projections && (
-        <div className={`card projection-card ${projections.isBehind ? 'projection-behind' : 'projection-ahead'}`} style={{ marginTop: '20px', padding: '20px' }}>
-          <div className="card-title animate-pulse-glow" style={{ color: projections.isBehind ? 'var(--clr-red)' : 'var(--clr-green)', marginBottom: '8px' }}>
-            {projections.isBehind ? '🚨 Pace Warning: Behind Target Schedule' : '✅ Pace Status: On Track'}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', marginTop: '12px' }}>
-            <div className="projection-metric">
-              <span className="proj-label">Projected Completion</span>
-              <span className="proj-val">{projections.projectedDateStr}</span>
-              <span className="proj-sub">({projections.projectedDaysToComplete} days vs {projections.daysRemaining} days left)</span>
-            </div>
-            <div className="projection-metric">
-              <span className="proj-label">Current Study Pace</span>
-              <span className="proj-val">{projections.avgDailyHours}h/day</span>
-              <span className="proj-sub">(Average of last 14 days)</span>
-            </div>
-            <div className="projection-metric">
-              <span className="proj-label">Required Study Pace</span>
-              <span className="proj-val" style={{ color: projections.isBehind ? 'var(--clr-peach)' : 'var(--clr-green)' }}>{projections.targetHoursDaily}h/day</span>
-              <span className="proj-sub">(To finish syllabus before exam)</span>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="grid-2" style={{ marginTop: '24px' }}>
         <div className="card chart-card">
@@ -1955,116 +1879,90 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
       </div>
 
       <div className="card heatmap-card" style={{ marginTop: '24px' }}>
-        <div className="heatmap-header-row">
-          <button 
-            className="btn btn-secondary heatmap-nav-btn" 
-            onClick={handlePrevMonth}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <span className="heatmap-month-title">
-            {selectedMonth.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
-          </span>
-          <button 
-            className="btn btn-secondary heatmap-nav-btn" 
-            onClick={handleNextMonth}
-          >
-            <ChevronRight size={16} />
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
+          <div className="card-title" style={{ marginBottom: 0 }}>Study Activity</div>
+          <div style={{ fontSize: '13px', color: 'var(--secondary-color)' }}>
+            {sessionsInPastYear} sessions in the past year • Current streak: {streak} days
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--secondary-color)', opacity: 0.8 }}>
+            Tracking since {trackingSinceStr}
+          </div>
         </div>
 
-        <div className="heatmap-body">
-          <div className="heatmap-weekdays">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
-              <div key={idx} className="heatmap-weekday">
-                <span className="desktop-day">{day}</span>
-                <span className="mobile-day">{day[0]}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="heatmap-days-grid">
-            {monthCells.map((cell, idx) => {
-              if (cell === null) {
-                return <div key={`empty-${idx}`} className="heatmap-day-empty" />;
-              }
-              const pad = (n) => String(n).padStart(2, '0');
-              const dateStr = `${cell.getFullYear()}-${pad(cell.getMonth() + 1)}-${pad(cell.getDate())}`;
-              const daySessions = sessions.filter(s => s.date === dateStr);
-              const seconds = daySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
-              const hours = seconds / 3600;
-              
-              let level = 0;
-              if (seconds > 0) {
-                if (seconds < 30 * 60) level = 1;
-                else if (seconds < 60 * 60) level = 2;
-                else if (seconds < 120 * 60) level = 3;
-                else level = 4;
-              }
-
-              return (
+        <div className="github-heatmap-wrapper">
+          <div className="github-heatmap-inner">
+            <div className="github-heatmap-months">
+              {monthLabels.map((lbl, idx) => (
                 <div
-                  key={`day-${cell.getDate()}`}
-                  className={`heatmap-day level-${level}`}
-                  title={`${cell.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}: ${hours.toFixed(1)}h studied`}
-                  onClick={() => setSelectedDate(cell)}
-                />
-              );
-            })}
-          </div>
+                  key={idx}
+                  className="github-heatmap-month-label"
+                  style={{ gridColumn: `${lbl.colIndex + 2} / span 4` }}
+                >
+                  {lbl.text}
+                </div>
+              ))}
+            </div>
 
-          <div className="heatmap-legend">
-            <span>Less</span>
-            <div className="heatmap-legend-cell level-0" />
-            <div className="heatmap-legend-cell level-1" />
-            <div className="heatmap-legend-cell level-2" />
-            <div className="heatmap-legend-cell level-3" />
-            <div className="heatmap-legend-cell level-4" />
-            <span>More</span>
+            <div className="github-heatmap-grid">
+              <div className="github-heatmap-weekdays">
+                <span></span>
+                <span>Mon</span>
+                <span></span>
+                <span>Wed</span>
+                <span></span>
+                <span>Fri</span>
+                <span></span>
+              </div>
+
+              {weeks.map((week, wIdx) => (
+                <div key={wIdx} className="github-heatmap-column">
+                  {week.map((day, dIdx) => {
+                    const isOutOfRange = day < startDate || day > today;
+                    if (isOutOfRange) {
+                      return <div key={dIdx} className="github-heatmap-cell empty" />;
+                    }
+
+                    const pad = (n) => String(n).padStart(2, '0');
+                    const dateStr = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+                    const daySessions = sessions.filter(s => s.date === dateStr);
+                    const seconds = daySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+                    const hours = seconds / 3600;
+
+                    let level = 0;
+                    if (seconds > 0) {
+                      if (seconds < 30 * 60) level = 1;
+                      else if (seconds < 60 * 60) level = 2;
+                      else if (seconds < 120 * 60) level = 3;
+                      else level = 4;
+                    }
+
+                    return (
+                      <div
+                        key={dIdx}
+                        className={`github-heatmap-cell level-${level}`}
+                        title={`${day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}: ${hours.toFixed(1)}h studied`}
+                        onClick={() => setSelectedDate(day)}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
+        </div>
+
+        <div className="github-heatmap-legend">
+          <span>Less</span>
+          <div className="github-heatmap-legend-cell level-0" />
+          <div className="github-heatmap-legend-cell level-1" />
+          <div className="github-heatmap-legend-cell level-2" />
+          <div className="github-heatmap-legend-cell level-3" />
+          <div className="github-heatmap-legend-cell level-4" />
+          <span>More</span>
         </div>
       </div>
 
-      {subjects.length > 0 && (
-        <div className="card" style={{ marginTop: '24px' }}>
-          <div className="card-title">🎯 Subject Study Targets &amp; Progress</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
-            {subjectStudyProgress.filter(s => s.target > 0).map(s => {
-              const progress = Math.min(s.actualHours / s.target, 1);
-              return (
-                <div key={s.id} className="db-syllabus-row" style={{ padding: '12px', borderRadius: 'var(--radius-md)', background: 'var(--surface-variant)', border: s.isUnderstudied ? '1px solid var(--clr-red)' : '1px solid var(--border-color)', boxShadow: s.isUnderstudied ? '0 0 12px rgba(243, 139, 168, 0.15)' : 'none' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: s.colorHex }} />
-                      <span style={{ fontWeight: '600', fontSize: '13px' }}>{s.name}</span>
-                      <span className="rec-subject-pill" style={{ '--sub-color': s.priority === 'HIGH' ? 'var(--clr-red)' : (s.priority === 'LOW' ? 'var(--secondary-color)' : 'var(--accent-color)'), color: s.priority === 'HIGH' ? 'var(--clr-red)' : (s.priority === 'LOW' ? 'var(--secondary-color)' : 'var(--accent-color)'), fontSize: '10px', padding: '1px 5px', height: 'fit-content', border: '1px solid', borderRadius: '3px', marginLeft: '6px' }}>
-                        {s.priority || 'MEDIUM'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px' }}>
-                      <span>{s.actualHours}h / {s.target}h target</span>
-                      <span style={{ fontWeight: '700', color: s.colorHex }}>{(progress * 100).toFixed(0)}%</span>
-                    </div>
-                  </div>
-                  <div className="progress-bar-bg" style={{ height: '6px' }}>
-                    <div className="progress-bar-fill" style={{ width: `${progress * 100}%`, backgroundColor: s.colorHex }} />
-                  </div>
-                  {s.isUnderstudied && (
-                    <div style={{ fontSize: '11px', color: 'var(--clr-red)', marginTop: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <AlertCircle size={12} /> Understudied high-priority subject! Increase study allocation.
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {subjectStudyProgress.filter(s => s.target > 0).length === 0 && (
-              <div style={{ textAlign: 'center', padding: '16px', color: 'var(--secondary-color)', fontSize: '13px' }}>
-                No subject study targets set. Set targets by expanding subjects in the Syllabus tab.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+
 
       <MockTestSection 
         mockTests={mockTests} 

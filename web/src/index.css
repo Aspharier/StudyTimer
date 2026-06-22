@@ -908,108 +908,119 @@ select.input-field option:checked, select option:checked {
 /* ============================================
    HEATMAP CALENDAR
    ============================================ */
-:root {
-  --heatmap-cell-size: 30px;
-  --heatmap-gap: 5px;
-  --heatmap-width: calc(7 * var(--heatmap-cell-size) + 6 * var(--heatmap-gap));
-}
-
-@media (max-width: 480px) {
-  :root { --heatmap-cell-size: 26px; --heatmap-gap: 4px; }
-}
-
 .heatmap-card {
-  max-width: 360px;
-  margin: 18px auto 0;
+  margin: 18px 0 0;
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  box-sizing: border-box;
 }
 
-@media (max-width: 480px) {
-  .heatmap-card { max-width: 100%; padding: 12px; box-sizing: border-box; }
-}
-
-.mobile-day { display: none; }
-.desktop-day { display: inline; }
-
-@media (max-width: 480px) {
-  .mobile-day { display: inline; }
-  .desktop-day { display: none; }
-}
-
-.heatmap-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 14px;
-  width: var(--heatmap-width);
-}
-
-.heatmap-nav-btn { padding: 4px 8px; display: flex; align-items: center; }
-.heatmap-month-title { font-weight: 700; font-size: 12px; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.08em; }
-
-.heatmap-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: var(--heatmap-width);
+.github-heatmap-wrapper {
+  width: 100%;
+  overflow-x: auto;
   padding-bottom: 8px;
+  margin-top: 14px;
 }
 
-.heatmap-weekdays {
+/* Custom sleek scrollbar for the scrollable wrapper */
+.github-heatmap-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+.github-heatmap-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+.github-heatmap-wrapper::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+.github-heatmap-wrapper::-webkit-scrollbar-thumb:hover {
+  background: var(--border-accent);
+}
+
+.github-heatmap-inner {
+  min-width: 725px;
+  display: flex;
+  flex-direction: column;
+}
+
+.github-heatmap-months {
   display: grid;
-  grid-template-columns: repeat(7, var(--heatmap-cell-size));
-  gap: var(--heatmap-gap);
+  grid-template-columns: 28px repeat(53, 10px);
+  gap: 3px;
   margin-bottom: 6px;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 6px;
-  width: var(--heatmap-width);
-}
-
-.heatmap-weekday {
-  text-align: center;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--secondary-color);
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
-.heatmap-days-grid {
+.github-heatmap-grid {
   display: grid;
-  grid-template-columns: repeat(7, var(--heatmap-cell-size));
-  gap: var(--heatmap-gap);
-  width: var(--heatmap-width);
+  grid-template-columns: 28px repeat(53, 10px);
+  gap: 3px;
 }
 
-.heatmap-day {
-  width: var(--heatmap-cell-size);
-  height: var(--heatmap-cell-size);
-  border-radius: var(--radius-xs);
+.github-heatmap-weekdays {
+  display: grid;
+  grid-template-rows: repeat(7, 10px);
+  gap: 3px;
+  font-size: 8px;
+  color: var(--secondary-color);
+  line-height: 10px;
+  padding-right: 4px;
+  text-align: right;
+  font-weight: 600;
+}
+
+.github-heatmap-weekdays span {
+  height: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.github-heatmap-column {
+  display: grid;
+  grid-template-rows: repeat(7, 10px);
+  gap: 3px;
+}
+
+.github-heatmap-cell {
+  width: 100%;
+  height: 10px;
+  border-radius: 2px;
   cursor: pointer;
-  transition: var(--transition-fast);
-  position: relative;
+  transition: transform 0.1s ease;
 }
 
-.heatmap-day:hover { transform: scale(1.15); z-index: 10; box-shadow: 0 0 8px var(--accent-glow); }
-.heatmap-day-empty { width: var(--heatmap-cell-size); height: var(--heatmap-cell-size); }
+.github-heatmap-cell.empty {
+  background: transparent;
+  cursor: default;
+  pointer-events: none;
+}
 
-.heatmap-legend {
+.github-heatmap-cell:not(.empty):hover {
+  transform: scale(1.35);
+  z-index: 10;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.github-heatmap-legend {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
-  margin-top: 12px;
-  font-size: 9px;
+  margin-top: 14px;
+  font-size: 10px;
   color: var(--secondary-color);
   align-items: center;
-  width: var(--heatmap-width);
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
-.heatmap-legend-cell { width: 10px; height: 10px; border-radius: 2px; }
+.github-heatmap-legend-cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
 
 .level-0 { background: var(--primary-color); opacity: 0.06; }
 .level-1 { background: var(--accent-color); opacity: 0.28; }
