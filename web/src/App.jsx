@@ -165,7 +165,7 @@ export default function App() {
 
       {/* Main Contents */}
       <main className="main-content">
-        <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
+        <div style={{ display: activeTab === 'dashboard' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
           <DashboardView 
             activeGoal={activeGoal} 
             sessions={sessions} 
@@ -173,33 +173,33 @@ export default function App() {
             setActiveTab={setActiveTab}
           />
         </div>
-        <div style={{ display: activeTab === 'timer' ? 'block' : 'none' }}>
+        <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
           <TimerView 
             subjects={subjects} 
             onSaveSession={DataService.saveSession}
           />
         </div>
-        <div style={{ display: activeTab === 'syllabus' ? 'block' : 'none' }}>
+        <div style={{ display: activeTab === 'syllabus' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
           <SyllabusView 
             activeGoal={activeGoal} 
             subjects={subjects} 
             topics={topics}
           />
         </div>
-        <div style={{ display: activeTab === 'history' ? 'block' : 'none' }}>
+        <div style={{ display: activeTab === 'history' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
           <HistoryView 
             sessions={sessions} 
             subjects={subjects} 
             onDeleteSession={DataService.deleteSession}
           />
         </div>
-        <div style={{ display: activeTab === 'analytics' ? 'block' : 'none' }}>
+        <div style={{ display: activeTab === 'analytics' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
           <AnalyticsView 
             sessions={sessions} 
             subjects={subjects}
           />
         </div>
-        <div style={{ display: activeTab === 'account' ? 'block' : 'none' }}>
+        <div style={{ display: activeTab === 'account' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
           <AccountView 
             user={user} 
             examGoals={examGoals}
