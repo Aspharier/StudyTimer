@@ -33,4 +33,7 @@ interface TopicDao {
 
     @Query("SELECT COUNT(*) FROM topics WHERE subjectId = :subjectId AND status = 'COMPLETED'")
     fun getCompletedTopicCount(subjectId: Long): Flow<Int>
+
+    @Query("SELECT * FROM topics")
+    fun getAllTopics(): Flow<List<TopicEntity>>
 }

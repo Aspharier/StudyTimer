@@ -8,19 +8,22 @@ import com.aspharier.studytimer.data.local.dao.ExamGoalDao
 import com.aspharier.studytimer.data.local.dao.StudySessionDao
 import com.aspharier.studytimer.data.local.dao.SubjectDao
 import com.aspharier.studytimer.data.local.dao.TopicDao
+import com.aspharier.studytimer.data.local.dao.MockTestDao
 import com.aspharier.studytimer.data.local.entity.ExamGoalEntity
 import com.aspharier.studytimer.data.local.entity.StudySessionEntity
 import com.aspharier.studytimer.data.local.entity.SubjectEntity
 import com.aspharier.studytimer.data.local.entity.TopicEntity
+import com.aspharier.studytimer.data.local.entity.MockTestEntity
 
 @Database(
     entities = [
         StudySessionEntity::class,
         ExamGoalEntity::class,
         SubjectEntity::class,
-        TopicEntity::class
+        TopicEntity::class,
+        MockTestEntity::class
     ],
-    version = 3,
+    version = 5,
     exportSchema = false
 )
 abstract class StudyTimerDatabase : RoomDatabase() {
@@ -28,6 +31,7 @@ abstract class StudyTimerDatabase : RoomDatabase() {
     abstract fun examGoalDao(): ExamGoalDao
     abstract fun subjectDao(): SubjectDao
     abstract fun topicDao(): TopicDao
+    abstract fun mockTestDao(): MockTestDao
 
     companion object {
         val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -80,6 +84,36 @@ abstract class StudyTimerDatabase : RoomDatabase() {
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE topics ADD COLUMN subTopicsJson TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS mock_tests (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        examGoalId INTEGER NOT NULL,
+                        subjectId INTEGER NOT NULL,
+                        testName TEXT NOT NULL,
+                        scorePercentage REAL NOT NULL,
+                        totalMarks REAL NOT NULL,
+                        obtainedMarks REAL NOT NULL,
+                        notes TEXT DEFAULT NULL,
+                        date TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        FOREIGN KEY (examGoalId) REFERENCES exam_goals(id) ON DELETE CASCADE,
+                        FOREIGN KEY (subjectId) REFERENCES subjects(id) ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_mock_tests_subjectId ON mock_tests(subjectId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_mock_tests_examGoalId ON mock_tests(examGoalId)")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE subjects ADD COLUMN targetHours INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE subjects ADD COLUMN priority TEXT NOT NULL DEFAULT 'MEDIUM'")
             }
         }
     }

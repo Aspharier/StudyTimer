@@ -7,6 +7,7 @@ import com.aspharier.studytimer.data.local.dao.ExamGoalDao
 import com.aspharier.studytimer.data.local.dao.StudySessionDao
 import com.aspharier.studytimer.data.local.dao.SubjectDao
 import com.aspharier.studytimer.data.local.dao.TopicDao
+import com.aspharier.studytimer.data.local.dao.MockTestDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,7 +27,12 @@ object DatabaseModule {
             StudyTimerDatabase::class.java,
             "study_timer_database"
         )
-            .addMigrations(StudyTimerDatabase.MIGRATION_1_2, StudyTimerDatabase.MIGRATION_2_3)
+            .addMigrations(
+                StudyTimerDatabase.MIGRATION_1_2,
+                StudyTimerDatabase.MIGRATION_2_3,
+                StudyTimerDatabase.MIGRATION_3_4,
+                StudyTimerDatabase.MIGRATION_4_5
+            )
             .build()
     }
 
@@ -52,5 +58,11 @@ object DatabaseModule {
     @Singleton
     fun provideTopicDao(database: StudyTimerDatabase): TopicDao {
         return database.topicDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideMockTestDao(database: StudyTimerDatabase): MockTestDao {
+        return database.mockTestDao()
     }
 }

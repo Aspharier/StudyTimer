@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.aspharier.studytimer.data.repository.ExamGoalRepository
 import com.aspharier.studytimer.data.repository.StudySessionRepository
 import com.aspharier.studytimer.data.repository.SyllabusRepository
+import com.aspharier.studytimer.domain.StudyPlanEngine
 import com.aspharier.studytimer.domain.model.ExamGoal
 import com.aspharier.studytimer.domain.model.Subject
+import com.aspharier.studytimer.domain.model.Topic
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +23,8 @@ data class DashboardUiState(
     val todayStudiedSeconds: Long = 0L,
     val dailyTargetMinutes: Int = 360,
     val currentStreak: Int = 0,
-    val subjects: List<Subject> = emptyList()
+    val subjects: List<Subject> = emptyList(),
+    val recommendedTopics: List<Topic> = emptyList()
 )
 
 @HiltViewModel
@@ -38,8 +41,9 @@ class DashboardViewModel @Inject constructor(
         examGoalRepository.getActiveExamGoal(),
         studySessionRepository.getTotalSecondsForDate(todayString),
         studySessionRepository.getAllSessions(),
-        syllabusRepository.getAllSubjects()
-    ) { activeGoal, todaySeconds, allSessions, allSubjects ->
+        syllabusRepository.getAllSubjects(),
+        syllabusRepository.getAllTopics()
+    ) { activeGoal, todaySeconds, allSessions, allSubjects, allTopics ->
 
         // Calculate streak: count consecutive days backwards from today with sessions
         val streak = calculateStreak(allSessions.map { it.date }.toSet())
@@ -49,12 +53,20 @@ class DashboardViewModel @Inject constructor(
             .sortedByDescending { it.completionPercentage }
             .take(5)
 
+        // Get daily recommendations using StudyPlanEngine
+        val recommendations = StudyPlanEngine.getDailyRecommendations(
+            topics = allTopics,
+            sessions = allSessions,
+            examGoal = activeGoal
+        )
+
         DashboardUiState(
             activeExamGoal = activeGoal,
             todayStudiedSeconds = todaySeconds,
             dailyTargetMinutes = activeGoal?.dailyTargetMinutes ?: 360,
             currentStreak = streak,
-            subjects = topSubjects
+            subjects = topSubjects,
+            recommendedTopics = recommendations
         )
     }.stateIn(
         scope = viewModelScope,

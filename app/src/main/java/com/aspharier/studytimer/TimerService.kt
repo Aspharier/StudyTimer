@@ -11,8 +11,12 @@ import android.os.IBinder
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
 import com.aspharier.studytimer.data.repository.StudySessionRepository
+import com.aspharier.studytimer.data.repository.SyllabusRepository
+import com.aspharier.studytimer.domain.model.TopicStatus
+import kotlinx.coroutines.flow.first
 import com.aspharier.studytimer.di.StudyTimerApp
 import com.aspharier.studytimer.domain.model.StudySession
 import dagger.hilt.android.AndroidEntryPoint
@@ -64,6 +68,9 @@ class TimerService : Service() {
 
     @Inject
     lateinit var repository: StudySessionRepository
+
+    @Inject
+    lateinit var syllabusRepository: SyllabusRepository
 
     private val binder = TimerBinder()
     private val serviceJob = SupervisorJob()
@@ -198,6 +205,7 @@ class TimerService : Service() {
 
     private fun handlePhaseComplete() {
         vibrateOnPhaseComplete()
+        playChime()
         
         val currentState = _timerState.value
         
@@ -273,6 +281,16 @@ class TimerService : Service() {
         }
     }
 
+    private fun playChime() {
+        try {
+            val notificationUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val ringtone = RingtoneManager.getRingtone(applicationContext, notificationUri)
+            ringtone?.play()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     private fun pauseTimer() {
         _timerState.value = _timerState.value.copy(isPaused = true)
         if (_timerState.value.currentPhase == PomodoroPhase.FOCUS) {
@@ -308,6 +326,23 @@ class TimerService : Service() {
         persistTimerState(isCompleted = true, endTime = System.currentTimeMillis(), force = true)
         _onTimerFinished.value = true
         showFinishedNotification()
+        playChime()
+
+        val state = _timerState.value
+        if (state.tag == "REVISION" && state.subjectId != null) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val topics = syllabusRepository.getTopicsBySubject(state.subjectId).first()
+                    val topic = topics.find { it.name.trim().equals(state.sessionName.trim(), ignoreCase = true) }
+                    if (topic != null && topic.status == TopicStatus.NEEDS_REVISION) {
+                        syllabusRepository.updateTopicStatus(topic.id, TopicStatus.COMPLETED)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 

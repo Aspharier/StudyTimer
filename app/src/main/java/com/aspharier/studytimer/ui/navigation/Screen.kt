@@ -49,4 +49,9 @@ sealed class Screen(
         route = "exam_setup",
         title = "Exam Setup"
     )
+
+    data object MockTest : Screen(
+        route = "mock_test",
+        title = "Mock Tests"
+    )
 }

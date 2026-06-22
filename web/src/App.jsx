@@ -22,22 +22,34 @@ import {
   Palette,
   Menu
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line } from 'recharts';
 import { DataService } from './services/dataService';
 import { signInWithPopup, googleProvider, auth, signOut } from './firebase';
+import { getDailyRecommendations } from './services/recommendationEngine';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState(null);
+
+  // Prefill states for starting session from recommendations
+  const [prefilledSubjectId, setPrefilledSubjectId] = useState('');
+  const [prefilledSessionName, setPrefilledSessionName] = useState('');
 
   // Database States
   const [examGoals, setExamGoals] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [topics, setTopics] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [mockTests, setMockTests] = useState([]);
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const [theme, setTheme] = useState(localStorage.getItem('focusly_theme') || 'midnight');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const handleFocusNow = (subjectId, topicName) => {
+    setPrefilledSubjectId(subjectId);
+    setPrefilledSessionName(topicName);
+    setActiveTab('timer');
+  };
 
   // Load subscriptions
   useEffect(() => {
@@ -46,6 +58,7 @@ export default function App() {
     const unsubSubjects = DataService.subscribeToSubjects(setSubjects);
     const unsubTopics = DataService.subscribeToTopics(setTopics);
     const unsubSessions = DataService.subscribeToSessions(setSessions);
+    const unsubMockTests = DataService.subscribeToMockTests(setMockTests);
     const unsubLastSync = DataService.subscribeToLastSyncTime(setLastSyncTime);
 
     return () => {
@@ -54,6 +67,7 @@ export default function App() {
       unsubSubjects();
       unsubTopics();
       unsubSessions();
+      unsubMockTests();
       unsubLastSync();
     };
   }, []);
@@ -170,13 +184,21 @@ export default function App() {
             activeGoal={activeGoal} 
             sessions={sessions} 
             subjects={subjects}
+            topics={topics}
             setActiveTab={setActiveTab}
+            onFocusNow={handleFocusNow}
           />
         </div>
         <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
           <TimerView 
             subjects={subjects} 
             onSaveSession={DataService.saveSession}
+            prefilledSubjectId={prefilledSubjectId}
+            prefilledSessionName={prefilledSessionName}
+            clearPrefill={() => {
+              setPrefilledSubjectId('');
+              setPrefilledSessionName('');
+            }}
           />
         </div>
         <div style={{ display: activeTab === 'syllabus' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
@@ -197,6 +219,11 @@ export default function App() {
           <AnalyticsView 
             sessions={sessions} 
             subjects={subjects}
+            topics={topics}
+            activeGoal={activeGoal}
+            mockTests={mockTests}
+            onSaveMockTest={DataService.saveMockTest}
+            onDeleteMockTest={DataService.deleteMockTest}
           />
         </div>
         <div style={{ display: activeTab === 'account' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
@@ -273,7 +300,7 @@ function WmBar({ user, sessions, activeTab }) {
   );
 }
 
-function DashboardView({ activeGoal, sessions, subjects, setActiveTab }) {
+function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, onFocusNow }) {
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todaySessions = sessions.filter(s => s.date === todayStr);
@@ -321,10 +348,12 @@ function DashboardView({ activeGoal, sessions, subjects, setActiveTab }) {
   }).sort((a, b) => b.rate - a.rate).slice(0, 5);
 
   function topicsBySubjectId(subjectId) {
-    // Fallback: search topics in local storage state
-    const cachedTopics = JSON.parse(localStorage.getItem('focusly_topics') || '[]');
-    return cachedTopics.filter(t => String(t.subjectId) === String(subjectId));
+    return topics.filter(t => String(t.subjectId) === String(subjectId));
   }
+
+  const recommendations = React.useMemo(() => {
+    return getDailyRecommendations(topics, sessions, activeGoal);
+  }, [topics, sessions, activeGoal]);
 
   return (
     <>
@@ -418,6 +447,47 @@ function DashboardView({ activeGoal, sessions, subjects, setActiveTab }) {
 
       </div>
 
+      {/* ── Daily Recommendations Card ── */}
+      {activeGoal && recommendations.length > 0 && (
+        <div className="card recommendation-card">
+          <div className="card-title">
+            <span className="pulse-indicator"></span>
+            &nbsp;🧠 Recommended for Today
+          </div>
+          <div className="recommendation-list">
+            {recommendations.map(t => {
+              const s = subjects.find(x => String(x.id) === String(t.subjectId));
+              const subColor = s ? s.colorHex : 'var(--accent-color)';
+              const statusLabels = {
+                'NEEDS_REVISION': 'Needs Revision',
+                'IN_PROGRESS': 'In Progress',
+                'NOT_STARTED': 'Not Started'
+              };
+              const statusLabel = statusLabels[t.status] || t.status;
+              
+              return (
+                <div key={t.id} className="rec-item">
+                  <div className="rec-meta">
+                    <span className="rec-subject-pill" style={{ '--sub-color': subColor, color: subColor, borderColor: `${subColor}40` }}>
+                      {s ? s.name : 'Unknown'}
+                    </span>
+                    <span className={`rec-reason ${t.status === 'NEEDS_REVISION' ? 'orange-text' : 'blue-text'}`} style={{ fontSize: '11px', opacity: 0.8, fontFamily: 'var(--font-mono)' }}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <div className="rec-topic-name">
+                    {t.name}
+                  </div>
+                  <button className="rec-action-btn" onClick={() => onFocusNow(t.subjectId, t.name)}>
+                    &gt;_ Focus Now
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Syllabus Completion Card ── */}
       <div className="card">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
@@ -497,9 +567,41 @@ function DashboardView({ activeGoal, sessions, subjects, setActiveTab }) {
 }
 
 // ----------------------------------------------------
+// Browser end-of-session Chime and Notification helper
+function playChimeAndNotify(message) {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.2);
+    osc.stop(audioCtx.currentTime + 1.2);
+  } catch (e) {
+    console.error("Audio synth error", e);
+  }
+
+  if (Notification.permission === 'granted') {
+    new Notification('Focusly', { body: message });
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        new Notification('Focusly', { body: message });
+      }
+    });
+  }
+}
+
 // TIMER VIEW (POMODORO)
 // ----------------------------------------------------
-function TimerView({ subjects, onSaveSession }) {
+function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessionName, clearPrefill }) {
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [sessionName, setSessionName] = useState('Study Session');
   const [selectedTag, setSelectedTag] = useState('');
@@ -524,6 +626,19 @@ function TimerView({ subjects, onSaveSession }) {
   const expectedEndTimeRef = useRef(null);
   const totalPhaseSeconds = currentPhase === 'FOCUS' ? focusMinutes * 60 : (currentPhase === 'SHORT_BREAK' ? shortBreakMinutes * 60 : longBreakMinutes * 60);
   const progressPercent = Math.min((totalPhaseSeconds - timerSecondsLeft) / totalPhaseSeconds, 1);
+
+  // Handle Prefill from dashboard quick-focus launch
+  useEffect(() => {
+    if (prefilledSubjectId) {
+      setSelectedSubjectId(prefilledSubjectId);
+    }
+    if (prefilledSessionName) {
+      setSessionName(prefilledSessionName);
+    }
+    if (prefilledSubjectId || prefilledSessionName) {
+      clearPrefill();
+    }
+  }, [prefilledSubjectId, prefilledSessionName]);
 
   // Sync session name with subject selection
   useEffect(() => {
@@ -550,6 +665,7 @@ function TimerView({ subjects, onSaveSession }) {
         setIsTimerRunning(false);
         expectedEndTimeRef.current = null;
         handleFinishSession(true);
+        playChimeAndNotify('Congratulations! All focus cycles completed.');
       } else {
         // Go to Break
         const isLongBreak = currentCycle % 4 === 0;
@@ -560,6 +676,7 @@ function TimerView({ subjects, onSaveSession }) {
         
         // Auto-start break!
         expectedEndTimeRef.current = Date.now() + (breakSeconds * 1000);
+        playChimeAndNotify('Focus session completed! Time for a break.');
       }
     } else {
       // Break over, go back to Focus
@@ -572,6 +689,7 @@ function TimerView({ subjects, onSaveSession }) {
       
       // Auto-start next focus!
       expectedEndTimeRef.current = Date.now() + (focusSeconds * 1000);
+      playChimeAndNotify('Break is over! Time to focus.');
     }
   };
 
@@ -1057,7 +1175,36 @@ function SyllabusView({ activeGoal, subjects, topics }) {
 
                 {/* Expanded Topics List */}
                 {isExpanded && (
-                  <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid var(--surface-variant)', paddingTop: '16px' }}>
+                  <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px', borderTop: '1px solid var(--surface-variant)', paddingTop: '16px' }}>
+                    
+                    {/* Inline Config for Target Hours and Priority */}
+                    <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', background: 'rgba(255,255,255,0.01)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                        <label className="form-label" style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--secondary-color)' }}>Target Study Time (Hours)</label>
+                        <input 
+                          type="number" 
+                          className="input-field" 
+                          style={{ height: '32px', fontSize: '12px' }}
+                          value={s.targetHours || ''} 
+                          onChange={(e) => DataService.saveSubject({ ...s, targetHours: parseInt(e.target.value) || null })}
+                          placeholder="e.g. 40"
+                        />
+                      </div>
+                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                        <label className="form-label" style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--secondary-color)' }}>Exam Priority</label>
+                        <select 
+                          className="input-field" 
+                          style={{ height: '32px', fontSize: '12px' }}
+                          value={s.priority || 'MEDIUM'} 
+                          onChange={(e) => DataService.saveSubject({ ...s, priority: e.target.value })}
+                        >
+                          <option value="HIGH">🔥 High Priority</option>
+                          <option value="MEDIUM">⚡ Medium Priority</option>
+                          <option value="LOW">💤 Low Priority</option>
+                        </select>
+                      </div>
+                    </div>
+
                     {subjTopics.length === 0 ? (
                       <p style={{ color: 'var(--secondary-color)', fontSize: '13px', textAlign: 'center', padding: '8px' }}>No topics found. Add one below!</p>
                     ) : (
@@ -1342,10 +1489,7 @@ function HistoryView({ sessions, subjects, onDeleteSession }) {
   );
 }
 
-// ----------------------------------------------------
-// ANALYTICS VIEW
-// ----------------------------------------------------
-function AnalyticsView({ sessions, subjects }) {
+function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSaveMockTest, onDeleteMockTest }) {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
 
@@ -1356,7 +1500,6 @@ function AnalyticsView({ sessions, subjects }) {
     return sessions.filter(s => s.date === dateStr);
   };
 
-  // 1. Data mapping for Recharts Pie (Subjects study share)
   const getPieData = () => {
     const totalsBySubj = {};
     sessions.forEach(s => {
@@ -1369,7 +1512,7 @@ function AnalyticsView({ sessions, subjects }) {
       const s = subjects.find(x => String(x.id) === String(id));
       return {
         name: s ? s.name : 'Unknown',
-        value: Math.round(totalsBySubj[id] / 60), // minutes
+        value: Math.round(totalsBySubj[id] / 60),
         color: s ? s.colorHex : '#888888'
       };
     }).filter(x => x.value > 0);
@@ -1377,7 +1520,6 @@ function AnalyticsView({ sessions, subjects }) {
 
   const pieData = getPieData();
 
-  // 2. Data mapping for Recharts Bar (Last 7 days study hours)
   const getBarData = () => {
     const data = [];
     for (let i = 6; i >= 0; i--) {
@@ -1396,7 +1538,6 @@ function AnalyticsView({ sessions, subjects }) {
 
   const barData = getBarData();
 
-  // Streak & stats helper
   const getStreak = () => {
     const dates = new Set(sessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date));
     let streak = 0;
@@ -1427,7 +1568,6 @@ function AnalyticsView({ sessions, subjects }) {
   const streak = getStreak();
   const sessionCount = sessions.filter(s => s.completedDurationSeconds > 0).length;
 
-  // Month navigation helpers
   const handlePrevMonth = () => {
     setSelectedMonth(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   };
@@ -1440,7 +1580,7 @@ function AnalyticsView({ sessions, subjects }) {
     const year = selectedMonth.getFullYear();
     const month = selectedMonth.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDayIndex = new Date(year, month, 1).getDay(); // Sunday = 0
+    const firstDayIndex = new Date(year, month, 1).getDay();
     
     const cells = [];
     for (let i = 0; i < firstDayIndex; i++) {
@@ -1454,6 +1594,59 @@ function AnalyticsView({ sessions, subjects }) {
 
   const monthCells = getMonthCells();
 
+  const projections = React.useMemo(() => {
+    if (!activeGoal || topics.length === 0) return null;
+
+    const totalTopics = topics.length;
+    const completedTopics = topics.filter(t => t.status === 'COMPLETED').length;
+    const remainingTopics = totalTopics - completedTopics;
+
+    const now = new Date();
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const fourteenDaysSessions = sessions.filter(s => {
+      const sDate = new Date(s.date);
+      return sDate >= fourteenDaysAgo && s.completedDurationSeconds > 0;
+    });
+    const totalSeconds14 = fourteenDaysSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+    const avgDailyHours = (totalSeconds14 / 3600) / 14;
+
+    const totalSecondsAll = sessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+    const totalHoursAll = totalSecondsAll / 3600;
+    const avgHoursPerTopic = totalHoursAll / Math.max(1, completedTopics);
+
+    const hoursNeeded = remainingTopics * avgHoursPerTopic;
+    const daysRemaining = Math.max(0, Math.ceil((new Date(activeGoal.examDate) - now) / (1000 * 60 * 60 * 24)));
+    
+    const targetHoursDaily = daysRemaining > 0 ? (hoursNeeded / daysRemaining) : 0;
+    const projectedDaysToComplete = avgDailyHours > 0.05 ? (hoursNeeded / avgDailyHours) : 999;
+    
+    const isBehind = projectedDaysToComplete > daysRemaining;
+    const projectedDate = new Date(now.getTime() + projectedDaysToComplete * 24 * 60 * 60 * 1000);
+    const projectedDateStr = projectedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+    return {
+      totalTopics,
+      completedTopics,
+      remainingTopics,
+      avgDailyHours: parseFloat(avgDailyHours.toFixed(1)),
+      targetHoursDaily: parseFloat(targetHoursDaily.toFixed(1)),
+      projectedDaysToComplete: Math.round(projectedDaysToComplete),
+      daysRemaining,
+      isBehind,
+      projectedDateStr
+    };
+  }, [topics, sessions, activeGoal]);
+
+  const subjectStudyProgress = React.useMemo(() => {
+    return subjects.map(s => {
+      const subjSessions = sessions.filter(se => String(se.subjectId) === String(s.id) && se.completedDurationSeconds > 0);
+      const actualHours = subjSessions.reduce((acc, se) => acc + se.completedDurationSeconds, 0) / 3600;
+      const target = s.targetHours || 0;
+      const isUnderstudied = s.priority === 'HIGH' && target > 0 && actualHours < (target * 0.4);
+      return { ...s, actualHours: parseFloat(actualHours.toFixed(1)), target, isUnderstudied };
+    });
+  }, [subjects, sessions]);
+
   return (
     <>
       <div className="page-header">
@@ -1465,8 +1658,32 @@ function AnalyticsView({ sessions, subjects }) {
         </div>
       </div>
 
+      {projections && (
+        <div className={`card projection-card ${projections.isBehind ? 'projection-behind' : 'projection-ahead'}`} style={{ marginTop: '20px', padding: '20px' }}>
+          <div className="card-title animate-pulse-glow" style={{ color: projections.isBehind ? 'var(--clr-red)' : 'var(--clr-green)', marginBottom: '8px' }}>
+            {projections.isBehind ? '🚨 Pace Warning: Behind Target Schedule' : '✅ Pace Status: On Track'}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', marginTop: '12px' }}>
+            <div className="projection-metric">
+              <span className="proj-label">Projected Completion</span>
+              <span className="proj-val">{projections.projectedDateStr}</span>
+              <span className="proj-sub">({projections.projectedDaysToComplete} days vs {projections.daysRemaining} days left)</span>
+            </div>
+            <div className="projection-metric">
+              <span className="proj-label">Current Study Pace</span>
+              <span className="proj-val">{projections.avgDailyHours}h/day</span>
+              <span className="proj-sub">(Average of last 14 days)</span>
+            </div>
+            <div className="projection-metric">
+              <span className="proj-label">Required Study Pace</span>
+              <span className="proj-val" style={{ color: projections.isBehind ? 'var(--clr-peach)' : 'var(--clr-green)' }}>{projections.targetHoursDaily}h/day</span>
+              <span className="proj-sub">(To finish syllabus before exam)</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid-2" style={{ marginTop: '24px' }}>
-        {/* Pie Chart: Subject Distribution */}
         <div className="card chart-card">
           <div className="card-title">Subject Distribution (mins)</div>
           {pieData.length > 0 ? (
@@ -1510,7 +1727,6 @@ function AnalyticsView({ sessions, subjects }) {
           )}
         </div>
 
-        {/* Bar Chart: Last 7 Days */}
         <div className="card chart-card">
           <div className="card-title">Study Time (last 7 days)</div>
           <div style={{ width: '100%', flexGrow: 1, height: '200px' }}>
@@ -1526,8 +1742,7 @@ function AnalyticsView({ sessions, subjects }) {
         </div>
       </div>
 
-      {/* Heatmap Grid (Navigable Calendar Month) */}
-      <div className="card heatmap-card">
+      <div className="card heatmap-card" style={{ marginTop: '24px' }}>
         <div className="heatmap-header-row">
           <button 
             className="btn btn-secondary heatmap-nav-btn" 
@@ -1598,7 +1813,55 @@ function AnalyticsView({ sessions, subjects }) {
         </div>
       </div>
 
-      {/* Heatmap Day Detail Modal */}
+      {subjects.length > 0 && (
+        <div className="card" style={{ marginTop: '24px' }}>
+          <div className="card-title">🎯 Subject Study Targets &amp; Progress</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+            {subjectStudyProgress.filter(s => s.target > 0).map(s => {
+              const progress = Math.min(s.actualHours / s.target, 1);
+              return (
+                <div key={s.id} className="db-syllabus-row" style={{ padding: '12px', borderRadius: 'var(--radius-md)', background: 'var(--surface-variant)', border: s.isUnderstudied ? '1px solid var(--clr-red)' : '1px solid var(--border-color)', boxShadow: s.isUnderstudied ? '0 0 12px rgba(243, 139, 168, 0.15)' : 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: s.colorHex }} />
+                      <span style={{ fontWeight: '600', fontSize: '13px' }}>{s.name}</span>
+                      <span className="rec-subject-pill" style={{ '--sub-color': s.priority === 'HIGH' ? 'var(--clr-red)' : (s.priority === 'LOW' ? 'var(--secondary-color)' : 'var(--accent-color)'), color: s.priority === 'HIGH' ? 'var(--clr-red)' : (s.priority === 'LOW' ? 'var(--secondary-color)' : 'var(--accent-color)'), fontSize: '10px', padding: '1px 5px', height: 'fit-content', border: '1px solid', borderRadius: '3px', marginLeft: '6px' }}>
+                        {s.priority || 'MEDIUM'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px' }}>
+                      <span>{s.actualHours}h / {s.target}h target</span>
+                      <span style={{ fontWeight: '700', color: s.colorHex }}>{(progress * 100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+                  <div className="progress-bar-bg" style={{ height: '6px' }}>
+                    <div className="progress-bar-fill" style={{ width: `${progress * 100}%`, backgroundColor: s.colorHex }} />
+                  </div>
+                  {s.isUnderstudied && (
+                    <div style={{ fontSize: '11px', color: 'var(--clr-red)', marginTop: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <AlertCircle size={12} /> Understudied high-priority subject! Increase study allocation.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {subjectStudyProgress.filter(s => s.target > 0).length === 0 && (
+              <div style={{ textAlign: 'center', padding: '16px', color: 'var(--secondary-color)', fontSize: '13px' }}>
+                No subject study targets set. Set targets by expanding subjects in the Syllabus tab.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <MockTestSection 
+        mockTests={mockTests} 
+        subjects={subjects} 
+        activeGoal={activeGoal} 
+        onSave={onSaveMockTest} 
+        onDelete={onDeleteMockTest} 
+      />
+
       {selectedDate && (() => {
         const daySessions = getDaySessions(selectedDate);
         const totalSeconds = daySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
@@ -1608,36 +1871,16 @@ function AnalyticsView({ sessions, subjects }) {
           <div className="modal-overlay" onClick={() => setSelectedDate(null)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px', width: '92%' }}>
 
-              {/* Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
                 <div>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--secondary-color)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>
-                    Day Summary
-                  </div>
-                  <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--primary-color)', letterSpacing: '0.04em' }}>
-                    {selectedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}
-                  </div>
+                  <h3 style={{ fontSize: '18px', fontWeight: '800' }}>{selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</h3>
+                  <div style={{ fontSize: '12px', color: 'var(--secondary-color)', marginTop: '2px' }}>{totalHours.toFixed(1)} hours studying recorded</div>
                 </div>
-                <button
-                  onClick={() => setSelectedDate(null)}
-                  style={{ background: 'var(--surface-variant)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--secondary-color)', cursor: 'pointer', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}
-                >✕</button>
+                <button className="btn btn-secondary" style={{ padding: '6px' }} onClick={() => setSelectedDate(null)}>
+                  <X size={18} />
+                </button>
               </div>
 
-              {/* Total stat */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '14px 16px', background: 'var(--accent-dim)', border: '1px solid var(--border-accent)', borderRadius: '8px' }}>
-                <div>
-                  <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--secondary-color)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '2px' }}>Total Study Time</div>
-                  <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--accent-color)', lineHeight: 1, letterSpacing: '-0.02em' }}>{totalHours.toFixed(1)}<span style={{ fontSize: '14px', fontWeight: '600', marginLeft: '2px' }}>h</span></div>
-                </div>
-                <div style={{ width: '1px', height: '36px', background: 'var(--border-accent)' }} />
-                <div>
-                  <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--secondary-color)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '2px' }}>Sessions</div>
-                  <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--primary-color)', lineHeight: 1 }}>{daySessions.length}</div>
-                </div>
-              </div>
-
-              {/* Session list */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto', paddingRight: '2px' }}>
                 {daySessions.length === 0 ? (
                   <p style={{ color: 'var(--secondary-color)', textAlign: 'center', margin: '24px 0', fontSize: '13px' }}>No sessions logged for this day.</p>
@@ -1657,7 +1900,6 @@ function AnalyticsView({ sessions, subjects }) {
                         minHeight: '0',
                         overflow: 'visible',
                       }}>
-                        {/* Time badge */}
                         <div style={{
                           flexShrink: 0,
                           fontSize: '11px',
@@ -1671,9 +1913,7 @@ function AnalyticsView({ sessions, subjects }) {
                         }}>
                           {timeStr}
                         </div>
-                        {/* Separator */}
                         <div style={{ width: '1px', height: '32px', background: 'var(--border-color)', flexShrink: 0 }} />
-                        {/* Label */}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: '700', fontSize: '13px', color: 'var(--primary-color)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.02em' }}>
                             {s.label}
@@ -1689,7 +1929,6 @@ function AnalyticsView({ sessions, subjects }) {
                             </div>
                           )}
                         </div>
-                        {/* Duration */}
                         <div style={{ flexShrink: 0, fontWeight: '800', color: 'var(--accent-color)', fontSize: '13px', letterSpacing: '0.04em' }}>
                           {mins}m
                         </div>
@@ -1699,8 +1938,7 @@ function AnalyticsView({ sessions, subjects }) {
                 )}
               </div>
 
-              {/* Footer */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
                 <button className="btn btn-accent" onClick={() => setSelectedDate(null)}>Close</button>
               </div>
 

@@ -45,9 +45,10 @@ fun DashboardScreen(
     selectedTheme: AppTheme,
     onThemeSelected: (AppTheme) -> Unit,
     onProfileClick: () -> Unit,
-    onStartSession: () -> Unit,
+    onStartSession: (Long?, String?) -> Unit,
     onSetExamGoal: () -> Unit,
     onSyllabusClick: () -> Unit,
+    onMockTestClick: () -> Unit,
     viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val haptic = LocalHapticFeedback.current
@@ -202,17 +203,34 @@ fun DashboardScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        Button(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onSetExamGoal()
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            shape = RoundedCornerShape(12.dp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("Manage Goals", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Button(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onSetExamGoal()
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Manage Goals", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+
+                            Button(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onMockTestClick()
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Mock Tests & Analytics", color = MaterialTheme.colorScheme.primary)
+                            }
                         }
                     } else {
                         Text(
@@ -350,7 +368,7 @@ fun DashboardScreen(
                     Button(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onStartSession()
+                            onStartSession(null, null)
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -366,6 +384,127 @@ fun DashboardScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Start Focusing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // Recommendations Card
+        if (uiState.activeExamGoal != null && uiState.recommendedTopics.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                            )
+                            Text(
+                                text = "Recommended for Today",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        uiState.recommendedTopics.forEach { topic ->
+                            val subject = uiState.subjects.find { it.id == topic.subjectId }
+                            val subjectName = subject?.name ?: "Subject"
+                            val subjectColor = remember(subject?.colorHex) {
+                                try {
+                                    Color(android.graphics.Color.parseColor(subject?.colorHex ?: "#4D96FF"))
+                                } catch (_: Exception) {
+                                    Color(0xFF4D96FF)
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(subjectColor.copy(alpha = 0.15f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = subjectName,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = subjectColor
+                                            )
+                                        }
+                                        Text(
+                                            text = topic.status.displayName,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (topic.status == com.aspharier.studytimer.domain.model.TopicStatus.NEEDS_REVISION) {
+                                                Color(0xFFF97316)
+                                            } else {
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            }
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = topic.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Button(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onStartSession(topic.subjectId, topic.name)
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = ">_ Focus",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -98,13 +98,21 @@ class SyllabusRepository @Inject constructor(
         topicDao.updateStatus(id, status.name)
     }
 
+    fun getAllTopics(): Flow<List<Topic>> {
+        return topicDao.getAllTopics().map { entities ->
+            entities.map { it.toModel() }
+        }
+    }
+
 // Mappers
     private fun Subject.toEntity() = SubjectEntity(
         id = id,
         name = name,
         examGoalId = examGoalId,
         colorHex = colorHex,
-        sortOrder = sortOrder
+        sortOrder = sortOrder,
+        targetHours = targetHours,
+        priority = priority
     )
 
     private fun SubjectEntity.toModel(totalTopics: Int = 0, completedTopics: Int = 0) = Subject(
@@ -114,7 +122,9 @@ class SyllabusRepository @Inject constructor(
         colorHex = colorHex,
         sortOrder = sortOrder,
         totalTopics = totalTopics,
-        completedTopics = completedTopics
+        completedTopics = completedTopics,
+        targetHours = targetHours,
+        priority = priority
     )
 
     private fun Topic.toEntity() = TopicEntity(

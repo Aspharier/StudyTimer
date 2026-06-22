@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -18,6 +22,7 @@ import androidx.navigation.navArgument
 import com.aspharier.studytimer.ui.screens.dashboard.DashboardScreen
 import com.aspharier.studytimer.ui.screens.examsetup.ExamSetupScreen
 import com.aspharier.studytimer.ui.screens.home.HomeScreen
+import com.aspharier.studytimer.ui.screens.mocktest.MockTestScreen
 import com.aspharier.studytimer.ui.screens.onboarding.OnboardingScreen
 import com.aspharier.studytimer.ui.screens.profile.ProfileScreen
 import com.aspharier.studytimer.ui.screens.syllabus.SyllabusScreen
@@ -31,6 +36,9 @@ fun StudyTimerNavHost(
     selectedTheme: AppTheme = AppTheme.Midnight,
     onThemeSelected: (AppTheme) -> Unit = {}
 ) {
+    var prefilledSubjectId by remember { mutableStateOf<Long?>(null) }
+    var prefilledSessionName by remember { mutableStateOf<String?>(null) }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
@@ -84,7 +92,9 @@ fun StudyTimerNavHost(
                         onProfileClick = {
                             navController.navigate(Screen.Profile.route)
                         },
-                        onStartSession = {
+                        onStartSession = { subjectId, topicName ->
+                            prefilledSubjectId = subjectId
+                            prefilledSessionName = topicName
                             navController.navigate(Screen.Home.route)
                         },
                         onSetExamGoal = {
@@ -92,6 +102,9 @@ fun StudyTimerNavHost(
                         },
                         onSyllabusClick = {
                             navController.navigate(Screen.Syllabus.route)
+                        },
+                        onMockTestClick = {
+                            navController.navigate(Screen.MockTest.route)
                         }
                     )
                 }
@@ -103,6 +116,12 @@ fun StudyTimerNavHost(
                         onThemeSelected = onThemeSelected,
                         onProfileClick = {
                             navController.navigate(Screen.Profile.route)
+                        },
+                        prefilledSubjectId = prefilledSubjectId,
+                        prefilledSessionName = prefilledSessionName,
+                        clearPrefill = {
+                            prefilledSubjectId = null
+                            prefilledSessionName = null
                         },
                         onStartTimer = { sessionId, label, focusMinutes, shortBreakMinutes, longBreakMinutes, cycles, subjectId, tag, notes ->
                             val intent = android.content.Intent(context, com.aspharier.studytimer.TimerService::class.java).apply {
@@ -150,6 +169,12 @@ fun StudyTimerNavHost(
                     ExamSetupScreen(
                         onNavigateBack = { navController.popBackStack() },
                         onExamGoalSaved = { navController.popBackStack() }
+                    )
+                }
+
+                composable(Screen.MockTest.route) {
+                    MockTestScreen(
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
 

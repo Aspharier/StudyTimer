@@ -45,6 +45,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -70,7 +71,6 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     selectedTheme: AppTheme,
@@ -78,6 +78,9 @@ fun HomeScreen(
     onProfileClick: () -> Unit,
     onStartTimer: (sessionId: Long, label: String, focusMinutes: Int, shortBreakMinutes: Int, longBreakMinutes: Int, cycles: Int, subjectId: Long?, tag: String?, notes: String?) -> Unit,
     onNavigateBack: () -> Unit = {},
+    prefilledSubjectId: Long? = null,
+    prefilledSessionName: String? = null,
+    clearPrefill: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val haptic = LocalHapticFeedback.current
@@ -110,6 +113,19 @@ fun HomeScreen(
     var isSubjectDropdownExpanded by remember { mutableStateOf(false) }
     var isNotesExpanded by remember { mutableStateOf(false) }
     var sessionToDelete by remember { mutableStateOf<StudySession?>(null) }
+
+    // Prefill logic
+    LaunchedEffect(prefilledSubjectId, prefilledSessionName, subjects) {
+        if (prefilledSubjectId != null) {
+            selectedSubject = subjects.find { it.id == prefilledSubjectId }
+        }
+        if (prefilledSessionName != null) {
+            sessionLabel = prefilledSessionName
+        }
+        if (prefilledSubjectId != null || prefilledSessionName != null) {
+            clearPrefill()
+        }
+    }
 
     if (sessionToDelete != null) {
         AlertDialog(

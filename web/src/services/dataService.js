@@ -17,12 +17,14 @@ let examGoals = JSON.parse(localStorage.getItem('focusly_exam_goals') || '[]');
 let subjects = JSON.parse(localStorage.getItem('focusly_subjects') || '[]');
 let topics = JSON.parse(localStorage.getItem('focusly_topics') || '[]');
 let sessions = JSON.parse(localStorage.getItem('focusly_sessions') || '[]');
+let mockTests = JSON.parse(localStorage.getItem('focusly_mock_tests') || '[]');
 
 const listeners = {
   examGoals: [],
   subjects: [],
   topics: [],
   sessions: [],
+  mockTests: [],
   auth: [],
   lastSyncTime: []
 };
@@ -109,6 +111,17 @@ if (auth) {
         updateLastSyncTime();
       });
       firestoreUnsubs.push(sessionsUnsub);
+
+      const mockTestsRef = collection(db, 'users', user.uid, 'mock_tests');
+      const mockTestsUnsub = onSnapshot(mockTestsRef, (snapshot) => {
+        const cloudMockTests = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (cloudMockTests.length > 0) {
+          mockTests = cloudMockTests;
+          notify('mockTests', mockTests);
+        }
+        updateLastSyncTime();
+      });
+      firestoreUnsubs.push(mockTestsUnsub);
     } else {
       // Logged out: clean up Firestore and clear local cache
       clearFirestoreSubscriptions();
@@ -118,6 +131,7 @@ if (auth) {
       localStorage.removeItem('focusly_subjects');
       localStorage.removeItem('focusly_topics');
       localStorage.removeItem('focusly_sessions');
+      localStorage.removeItem('focusly_mock_tests');
       localStorage.removeItem('focusly_last_sync_time');
 
       // Reset memory cache
@@ -125,11 +139,13 @@ if (auth) {
       subjects = [];
       topics = [];
       sessions = [];
+      mockTests = [];
 
       notify('examGoals', examGoals);
       notify('subjects', subjects);
       notify('topics', topics);
       notify('sessions', sessions);
+      notify('mockTests', mockTests);
 
       // Notify last sync time listeners
       listeners.lastSyncTime.forEach(cb => cb(null));
@@ -156,7 +172,14 @@ const syncLocalToCloud = async (uid) => {
 
     subjects.forEach(s => {
       const ref = doc(db, 'users', uid, 'subjects', String(s.id));
-      batch.set(ref, { name: s.name, examGoalId: s.examGoalId, colorHex: s.colorHex, sortOrder: s.sortOrder });
+      batch.set(ref, { 
+        name: s.name, 
+        examGoalId: s.examGoalId, 
+        colorHex: s.colorHex, 
+        sortOrder: s.sortOrder,
+        targetHours: s.targetHours || null,
+        priority: s.priority || null
+      });
     });
 
     topics.forEach(t => {
@@ -186,6 +209,21 @@ const syncLocalToCloud = async (uid) => {
       });
     });
 
+    mockTests.forEach(m => {
+      const ref = doc(db, 'users', uid, 'mock_tests', String(m.id));
+      batch.set(ref, {
+        examGoalId: m.examGoalId,
+        subjectId: m.subjectId,
+        testName: m.testName,
+        scorePercentage: m.scorePercentage,
+        totalMarks: m.totalMarks,
+        obtainedMarks: m.obtainedMarks,
+        notes: m.notes || null,
+        date: m.date,
+        createdAt: m.createdAt || Date.now()
+      });
+    });
+
     await batch.commit();
     console.log("Successfully synced local storage cache to Firestore cloud!");
   } catch (err) {
@@ -200,6 +238,12 @@ export const DataService = {
     listeners.examGoals.push(cb);
     cb(examGoals);
     return () => { listeners.examGoals = listeners.examGoals.filter(x => x !== cb); };
+  },
+
+  subscribeToMockTests: (cb) => {
+    listeners.mockTests.push(cb);
+    cb(mockTests);
+    return () => { listeners.mockTests = listeners.mockTests.filter(x => x !== cb); };
   },
 
   subscribeToSubjects: (cb) => {
@@ -304,7 +348,9 @@ export const DataService = {
         name: newSubj.name,
         examGoalId: newSubj.examGoalId,
         colorHex: newSubj.colorHex,
-        sortOrder: newSubj.sortOrder || 0
+        sortOrder: newSubj.sortOrder || 0,
+        targetHours: newSubj.targetHours || null,
+        priority: newSubj.priority || null
       });
     }
   },
@@ -401,6 +447,42 @@ export const DataService = {
     const user = auth?.currentUser;
     if (user && db) {
       await deleteDoc(doc(db, 'users', user.uid, 'sessions', id));
+    }
+  },
+
+  // Mock Tests CRUD
+  saveMockTest: async (test) => {
+    const id = test.id || String(Date.now());
+    const newTest = { ...test, id };
+
+    mockTests = mockTests.filter(x => x.id !== id);
+    mockTests.push(newTest);
+    notify('mockTests', mockTests);
+
+    const user = auth?.currentUser;
+    if (user && db) {
+      const ref = doc(db, 'users', user.uid, 'mock_tests', id);
+      await setDoc(ref, {
+        examGoalId: newTest.examGoalId,
+        subjectId: newTest.subjectId,
+        testName: newTest.testName,
+        scorePercentage: newTest.scorePercentage,
+        totalMarks: newTest.totalMarks,
+        obtainedMarks: newTest.obtainedMarks,
+        notes: newTest.notes || null,
+        date: newTest.date,
+        createdAt: newTest.createdAt || Date.now()
+      });
+    }
+  },
+
+  deleteMockTest: async (id) => {
+    mockTests = mockTests.filter(x => x.id !== id);
+    notify('mockTests', mockTests);
+
+    const user = auth?.currentUser;
+    if (user && db) {
+      await deleteDoc(doc(db, 'users', user.uid, 'mock_tests', id));
     }
   }
 };

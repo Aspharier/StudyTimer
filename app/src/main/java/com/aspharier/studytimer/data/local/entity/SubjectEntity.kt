@@ -23,5 +23,7 @@ data class SubjectEntity(
     val name: String,
     val examGoalId: Long,
     val colorHex: String = "#4D96FF", // default blue
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val targetHours: Int? = null,
+    val priority: String = "MEDIUM"
 )

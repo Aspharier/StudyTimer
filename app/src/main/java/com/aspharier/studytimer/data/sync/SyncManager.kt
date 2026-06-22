@@ -3,12 +3,14 @@ package com.aspharier.studytimer.data.sync
 import com.aspharier.studytimer.data.repository.ExamGoalRepository
 import com.aspharier.studytimer.data.repository.StudySessionRepository
 import com.aspharier.studytimer.data.repository.SyllabusRepository
+import com.aspharier.studytimer.data.repository.MockTestRepository
 import com.aspharier.studytimer.domain.model.ExamGoal
 import com.aspharier.studytimer.domain.model.StudySession
 import com.aspharier.studytimer.domain.model.Subject
 import com.aspharier.studytimer.domain.model.Topic
 import com.aspharier.studytimer.domain.model.TopicStatus
 import com.aspharier.studytimer.domain.model.SubTopic
+import com.aspharier.studytimer.domain.model.MockTest
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +30,7 @@ class SyncManager @Inject constructor(
     private val sessionRepository: StudySessionRepository,
     private val syllabusRepository: SyllabusRepository,
     private val examGoalRepository: ExamGoalRepository,
+    private val mockTestRepository: MockTestRepository,
     @ApplicationContext private val context: Context
 ) {
     private val preferences = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
@@ -50,6 +53,24 @@ class SyncManager @Inject constructor(
         preferences.edit().putStringSet("deleted_session_ids", ids.map { it.toString() }.toSet()).apply()
     }
 
+    private fun getSyncedMockTestIds(): MutableSet<Long> {
+        val stringSet = preferences.getStringSet("synced_mock_test_ids", emptySet()) ?: emptySet()
+        return stringSet.mapNotNull { it.toLongOrNull() }.toMutableSet()
+    }
+
+    private fun saveSyncedMockTestIds(ids: Set<Long>) {
+        preferences.edit().putStringSet("synced_mock_test_ids", ids.map { it.toString() }.toSet()).apply()
+    }
+
+    private fun getDeletedMockTestIds(): MutableSet<Long> {
+        val stringSet = preferences.getStringSet("deleted_mock_test_ids", emptySet()) ?: emptySet()
+        return stringSet.mapNotNull { it.toLongOrNull() }.toMutableSet()
+    }
+
+    private fun saveDeletedMockTestIds(ids: Set<Long>) {
+        preferences.edit().putStringSet("deleted_mock_test_ids", ids.map { it.toString() }.toSet()).apply()
+    }
+
     suspend fun sync(): Result<Unit> = withContext(Dispatchers.IO) {
         val uid = auth.currentUser?.uid ?: return@withContext Result.failure(Exception("User not authenticated"))
         
@@ -65,6 +86,16 @@ class SyncManager @Inject constructor(
             }
             saveSyncedSessionIds(syncedIds)
             saveDeletedSessionIds(emptySet())
+
+            // Delete locally deleted mock tests from Firestore
+            val deletedMockIds = getDeletedMockTestIds()
+            val syncedMockIds = getSyncedMockTestIds()
+            for (id in deletedMockIds) {
+                userDocRef.collection("mock_tests").document(id.toString()).delete().await()
+                syncedMockIds.remove(id)
+            }
+            saveSyncedMockTestIds(syncedMockIds)
+            saveDeletedMockTestIds(emptySet())
 
             // 1. Download from Cloud to Local
             downloadCloudToLocal(uid)
@@ -114,8 +145,18 @@ class SyncManager @Inject constructor(
 
             val colorHex = doc.getString("colorHex") ?: "#4D96FF"
             val sortOrder = doc.getIntSafely("sortOrder") ?: 0
+            val targetHours = doc.getIntSafely("targetHours")
+            val priority = doc.getString("priority") ?: "MEDIUM"
 
-            val subject = Subject(id = id, name = name, examGoalId = examGoalId, colorHex = colorHex, sortOrder = sortOrder)
+            val subject = Subject(
+                id = id,
+                name = name,
+                examGoalId = examGoalId,
+                colorHex = colorHex,
+                sortOrder = sortOrder,
+                targetHours = targetHours,
+                priority = priority
+            )
             syllabusRepository.insertSubject(subject)
             validSubjectIds.add(id)
         }
@@ -202,6 +243,64 @@ class SyncManager @Inject constructor(
             }
         }
         saveSyncedSessionIds(syncedIds)
+
+        // Download Mock Tests
+        val mockTestsSnapshot = firestore.collection("users").document(uid).collection("mock_tests")
+            .get().await()
+        val downloadedMockTestIds = mutableSetOf<Long>()
+        val syncedMockIds = getSyncedMockTestIds()
+
+        for (doc in mockTestsSnapshot.documents) {
+            val id = doc.id.toLongOrNull() ?: continue
+            val examGoalId = doc.getLongSafely("examGoalId") ?: continue
+            val subjectId = doc.getLongSafely("subjectId") ?: continue
+
+            // Relational Integrity: Check if parents exist
+            if (!validGoalIds.contains(examGoalId)) {
+                if (examGoalRepository.getExamGoalById(examGoalId) == null) {
+                    continue
+                }
+            }
+            if (!validSubjectIds.contains(subjectId)) {
+                if (syllabusRepository.getSubjectById(subjectId) == null) {
+                    continue
+                }
+            }
+
+            val testName = doc.getString("testName") ?: continue
+            val scorePercentage = doc.getFloatSafely("scorePercentage") ?: 0f
+            val totalMarks = doc.getFloatSafely("totalMarks") ?: 0f
+            val obtainedMarks = doc.getFloatSafely("obtainedMarks") ?: 0f
+            val notes = doc.getString("notes")
+            val date = doc.getString("date") ?: continue
+            val createdAt = doc.getLongSafely("createdAt") ?: System.currentTimeMillis()
+
+            val mockTest = MockTest(
+                id = id,
+                examGoalId = examGoalId,
+                subjectId = subjectId,
+                testName = testName,
+                scorePercentage = scorePercentage,
+                totalMarks = totalMarks,
+                obtainedMarks = obtainedMarks,
+                notes = notes,
+                date = date,
+                createdAt = createdAt
+            )
+            mockTestRepository.insertMockTest(mockTest)
+            downloadedMockTestIds.add(id)
+            syncedMockIds.add(id)
+        }
+
+        // Sync Cloud Deletions of Mock Tests back to Room
+        val localMockTests = mockTestRepository.getAllMockTests().first()
+        for (localMock in localMockTests) {
+            if (syncedMockIds.contains(localMock.id) && !downloadedMockTestIds.contains(localMock.id)) {
+                mockTestRepository.deleteMockTestFromSync(localMock.id)
+                syncedMockIds.remove(localMock.id)
+            }
+        }
+        saveSyncedMockTestIds(syncedMockIds)
     }
 
     private suspend fun uploadLocalToCloud(uid: String) {
@@ -227,7 +326,9 @@ class SyncManager @Inject constructor(
                 "name" to subj.name,
                 "examGoalId" to subj.examGoalId,
                 "colorHex" to subj.colorHex,
-                "sortOrder" to subj.sortOrder
+                "sortOrder" to subj.sortOrder,
+                "targetHours" to subj.targetHours,
+                "priority" to subj.priority
             )
             userDocRef.collection("subjects").document(subj.id.toString()).set(data).await()
         }
@@ -274,6 +375,26 @@ class SyncManager @Inject constructor(
             syncedIds.add(session.id)
         }
         saveSyncedSessionIds(syncedIds)
+
+        // Upload Mock Tests
+        val mockTests = mockTestRepository.getAllMockTests().first()
+        val syncedMockIds = getSyncedMockTestIds()
+        for (test in mockTests) {
+            val data = mapOf(
+                "examGoalId" to test.examGoalId,
+                "subjectId" to test.subjectId,
+                "testName" to test.testName,
+                "scorePercentage" to test.scorePercentage,
+                "totalMarks" to test.totalMarks,
+                "obtainedMarks" to test.obtainedMarks,
+                "notes" to test.notes,
+                "date" to test.date,
+                "createdAt" to test.createdAt
+            )
+            userDocRef.collection("mock_tests").document(test.id.toString()).set(data).await()
+            syncedMockIds.add(test.id)
+        }
+        saveSyncedMockTestIds(syncedMockIds)
     }
 
     private fun com.google.firebase.firestore.DocumentSnapshot.getLongSafely(field: String): Long? {
@@ -290,6 +411,15 @@ class SyncManager @Inject constructor(
         return when (value) {
             is Number -> value.toInt()
             is String -> value.toIntOrNull()
+            else -> null
+        }
+    }
+
+    private fun com.google.firebase.firestore.DocumentSnapshot.getFloatSafely(field: String): Float? {
+        val value = get(field) ?: return null
+        return when (value) {
+            is Number -> value.toFloat()
+            is String -> value.toFloatOrNull()
             else -> null
         }
     }
