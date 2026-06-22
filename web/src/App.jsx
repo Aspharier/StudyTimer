@@ -820,31 +820,57 @@ function TimerView({ subjects, onSaveSession }) {
           {!isTimerRunning && (
             <div className="card">
               <div className="card-title">Adjust Timing</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div className="flex-row-between">
-                  <span>Focus duration</span>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <button className="btn btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setFocusMinutes(prev => Math.max(5, prev - 5))}>-</button>
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>{focusMinutes}m</span>
-                    <button className="btn btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setFocusMinutes(prev => prev + 5)}>+</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                {/* Row helper: label + stepper */}
+                {[
+                  { label: 'Focus duration', value: `${focusMinutes}m`,  onDec: () => setFocusMinutes(p => Math.max(5, p - 5)),  onInc: () => setFocusMinutes(p => p + 5) },
+                  { label: 'Short break',    value: `${shortBreakMinutes}m`, onDec: () => setShortBreakMinutes(p => Math.max(1, p - 1)), onInc: () => setShortBreakMinutes(p => p + 1) },
+                  { label: 'Target cycles',  value: `${totalCycles}x`,   onDec: () => setTotalCycles(p => Math.max(1, p - 1)),  onInc: () => setTotalCycles(p => p + 1) },
+                ].map(({ label, value, onDec, onInc }) => (
+                  <div key={label} style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px 12px',
+                    background: 'var(--surface-variant)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-color)',
+                  }}>
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--primary-color)' }}>{label}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        onClick={onDec}
+                        style={{
+                          width: '28px', height: '28px', borderRadius: 'var(--radius-xs)',
+                          background: 'var(--surface-hover)', border: '1px solid var(--border-color)',
+                          color: 'var(--primary-color)', cursor: 'pointer', fontSize: '16px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: 'inherit', flexShrink: 0, transition: 'var(--transition-fast)',
+                        }}
+                      >−</button>
+                      <span style={{
+                        width: '38px', textAlign: 'center',
+                        fontSize: '13px', fontWeight: '700',
+                        color: 'var(--accent-color)',
+                        fontFamily: 'var(--font-mono)',
+                        letterSpacing: '0.04em',
+                      }}>{value}</span>
+                      <button
+                        onClick={onInc}
+                        style={{
+                          width: '28px', height: '28px', borderRadius: 'var(--radius-xs)',
+                          background: 'var(--surface-hover)', border: '1px solid var(--border-color)',
+                          color: 'var(--primary-color)', cursor: 'pointer', fontSize: '16px',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: 'inherit', flexShrink: 0, transition: 'var(--transition-fast)',
+                        }}
+                      >+</button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex-row-between">
-                  <span>Short break</span>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <button className="btn btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShortBreakMinutes(prev => Math.max(1, prev - 1))}>-</button>
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>{shortBreakMinutes}m</span>
-                    <button className="btn btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setShortBreakMinutes(prev => prev + 1)}>+</button>
-                  </div>
-                </div>
-                <div className="flex-row-between">
-                  <span>Target cycles</span>
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <button className="btn btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setTotalCycles(prev => Math.max(1, prev - 1))}>-</button>
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>{totalCycles}x</span>
-                    <button className="btn btn-secondary" style={{ padding: '4px 12px' }} onClick={() => setTotalCycles(prev => prev + 1)}>+</button>
-                  </div>
-                </div>
+                ))}
+
               </div>
             </div>
           )}
