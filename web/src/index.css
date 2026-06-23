@@ -1555,3 +1555,59 @@ select.input-field option:checked, select option:checked {
   animation: pulse-glow-red 2.5s infinite;
 }
 
+/* ============================================
+   IMMERSIVE FOCUS MODE
+   ============================================ */
+.timer-view-layout.immersive-active {
+  grid-template-columns: 1fr;
+}
+
+.timer-view-layout.immersive-active > div:last-child {
+  opacity: 0;
+  pointer-events: none;
+  display: none;
+}
+
+.timer-view-layout.immersive-active .timer-card {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh !important;
+  z-index: 9999;
+  border-radius: 0;
+  border: none;
+  background: radial-gradient(circle at center, #1e1e2e 0%, #09090b 100%);
+  margin: 0;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  box-shadow: none;
+  animation: fade-in-immersive 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.timer-view-layout.immersive-active .timer-ring-container {
+  transform: scale(1.2);
+  transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.timer-view-layout.immersive-active .timer-card > div:first-child {
+  font-size: 24px !important;
+  margin-bottom: 8px;
+}
+
+@keyframes fade-in-immersive {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+

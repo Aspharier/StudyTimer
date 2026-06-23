@@ -525,34 +525,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
 // ----------------------------------------------------
 // Browser end-of-session Chime and Notification helper
 function playChimeAndNotify(message) {
-  try {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
-    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    
-    osc.start();
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 1.2);
-    osc.stop(audioCtx.currentTime + 1.2);
-  } catch (e) {
-    console.error("Audio synth error", e);
-  }
-
-  if (Notification.permission === 'granted') {
-    new Notification('Focusly', { body: message });
-  } else if (Notification.permission !== 'denied') {
-    Notification.requestPermission().then(permission => {
-      if (permission === 'granted') {
-        new Notification('Focusly', { body: message });
-      }
-    });
-  }
+  // Removed browser notifications and chime sound synthesis as requested
 }
 
 // TIMER VIEW (POMODORO)
@@ -571,6 +544,7 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
 
   // Runtime Timer States
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [isSessionActive, setIsSessionActive] = useState(false);
   const [timerSecondsLeft, setTimerSecondsLeft] = useState(25 * 60);
   const [currentPhase, setCurrentPhase] = useState('FOCUS'); // FOCUS, SHORT_BREAK, LONG_BREAK
   const [currentCycle, setCurrentCycle] = useState(1);
@@ -652,6 +626,7 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
   const startTimer = () => {
     if (isTimerRunning) return;
     setIsTimerRunning(true);
+    setIsSessionActive(true);
     expectedEndTimeRef.current = Date.now() + (timerSecondsLeft * 1000);
   };
 
@@ -738,6 +713,7 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
 
   const resetTimer = () => {
     setIsTimerRunning(false);
+    setIsSessionActive(false);
     setTimerSecondsLeft(focusMinutes * 60);
     setCurrentPhase('FOCUS');
     setCurrentCycle(1);
@@ -776,13 +752,15 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
 
   return (
     <>
-      <div className="page-header">
-        <h1>Pomodoro Timer</h1>
-      </div>
+      {!isSessionActive && (
+        <div className="page-header">
+          <h1>Pomodoro Timer</h1>
+        </div>
+      )}
 
-      <div className="timer-view-layout">
+      <div className={`timer-view-layout ${isSessionActive ? 'immersive-active' : ''}`}>
         {/* Left column: Timer Display */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '24px', minHeight: '450px' }}>
+        <div className="card timer-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '24px', minHeight: '450px' }}>
           <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--accent-color)' }}>
             {currentPhase === 'FOCUS' ? 'Focus Session' : (currentPhase === 'SHORT_BREAK' ? 'Short Break' : 'Long Break')}
             {` (Cycle ${currentCycle}/${totalCycles})`}
