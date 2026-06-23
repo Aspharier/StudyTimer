@@ -1093,6 +1093,24 @@ body::before {
   }
 }
 
+.floating-details-window {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: var(--base);
+  border: 1px solid var(--surface0);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  animation: windowOpen 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  z-index: 10000;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.floating-details-window:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+
 /* === RESPONSIVE OVERRIDES === */
 @media (max-width: 900px) {
   html, body {

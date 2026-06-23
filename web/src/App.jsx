@@ -494,6 +494,7 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [sessionName, setSessionName] = useState('Study Session');
   const [selectedTag, setSelectedTag] = useState('');
+  const activeSubject = subjects.find(s => String(s.id) === String(selectedSubjectId));
 
   // Configuration
   const [focusMinutes, setFocusMinutes] = useState(25);
@@ -709,6 +710,36 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
     <>
       {/* Large Pomodoro Window */}
       <div className={`hypr-window span-2 ${isSessionActive ? 'immersive-active' : ''}`} style={{ minHeight: 0 }}>
+        {isSessionActive && (
+          <div className="floating-details-window">
+            <div className="win-titlebar" style={{ padding: '4px 10px', minHeight: '24px' }}>
+              <div className="win-title" style={{ fontSize: '10px' }}>
+                <div className="win-dots" style={{ gap: '3px' }}>
+                  <div className="win-dot close" style={{ width: '6px', height: '6px' }}></div>
+                  <div className="win-dot min" style={{ width: '6px', height: '6px' }}></div>
+                  <div className="win-dot max" style={{ width: '6px', height: '6px' }}></div>
+                </div>
+                focus_metadata
+              </div>
+            </div>
+            <div className="win-body" style={{ padding: '10px', fontSize: '11px', minWidth: '180px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: activeSubject?.colorHex || 'var(--overlay0)' }} />
+                <span style={{ fontWeight: '700', color: activeSubject?.colorHex || 'var(--text)' }}>
+                  {activeSubject?.name || 'no subject'}
+                </span>
+              </div>
+              <div style={{ fontWeight: '500', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }} title={sessionName || 'Study Session'}>
+                {sessionName || 'Study Session'}
+              </div>
+              {selectedTag && (
+                <span style={{ fontSize: '9px', color: 'var(--accent)', fontWeight: '600' }}>
+                  #{selectedTag.toLowerCase()}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
         {!isSessionActive && (
           <div className="win-titlebar">
             <div className="win-title">
