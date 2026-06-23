@@ -139,10 +139,6 @@ export default function App() {
         </div>
         <div className="waybar-right">
           <div className="bar-module">
-            <span className="icon">♫</span>
-            <span className="val">lofi beats</span>
-          </div>
-          <div className="bar-module">
             <span className="icon">⚡</span>
             <span className="val">{clockTime}</span>
           </div>
@@ -153,7 +149,7 @@ export default function App() {
       {toastMsg && <div className="toast show">{toastMsg}</div>}
 
       {/* COMPOSITOR GRID WRAPPER */}
-      <div className="compositor-wrapper" style={{ padding: 'calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap)', height: '100%', width: '100%' }}>
+      <div className="compositor-wrapper" style={{ padding: 'calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap)', minHeight: '100vh', width: '100%', display: 'flex', flexDirection: 'column' }}>
         <div className={`compositor ${
           activeTab === 'dashboard' ? 'layout-overview' :
           activeTab === 'timer' ? 'layout-timer' :
@@ -179,6 +175,7 @@ export default function App() {
           {activeTab === 'timer' && (
             <TimerView 
               subjects={subjects} 
+              sessions={sessions}
               onSaveSession={(session) => {
                 DataService.saveSession(session);
                 showToast('session saved');
@@ -493,7 +490,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
   );
 }
 
-function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessionName, clearPrefill, showToast }) {
+function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, prefilledSessionName, clearPrefill, showToast }) {
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [sessionName, setSessionName] = useState('Study Session');
   const [selectedTag, setSelectedTag] = useState('');
