@@ -359,7 +359,8 @@ body::before {
   animation: windowOpen 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .hypr-window:hover {
-  border-color: var(--surface2);
+  border-color: var(--accent);
+  box-shadow: 0 0 20px var(--accent-glow);
 }
 .hypr-window.active-window {
   border-color: var(--accent);
@@ -477,10 +478,10 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 24px;
-  padding: 12px 0;
+  gap: 32px;
+  padding: 20px 0;
 }
-.ring-svg { width: 120px; height: 120px; }
+.ring-svg { width: 160px; height: 160px; }
 .ring-bg { fill: none; stroke: var(--surface0); stroke-width: 8; }
 .ring-fg {
   fill: none;
@@ -499,12 +500,12 @@ body::before {
 }
 .ring-info { text-align: left; }
 .ring-info h3 {
-  font-size: 14px;
+  font-size: 18px;
   color: var(--text);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .ring-info p {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--overlay0);
   line-height: 1.6;
 }
@@ -867,9 +868,15 @@ body::before {
 .github-heatmap-wrapper::-webkit-scrollbar-thumb:hover { background: var(--surface2); }
 
 .github-heatmap-inner {
-  min-width: 725px;
+  width: 100%;
   display: flex;
   flex-direction: column;
+}
+@media (max-width: 800px) {
+  .github-heatmap-inner {
+    width: auto;
+    min-width: 725px;
+  }
 }
 .github-heatmap-months {
   display: grid;

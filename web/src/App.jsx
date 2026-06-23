@@ -118,7 +118,7 @@ export default function App() {
       {/* WAYBAR TOP BAR */}
       <div className="waybar">
         <div className="waybar-left">
-          <span className="bar-logo">⌘ hyprstudy</span>
+          <span className="bar-logo">⌘ focusly</span>
           <div className="bar-separator"></div>
           <button className={`ws-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')} title="overview">1</button>
           <button className={`ws-btn ${activeTab === 'timer' ? 'active' : ''}`} onClick={() => setActiveTab('timer')} title="timer">2</button>
@@ -307,7 +307,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
   ╚═════╝
  /     \\`}</div>
             <div className="neo-info">
-              <div><span className="key">user</span><span className="sep">@</span><span className="val">hyprstudy</span></div>
+              <div><span className="key">user</span><span className="sep">@</span><span className="val">focusly</span></div>
               <div><span className="key">streak</span><span className="sep">: </span><span className="val">{currentStreak} days</span></div>
               <div><span className="key">today</span><span className="sep">: </span><span className="val">{todayHours}h</span></div>
               <div><span className="key">goal</span><span className="sep">: </span><span className="val">{(dailyTargetMinutes / 60).toFixed(1)}h</span></div>
@@ -349,8 +349,8 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
                 transform="rotate(-90 50 50)"
                 style={{ strokeDashoffset: 283 - 283 * progressPercent }}
               />
-              <text className="ring-text" x="50" y="47" fontSize="16" fontWeight="700">{todayHours}h</text>
-              <text className="ring-text" x="50" y="60" fontSize="8" fill="var(--overlay0)">of {(dailyTargetMinutes / 60).toFixed(1)}h</text>
+              <text className="ring-text" x="50" y="46" fontSize="18" fontWeight="700">{todayHours}h</text>
+              <text className="ring-text" x="50" y="61" fontSize="9" fill="var(--overlay0)">of {(dailyTargetMinutes / 60).toFixed(1)}h</text>
             </svg>
             <div className="ring-info">
               <h3>today's progress</h3>
@@ -1564,7 +1564,7 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
       </div>
 
       {/* Window 2: Activity Heatmap */}
-      <div className="hypr-window">
+      <div className="hypr-window span-2">
         <div className="win-titlebar">
           <div className="win-title">
             <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
@@ -1781,7 +1781,7 @@ function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete, sh
 
   if (!activeGoal) {
     return (
-      <div className="hypr-window">
+      <div className="hypr-window span-2">
         <div className="win-titlebar">
           <div className="win-title">
             <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
@@ -1839,7 +1839,7 @@ function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete, sh
   });
 
   return (
-    <div className="hypr-window">
+    <div className="hypr-window span-2">
       <div className="win-titlebar">
         <div className="win-title">
           <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
