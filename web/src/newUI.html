@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hyprstudy ~ tiling study compositor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* === CATPPUCCIN MOCHA RICE === */
+:root {
+  --rosewater: #f5e0dc;
+  --flamingo: #f2cdcd;
+  --pink: #f5c2e7;
+  --mauve: #cba6f7;
+  --red: #f38ba8;
+  --maroon: #eba0ac;
+  --peach: #fab387;
+  --yellow: #f9e2af;
+  --green: #a6e3a1;
+  --teal: #94e2d5;
+  --sky: #89dceb;
+  --sapphire: #74c7ec;
+  --blue: #89b4fa;
+  --lavender: #b4befe;
+  --text: #cdd6f4;
+  --subtext1: #bac2de;
+  --subtext0: #a6adc8;
+  --overlay2: #9399b2;
+  --overlay1: #7f849c;
+  --overlay0: #6c7086;
+  --surface2: #585b70;
+  --surface1: #45475a;
+  --surface0: #313244;
+  --base: #1e1e2e;
+  --mantle: #181825;
+  --crust: #11111b;
+  --accent: var(--mauve);
+  --accent-glow: rgba(203, 166, 247, 0.4);
+  --border-radius: 12px;
+  --window-gap: 8px;
+  --bar-height: 36px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: var(--crust);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* === WALLPAPER === */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(203,166,247,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(137,180,250,0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(243,139,168,0.04) 0%, transparent 50%),
+    var(--crust);
+  z-index: 0;
+}
+
+/* === WAYBAR TOP BAR === */
+.waybar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--bar-height);
+  background: rgba(17, 17, 27, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--surface0);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  z-index: 1000;
+  font-size: 12px;
+}
+
+.waybar-left, .waybar-center, .waybar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.waybar-center { position: absolute; left: 50%; transform: translateX(-50%); }
+
+.ws-btn {
+  width: 24px; height: 24px;
+  border: 1px solid var(--surface1);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--overlay1);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.ws-btn:hover { border-color: var(--surface2); color: var(--text); }
+.ws-btn.active {
+  background: var(--accent);
+  color: var(--crust);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+  font-weight: 700;
+}
+
+.bar-separator {
+  width: 1px;
+  height: 18px;
+  background: var(--surface1);
+  margin: 0 8px;
+}
+
+.bar-module {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--surface0);
+  color: var(--subtext1);
+  font-size: 11px;
+}
+.bar-module .icon { font-size: 10px; opacity: 0.7; }
+.bar-module .val { color: var(--text); font-weight: 500; }
+
+.bar-logo {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.5px;
+  margin-right: 4px;
+}
+
+/* === MAIN TILING AREA === */
+.compositor {
+  position: fixed;
+  top: calc(var(--bar-height) + var(--window-gap));
+  left: var(--window-gap);
+  right: var(--window-gap);
+  bottom: var(--window-gap);
+  display: grid;
+  gap: var(--window-gap);
+  z-index: 1;
+}
+
+/* Tiling layouts per workspace */
+.layout-overview {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto 1fr;
+}
+.layout-timer {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr auto;
+}
+.layout-single {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.layout-analytics {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.layout-account {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+/* === HYPRLAND WINDOW === */
+.hypr-window {
+  background: rgba(30, 30, 46, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--surface0);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  animation: windowOpen 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.hypr-window:hover {
+  border-color: var(--surface1);
+}
+.hypr-window.active-window {
+  border-color: var(--accent);
+  box-shadow: 0 0 20px var(--accent-glow), inset 0 0 20px rgba(203,166,247,0.03);
+}
+
+@keyframes windowOpen {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.hypr-window:nth-child(1) { animation-delay: 0ms; }
+.hypr-window:nth-child(2) { animation-delay: 60ms; }
+.hypr-window:nth-child(3) { animation-delay: 120ms; }
+.hypr-window:nth-child(4) { animation-delay: 180ms; }
+.hypr-window:nth-child(5) { animation-delay: 240ms; }
+.hypr-window:nth-child(6) { animation-delay: 300ms; }
+
+/* Window titlebar */
+.win-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(49, 50, 68, 0.5);
+  border-bottom: 1px solid var(--surface0);
+  min-height: 34px;
+}
+.win-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--subtext1);
+}
+.win-title .class-name {
+  color: var(--overlay0);
+  font-weight: 400;
+  font-size: 11px;
+}
+.win-dots {
+  display: flex;
+  gap: 6px;
+}
+.win-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.win-dot.close { background: var(--red); }
+.win-dot.max { background: var(--green); }
+.win-dot.min { background: var(--yellow); }
+.win-dot:hover { transform: scale(1.2); }
+
+/* Window body */
+.win-body {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface1) transparent;
+}
+.win-body::-webkit-scrollbar { width: 4px; }
+.win-body::-webkit-scrollbar-track { background: transparent; }
+.win-body::-webkit-scrollbar-thumb { background: var(--surface1); border-radius: 4px; }
+
+/* === WORKSPACE PAGES === */
+.workspace-page {
+  display: none;
+  width: 100%;
+  height: 100%;
+}
+.workspace-page.active {
+  display: grid;
+}
+
+/* === COMPONENTS === */
+
+/* Stat blocks */
+.stat-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  flex: 1;
+  background: var(--surface0);
+  border: 1px solid var(--surface1);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+  transition: all 0.2s;
+}
+.stat-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(203,166,247,0.1);
+}
+.stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--overlay0);
+  margin-bottom: 6px;
+}
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+.stat-value.accent { color: var(--accent); }
+.stat-value.peach { color: var(--peach); }
+.stat-value.green { color: var(--green); }
+.stat-value.sky { color: var(--sky); }
+.stat-sub {
+  font-size: 10px;
+  color: var(--overlay0);
+  margin-top: 4px;
+}
+
+/* Progress ring */
+.ring-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 12px 0;
+}
+.ring-svg { width: 120px; height: 120px; }
+.ring-bg { fill: none; stroke: var(--surface0); stroke-width: 8; }
+.ring-fg {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 283;
+  stroke-dashoffset: 283;
+  transition: stroke-dashoffset 1s ease;
+  filter: drop-shadow(0 0 8px var(--accent-glow));
+}
+.ring-text {
+  text-anchor: middle;
+  fill: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+}
+.ring-info { text-align: left; }
+.ring-info h3 {
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.ring-info p {
+  font-size: 11px;
+  color: var(--overlay0);
+  line-height: 1.6;
+}
+
+/* Buttons */
+.hypr-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--surface1);
+  background: var(--surface0);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hypr-btn:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.hypr-btn.primary {
+  background: var(--accent);
+  color: var(--crust);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.hypr-btn.primary:hover {
+  box-shadow: 0 0 20px var(--accent-glow);
+  transform: translateY(-1px);
+}
+.hypr-btn.danger {
+  border-color: var(--red);
+  color: var(--red);
+}
+.hypr-btn.danger:hover {
+  background: var(--red);
+  color: var(--crust);
+  box-shadow: 0 0 12px rgba(243,139,168,0.3);
+}
+.hypr-btn.green {
+  border-color: var(--green);
+  color: var(--green);
+}
+.hypr-btn.green:hover {
+  background: var(--green);
+  color: var(--crust);
+}
+
+/* Terminal prompt style */
+.prompt-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--overlay0);
+  margin-bottom: 12px;
+}
+.prompt-line .arrow { color: var(--green); font-weight: 700; }
+.prompt-line .path { color: var(--blue); }
+.prompt-line .cmd { color: var(--text); }
+
+/* Pomodoro */
+.pomo-display {
+  text-align: center;
+  padding: 20px 0;
+}
+.pomo-time {
+  font-size: 72px;
+  font-weight: 700;
+  letter-spacing: -3px;
+  line-height: 1;
+  margin-bottom: 8px;
+  transition: color 0.3s;
+}
+.pomo-time.focus { color: var(--accent); text-shadow: 0 0 30px var(--accent-glow); }
+.pomo-time.break { color: var(--green); text-shadow: 0 0 30px rgba(166,227,161,0.4); }
+.pomo-phase {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--overlay0);
+  margin-bottom: 4px;
+}
+.pomo-cycle {
+  font-size: 11px;
+  color: var(--surface2);
+}
+.pomo-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+}
+.pomo-bar {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 12px;
+}
+.pomo-pip {
+  width: 32px; height: 4px;
+  border-radius: 2px;
+  background: var(--surface0);
+  transition: background 0.3s;
+}
+.pomo-pip.done { background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+.pomo-pip.current { background: var(--mauve); animation: pipPulse 1.5s ease infinite; }
+@keyframes pipPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Settings row */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--surface0);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-label {
+  font-size: 12px;
+  color: var(--subtext0);
+}
+.setting-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.setting-val {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 36px;
+  text-align: center;
+}
+.sm-btn {
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--surface1);
+  background: var(--surface0);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.sm-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Tags */
+.tag-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.tag {
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--surface1);
+  background: transparent;
+  color: var(--overlay1);
+  cursor: pointer;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s;
+}
+.tag:hover, .tag.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(203,166,247,0.08);
+}
+
+/* Input */
+.hypr-input {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--surface1);
+  background: var(--crust);
+  color: var(--text);
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+.hypr-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+.hypr-input::placeholder { color: var(--overlay0); }
+
+/* Section header */
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.section-head .line {
+  flex: 1;
+  height: 1px;
+  background: var(--surface0);
+}
+.section-head .label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--overlay0);
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--overlay0);
+}
+.empty-state .ascii-icon {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--surface2);
+  margin-bottom: 12px;
+  white-space: pre;
+}
+.empty-state p {
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+/* Heatmap */
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(27, 1fr);
+  gap: 3px;
+  margin: 12px 0;
+}
+.heat-cell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--surface0);
+  transition: all 0.2s;
+}
+.heat-cell.l1 { background: rgba(203,166,247,0.15); }
+.heat-cell.l2 { background: rgba(203,166,247,0.3); }
+.heat-cell.l3 { background: rgba(203,166,247,0.5); }
+.heat-cell.l4 { background: var(--accent); box-shadow: 0 0 4px var(--accent-glow); }
+
+.heat-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  font-size: 10px;
+  color: var(--overlay0);
+}
+.heat-legend .heat-cell { width: 10px; height: 10px; }
+
+/* Bar chart */
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 100px;
+  padding: 8px 0;
+}
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.bar-fill {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent);
+  min-height: 2px;
+  transition: height 0.5s ease;
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.bar-label {
+  font-size: 9px;
+  color: var(--overlay0);
+}
+
+/* Neofetch block */
+.neofetch {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 12px;
+  background: var(--crust);
+  border-radius: 8px;
+  border: 1px solid var(--surface0);
+  margin-bottom: 16px;
+}
+.neo-logo {
+  font-size: 9px;
+  line-height: 1.2;
+  color: var(--accent);
+  white-space: pre;
+  flex-shrink: 0;
+}
+.neo-info {
+  font-size: 11px;
+  line-height: 1.8;
+}
+.neo-info .key { color: var(--accent); font-weight: 600; }
+.neo-info .val { color: var(--text); }
+.neo-info .sep { color: var(--surface2); }
+
+/* Notification toast */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--surface0);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text);
+  box-shadow: 0 0 20px var(--accent-glow);
+  z-index: 2000;
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* Span helpers */
+.span-2 { grid-column: span 2; }
+.span-3 { grid-column: span 3; }
+.span-full { grid-column: 1 / -1; }
+
+/* Session table */
+.session-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.session-table th {
+  text-align: left;
+  padding: 8px 10px;
+  color: var(--overlay0);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 10px;
+  border-bottom: 1px solid var(--surface0);
+}
+.session-table td {
+  padding: 8px 10px;
+  color: var(--subtext0);
+  border-bottom: 1px solid rgba(49,50,68,0.3);
+}
+.session-table tr:hover td {
+  background: rgba(49,50,68,0.3);
+}
+
+/* Subject list */
+.subject-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.subject-item:hover { background: var(--surface0); }
+.subject-check {
+  width: 16px; height: 16px;
+  border-radius: 4px;
+  border: 1px solid var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 10px;
+  color: transparent;
+  flex-shrink: 0;
+}
+.subject-check.checked {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--crust);
+}
+.subject-name { flex: 1; font-size: 12px; }
+.subject-name.done { text-decoration: line-through; color: var(--overlay0); }
+.subject-progress {
+  font-size: 10px;
+  color: var(--overlay0);
+}
+
+/* Blinking cursor */
+.cursor-blink::after {
+  content: '█';
+  animation: blink 1s step-end infinite;
+  color: var(--accent);
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Glow pulse */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 15px var(--accent-glow); }
+  50% { box-shadow: 0 0 30px var(--accent-glow), 0 0 60px rgba(203,166,247,0.15); }
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .layout-overview { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .layout-timer { grid-template-columns: 1fr; }
+  .layout-analytics { grid-template-columns: 1fr; }
+  .stat-row { flex-direction: column; }
+  .neofetch { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<!-- WAYBAR -->
+<div class="waybar">
+  <div class="waybar-left">
+    <span class="bar-logo">⌘ hyprstudy</span>
+    <div class="bar-separator"></div>
+    <button class="ws-btn active" onclick="switchWorkspace(0)" title="overview">1</button>
+    <button class="ws-btn" onclick="switchWorkspace(1)" title="timer">2</button>
+    <button class="ws-btn" onclick="switchWorkspace(2)" title="syllabus">3</button>
+    <button class="ws-btn" onclick="switchWorkspace(3)" title="history">4</button>
+    <button class="ws-btn" onclick="switchWorkspace(4)" title="analytics">5</button>
+    <button class="ws-btn" onclick="switchWorkspace(5)" title="account">6</button>
+  </div>
+  <div class="waybar-center">
+    <div class="bar-module">
+      <span class="icon">◉</span>
+      <span class="val" id="bar-streak">0 day streak</span>
+    </div>
+    <div class="bar-module">
+      <span class="icon">⏱</span>
+      <span class="val" id="bar-today">0.0h today</span>
+    </div>
+  </div>
+  <div class="waybar-right">
+    <div class="bar-module">
+      <span class="icon">♫</span>
+      <span class="val">lofi beats</span>
+    </div>
+    <div class="bar-module">
+      <span class="icon">⚡</span>
+      <span class="val" id="bar-clock">--:--</span>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- WORKSPACE 1: OVERVIEW -->
+<div class="workspace-page active" id="ws-0" style="padding: calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap);">
+  <div class="compositor layout-overview" style="position:relative; top:0; left:0; right:0; bottom:0;">
+
+    <!-- Window: Neofetch Stats -->
+    <div class="hypr-window active-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          neofetch <span class="class-name">— stats</span>
+        </div>
+      </div>
+      <div class="win-body">
+        <div class="neofetch">
+          <div class="neo-logo">  ╔═════╗
+  ║     ║
+  ║  ⌘  ║
+  ║     ║
+  ╚═════╝
+ /     \</div>
+          <div class="neo-info">
+            <div><span class="key">user</span><span class="sep">@</span><span class="val">hyprstudy</span></div>
+            <div><span class="key">streak</span><span class="sep">: </span><span class="val" id="neo-streak">0 days</span></div>
+            <div><span class="key">today</span><span class="sep">: </span><span class="val" id="neo-today">0.0h</span></div>
+            <div><span class="key">goal</span><span class="sep">: </span><span class="val" id="neo-goal">6.0h</span></div>
+            <div><span class="key">sessions</span><span class="sep">: </span><span class="val" id="neo-sessions">0</span></div>
+            <div><span class="key">theme</span><span class="sep">: </span><span class="val">catppuccin-mocha</span></div>
+            <div><span class="key">shell</span><span class="sep">: </span><span class="val">pomodoro-sh 1.0</span></div>
+          </div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-card">
+            <div class="stat-label">exam goal</div>
+            <div class="stat-value accent" id="stat-goal" style="font-size:18px;">—</div>
+            <div class="stat-sub">no goal set</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">streak</div>
+            <div class="stat-value peach" id="stat-streak">0</div>
+            <div class="stat-sub">days</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Window: Progress Ring -->
+    <div class="hypr-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          progress <span class="class-name">— today</span>
+        </div>
+      </div>
+      <div class="win-body">
+        <div class="ring-container">
+          <svg class="ring-svg" viewBox="0 0 100 100">
+            <circle class="ring-bg" cx="50" cy="50" r="42"/>
+            <circle class="ring-fg" id="progress-ring" cx="50" cy="50" r="42"
+              transform="rotate(-90 50 50)"/>
+            <text class="ring-text" x="50" y="47" font-size="16" font-weight="700" id="ring-val">0.0h</text>
+            <text class="ring-text" x="50" y="60" font-size="8" fill="#6c7086" id="ring-goal">of 6.0h</text>
+          </svg>
+          <div class="ring-info">
+            <h3>today's progress</h3>
+            <p id="ring-desc">Start a focus session<br>to track your progress.<br><br><span style="color:var(--green)">❯</span> switch to workspace 2<br>&nbsp;&nbsp;to begin studying.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Window: Quick Actions -->
+    <div class="hypr-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          quick_actions <span class="class-name">— sh</span>
+        </div>
+      </div>
+      <div class="win-body">
+        <div class="prompt-line">
+          <span class="arrow">❯</span>
+          <span class="path">~/study</span>
+          <span class="cmd cursor-blink">ready</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button class="hypr-btn primary" onclick="switchWorkspace(1)" style="width:100%;justify-content:center;">
+            ▶ start focus session
+          </button>
+          <button class="hypr-btn" onclick="switchWorkspace(2)" style="width:100%;justify-content:center;">
+            📖 manage syllabus
+          </button>
+          <button class="hypr-btn" onclick="switchWorkspace(4)" style="width:100%;justify-content:center;">
+            📊 view analytics
+          </button>
+          <button class="hypr-btn" onclick="switchWorkspace(5)" style="width:100%;justify-content:center;">
+            ⚙ set exam goal
+          </button>
+        </div>
+        <div class="section-head" style="margin-top:16px;">
+          <div class="line"></div>
+          <div class="label">tip</div>
+          <div class="line"></div>
+        </div>
+        <p style="font-size:11px; color:var(--overlay0); line-height:1.6;">
+          use workspace switcher in the top bar or press <span style="color:var(--accent)">1-6</span> to navigate between panels.
+        </p>
+      </div>
+    </div>
+
+    <!-- Window: Syllabus Preview (spans 2 cols) -->
+    <div class="hypr-window span-2">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          syllabus <span class="class-name">— preview</span>
+        </div>
+      </div>
+      <div class="win-body" id="overview-syllabus">
+        <div class="empty-state">
+          <div class="ascii-icon">  ┌──────────┐
+  │  ░░░░░░  │
+  │  ░░░░░░  │
+  │  ░░░░░░  │
+  └──────────┘</div>
+          <p>no subjects in your syllabus yet</p>
+          <button class="hypr-btn" onclick="switchWorkspace(2)">add subjects →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Window: Recent Sessions -->
+    <div class="hypr-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          recent <span class="class-name">— sessions</span>
+        </div>
+      </div>
+      <div class="win-body" id="overview-recent">
+        <div class="empty-state">
+          <div class="ascii-icon">  ╭────╮
+  │ ▸▸ │
+  │    │
+  ╰────╯</div>
+          <p>no sessions recorded</p>
+          <button class="hypr-btn" onclick="switchWorkspace(1)">start studying →</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- WORKSPACE 2: POMODORO TIMER -->
+<div class="workspace-page" id="ws-1" style="padding: calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap);">
+  <div class="compositor layout-timer" style="position:relative; top:0; left:0; right:0; bottom:0;">
+
+    <!-- Timer Window (large) -->
+    <div class="hypr-window active-window span-2" style="min-height: 0;">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          pomodoro <span class="class-name" id="pomo-title">— focus session</span>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <span class="tag active" id="pomo-phase-tag">focus</span>
+        </div>
+      </div>
+      <div class="win-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div class="pomo-display">
+          <div class="pomo-phase" id="pomo-phase-label">focus session</div>
+          <div class="pomo-time focus" id="pomo-time">25:00</div>
+          <div class="pomo-cycle" id="pomo-cycle-label">cycle 1 / 4</div>
+        </div>
+        <div class="pomo-pip" id="pomo-pips" style="display:flex;gap:4px;justify-content:center;margin:8px 0;">
+          <!-- pips injected by JS -->
+        </div>
+        <div class="pomo-controls">
+          <button class="hypr-btn primary" id="pomo-start" onclick="pomoToggle()">▶ start</button>
+          <button class="hypr-btn" id="pomo-skip" onclick="pomoSkip()">⏭ skip</button>
+          <button class="hypr-btn danger" id="pomo-stop" onclick="pomoStop()">⏹ stop</button>
+        </div>
+
+        <div class="section-head" style="width:100%;margin-top:24px;">
+          <div class="line"></div>
+          <div class="label">session config</div>
+          <div class="line"></div>
+        </div>
+
+        <div style="width:100%;max-width:400px;">
+          <div class="setting-row">
+            <span class="setting-label">focus duration</span>
+            <div class="setting-control">
+              <button class="sm-btn" onclick="adjustSetting('focus',-5)">−</button>
+              <span class="setting-val" id="set-focus">25m</span>
+              <button class="sm-btn" onclick="adjustSetting('focus',5)">+</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">short break</span>
+            <div class="setting-control">
+              <button class="sm-btn" onclick="adjustSetting('short',-1)">−</button>
+              <span class="setting-val" id="set-short">5m</span>
+              <button class="sm-btn" onclick="adjustSetting('short',1)">+</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">long break</span>
+            <div class="setting-control">
+              <button class="sm-btn" onclick="adjustSetting('long',-5)">−</button>
+              <span class="setting-val" id="set-long">15m</span>
+              <button class="sm-btn" onclick="adjustSetting('long',5)">+</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">target cycles</span>
+            <div class="setting-control">
+              <button class="sm-btn" onclick="adjustSetting('cycles',-1)">−</button>
+              <span class="setting-val" id="set-cycles">4x</span>
+              <button class="sm-btn" onclick="adjustSetting('cycles',1)">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Session Details Window -->
+    <div class="hypr-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          session_details <span class="class-name">— metadata</span>
+        </div>
+      </div>
+      <div class="win-body">
+        <div class="prompt-line">
+          <span class="arrow">❯</span>
+          <span class="path">~/session</span>
+          <span class="cmd">tag --set</span>
+        </div>
+        <label style="font-size:11px;color:var(--overlay0);display:block;margin-bottom:6px;">session name</label>
+        <input class="hypr-input" id="session-name" placeholder="e.g. chapter 3 review..." style="margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--overlay0);display:block;margin-bottom:6px;">tag</label>
+        <div class="tag-row">
+          <button class="tag active" onclick="selectTag(this)">new topic</button>
+          <button class="tag" onclick="selectTag(this)">revision</button>
+          <button class="tag" onclick="selectTag(this)">practice</button>
+          <button class="tag" onclick="selectTag(this)">mock test</button>
+        </div>
+        <div class="section-head" style="margin-top:16px;">
+          <div class="line"></div>
+          <div class="label">subject</div>
+          <div class="line"></div>
+        </div>
+        <select class="hypr-input" id="session-subject" style="cursor:pointer;">
+          <option value="">no subject selected</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Today's log -->
+    <div class="hypr-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          today_log <span class="class-name">— sessions</span>
+        </div>
+      </div>
+      <div class="win-body" id="today-log">
+        <div class="empty-state">
+          <p style="font-size:11px;">no sessions completed today</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- WORKSPACE 3: SYLLABUS -->
+<div class="workspace-page" id="ws-2" style="padding: calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap);">
+  <div class="compositor layout-single" style="position:relative; top:0; left:0; right:0; bottom:0;">
+    <div class="hypr-window active-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          syllabus <span class="class-name">— subject tracker</span>
+        </div>
+      </div>
+      <div class="win-body">
+        <div class="prompt-line">
+          <span class="arrow">❯</span>
+          <span class="path">~/syllabus</span>
+          <span class="cmd">ls --subjects</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;">
+          <input class="hypr-input" id="new-subject" placeholder="add new subject..." style="flex:1;">
+          <button class="hypr-btn primary" onclick="addSubject()">+ add</button>
+        </div>
+        <div id="subject-list">
+          <div class="empty-state">
+            <div class="ascii-icon">  ┌──────────────┐
+  │  📚 empty    │
+  │              │
+  │  add subject │
+  │  to begin    │
+  └──────────────┘</div>
+            <p>no subjects added yet</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- WORKSPACE 4: SESSION HISTORY -->
+<div class="workspace-page" id="ws-3" style="padding: calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap);">
+  <div class="compositor layout-single" style="position:relative; top:0; left:0; right:0; bottom:0;">
+    <div class="hypr-window active-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          history <span class="class-name">— session log</span>
+        </div>
+      </div>
+      <div class="win-body" id="history-body">
+        <div class="prompt-line">
+          <span class="arrow">❯</span>
+          <span class="path">~/history</span>
+          <span class="cmd">cat sessions.log</span>
+        </div>
+        <div class="empty-state">
+          <div class="ascii-icon">  ╭──────────────╮
+  │  no data     │
+  │              │
+  │  complete a  │
+  │  session to  │
+  │  see logs    │
+  ╰──────────────╯</div>
+          <p>no study sessions recorded yet</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- WORKSPACE 5: ANALYTICS -->
+<div class="workspace-page" id="ws-4" style="padding: calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap);">
+  <div class="compositor layout-analytics" style="position:relative; top:0; left:0; right:0; bottom:0;">
+
+    <!-- Study time bar chart -->
+    <div class="hypr-window active-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          study_time <span class="class-name">— last 7 days</span>
+        </div>
+      </div>
+      <div class="win-body">
+        <div class="bar-chart" id="week-chart"></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--overlay0);margin-top:4px;">
+          <span id="week-total">0h total</span>
+          <span>avg <span id="week-avg">0.0h</span>/day</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="hypr-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          activity <span class="class-name">— contribution graph</span>
+        </div>
+      </div>
+      <div class="win-body">
+        <div class="heatmap-grid" id="heatmap"></div>
+        <div class="heat-legend">
+          <span>less</span>
+          <div class="heat-cell"></div>
+          <div class="heat-cell l1"></div>
+          <div class="heat-cell l2"></div>
+          <div class="heat-cell l3"></div>
+          <div class="heat-cell l4"></div>
+          <span>more</span>
+        </div>
+        <p style="font-size:10px;color:var(--overlay0);margin-top:8px;text-align:center;" id="heat-stats">
+          0 sessions in the past year · current streak: 0 days
+        </p>
+      </div>
+    </div>
+
+    <!-- Subject distribution -->
+    <div class="hypr-window span-2">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          distribution <span class="class-name">— by subject</span>
+        </div>
+      </div>
+      <div class="win-body" id="distribution-body">
+        <div class="empty-state">
+          <p style="font-size:11px;">no subject sessions logged yet</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- WORKSPACE 6: ACCOUNT -->
+<div class="workspace-page" id="ws-5" style="padding: calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap);">
+  <div class="compositor layout-single" style="position:relative; top:0; left:0; right:0; bottom:0;">
+    <div class="hypr-window active-window">
+      <div class="win-titlebar">
+        <div class="win-title">
+          <div class="win-dots"><div class="win-dot close"></div><div class="win-dot min"></div><div class="win-dot max"></div></div>
+          account <span class="class-name">— sync & config</span>
+        </div>
+      </div>
+      <div class="win-body" style="max-width:500px;margin:0 auto;">
+        <div class="prompt-line">
+          <span class="arrow">❯</span>
+          <span class="path">~/account</span>
+          <span class="cmd">status</span>
+        </div>
+
+        <div class="neofetch" style="margin-bottom:20px;">
+          <div class="neo-info" style="width:100%;">
+            <div><span class="key">sync_status</span><span class="sep">: </span><span class="val" style="color:var(--peach);">running offline</span></div>
+            <div><span class="key">mode</span><span class="sep">: </span><span class="val">local (browser cache)</span></div>
+            <div><span class="key">storage</span><span class="sep">: </span><span class="val">localStorage</span></div>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <div class="line"></div>
+          <div class="label">cloud sync</div>
+          <div class="line"></div>
+        </div>
+        <p style="font-size:11px;color:var(--overlay0);margin-bottom:12px;line-height:1.6;">
+          link a google account to sync study data across devices. data is stored locally until then.
+        </p>
+        <button class="hypr-btn" style="width:100%;justify-content:center;margin-bottom:20px;">
+          sign in with google
+        </button>
+
+        <div class="section-head">
+          <div class="line"></div>
+          <div class="label">exam target goals</div>
+          <div class="line"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <input class="hypr-input" id="goal-name" placeholder="exam name (e.g. JEE Advanced)" style="flex:2;">
+          <input class="hypr-input" id="goal-hours" placeholder="daily hrs" style="flex:1;" type="number" min="1" max="16">
+          <button class="hypr-btn primary" onclick="setGoal()">set</button>
+        </div>
+        <div id="goal-display">
+          <div class="empty-state" style="padding:16px;">
+            <p style="font-size:11px;">no targets configured yet</p>
+          </div>
+        </div>
+
+        <div class="section-head" style="margin-top:20px;">
+          <div class="line"></div>
+          <div class="label">data management</div>
+          <div class="line"></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="hypr-btn" onclick="exportData()" style="flex:1;justify-content:center;">export data</button>
+          <button class="hypr-btn danger" onclick="clearData()" style="flex:1;justify-content:center;">clear all data</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================
+   HYPRASTUDY — tiling study compositor
+   ============================================ */
+
+// === STATE ===
+let state = {
+  currentWs: 0,
+  todaySeconds: 0,
+  goalHours: 6,
+  goalName: '',
+  streak: 0,
+  sessions: [],
+  subjects: [],
+  weeklyData: [0,0,0,0,0,0,0],
+  pomoSettings: { focus: 25, short: 5, long: 15, cycles: 4 },
+  pomoState: {
+    running: false,
+    phase: 'focus', // focus | short | long
+    cycle: 1,
+    secondsLeft: 25 * 60,
+    intervalId: null
+  }
+};
+
+// Load from localStorage
+function loadState() {
+  try {
+    const saved = localStorage.getItem('hyprstudy');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state = { ...state, ...parsed };
+      // Reset pomo state
+      state.pomoState = {
+        running: false, phase: 'focus', cycle: 1,
+        secondsLeft: state.pomoSettings.focus * 60,
+        intervalId: null
+      };
+    }
+  } catch(e) {}
+}
+
+function saveState() {
+  const toSave = { ...state };
+  delete toSave.pomoState;
+  localStorage.setItem('hyprstudy', JSON.stringify(toSave));
+}
+
+// === WORKSPACE SWITCHER ===
+function switchWorkspace(idx) {
+  document.querySelectorAll('.workspace-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.ws-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('ws-' + idx).classList.add('active');
+  document.querySelectorAll('.ws-btn')[idx].classList.add('active');
+  state.currentWs = idx;
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  const num = parseInt(e.key);
+  if (num >= 1 && num <= 6) switchWorkspace(num - 1);
+  if (e.key === ' ' && state.currentWs === 1) { e.preventDefault(); pomoToggle(); }
+});
+
+// === CLOCK ===
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('bar-clock').textContent = h + ':' + m;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// === POMODORO ===
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+}
+
+function updatePomoDisplay() {
+  const ps = state.pomoState;
+  const timeEl = document.getElementById('pomo-time');
+  timeEl.textContent = formatTime(ps.secondsLeft);
+  timeEl.className = 'pomo-time ' + (ps.phase === 'focus' ? 'focus' : 'break');
+
+  const phaseLabel = ps.phase === 'focus' ? 'focus session' :
+    ps.phase === 'short' ? 'short break' : 'long break';
+  document.getElementById('pomo-phase-label').textContent = phaseLabel;
+  document.getElementById('pomo-cycle-label').textContent =
+    'cycle ' + ps.cycle + ' / ' + state.pomoSettings.cycles;
+  document.getElementById('pomo-phase-tag').textContent = ps.phase;
+  document.getElementById('pomo-title').textContent = '— ' + phaseLabel;
+
+  // Pips
+  const pipsEl = document.getElementById('pomo-pips');
+  pipsEl.innerHTML = '';
+  for (let i = 1; i <= state.pomoSettings.cycles; i++) {
+    const pip = document.createElement('div');
+    pip.className = 'pomo-pip';
+    pip.style.width = '32px';
+    pip.style.height = '4px';
+    pip.style.borderRadius = '2px';
+    if (i < ps.cycle) pip.classList.add('done');
+    else if (i === ps.cycle && ps.phase === 'focus') pip.classList.add('current');
+    pipsEl.appendChild(pip);
+  }
+
+  // Start button text
+  const btn = document.getElementById('pomo-start');
+  btn.innerHTML = ps.running ? '⏸ pause' : '▶ start';
+}
+
+function pomoToggle() {
+  const ps = state.pomoState;
+  if (ps.running) {
+    clearInterval(ps.intervalId);
+    ps.running = false;
+  } else {
+    ps.running = true;
+    ps.intervalId = setInterval(pomoTick, 1000);
+  }
+  updatePomoDisplay();
+}
+
+function pomoTick() {
+  const ps = state.pomoState;
+  ps.secondsLeft--;
+  if (ps.secondsLeft <= 0) {
+    if (ps.phase === 'focus') {
+      // Log session
+      logSession();
+      // Move to break
+      if (ps.cycle >= state.pomoSettings.cycles) {
+        ps.phase = 'long';
+        ps.secondsLeft = state.pomoSettings.long * 60;
+      } else {
+        ps.phase = 'short';
+        ps.secondsLeft = state.pomoSettings.short * 60;
+      }
+    } else {
+      // Break over
+      if (ps.phase === 'long') {
+        ps.cycle = 1;
+      } else {
+        ps.cycle++;
+      }
+      ps.phase = 'focus';
+      ps.secondsLeft = state.pomoSettings.focus * 60;
+    }
+    showToast(ps.phase === 'focus' ? 'focus session started' : 'break time!');
+  }
+  updatePomoDisplay();
+}
+
+function pomoSkip() {
+  const ps = state.pomoState;
+  if (ps.phase === 'focus') {
+    // Don't count skipped focus
+    if (ps.cycle >= state.pomoSettings.cycles) {
+      ps.phase = 'long';
+      ps.secondsLeft = state.pomoSettings.long * 60;
+    } else {
+      ps.phase = 'short';
+      ps.secondsLeft = state.pomoSettings.short * 60;
+    }
+  } else {
+    if (ps.phase === 'long') ps.cycle = 1;
+    else ps.cycle++;
+    ps.phase = 'focus';
+    ps.secondsLeft = state.pomoSettings.focus * 60;
+  }
+  updatePomoDisplay();
+}
+
+function pomoStop() {
+  const ps = state.pomoState;
+  clearInterval(ps.intervalId);
+  ps.running = false;
+  ps.phase = 'focus';
+  ps.cycle = 1;
+  ps.secondsLeft = state.pomoSettings.focus * 60;
+  updatePomoDisplay();
+  showToast('session stopped');
+}
+
+function logSession() {
+  const duration = state.pomoSettings.focus;
+  state.todaySeconds += duration * 60;
+  const dayIdx = new Date().getDay();
+  state.weeklyData[dayIdx] = (state.weeklyData[dayIdx] || 0) + duration;
+  if (state.streak === 0) state.streak = 1;
+
+  const session = {
+    name: document.getElementById('session-name').value || 'untitled',
+    tag: document.querySelector('.tag.active')?.textContent || 'new topic',
+    subject: document.getElementById('session-subject').value || '',
+    duration: duration,
+    date: new Date().toISOString(),
+  };
+  state.sessions.unshift(session);
+  saveState();
+  updateOverview();
+  updateTodayLog();
+  updateHistory();
+  updateAnalytics();
+  updateBarModules();
+}
+
+// === SETTINGS ===
+function adjustSetting(key, delta) {
+  const s = state.pomoSettings;
+  if (key === 'focus') s.focus = Math.max(5, Math.min(90, s.focus + delta));
+  if (key === 'short') s.short = Math.max(1, Math.min(30, s.short + delta));
+  if (key === 'long') s.long = Math.max(5, Math.min(60, s.long + delta));
+  if (key === 'cycles') s.cycles = Math.max(1, Math.min(12, s.cycles + delta));
+
+  document.getElementById('set-focus').textContent = s.focus + 'm';
+  document.getElementById('set-short').textContent = s.short + 'm';
+  document.getElementById('set-long').textContent = s.long + 'm';
+  document.getElementById('set-cycles').textContent = s.cycles + 'x';
+
+  // Reset timer if not running
+  if (!state.pomoState.running && state.pomoState.phase === 'focus' && state.pomoState.cycle === 1) {
+    state.pomoState.secondsLeft = s.focus * 60;
+    updatePomoDisplay();
+  }
+  saveState();
+}
+
+// === TAGS ===
+function selectTag(el) {
+  el.parentElement.querySelectorAll('.tag').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// === SUBJECTS ===
+function addSubject() {
+  const input = document.getElementById('new-subject');
+  const name = input.value.trim();
+  if (!name) return;
+  state.subjects.push({ name, topics: [], done: false });
+  input.value = '';
+  saveState();
+  renderSubjects();
+  updateSubjectSelect();
+  showToast('subject added: ' + name);
+}
+
+function renderSubjects() {
+  const container = document.getElementById('subject-list');
+  if (state.subjects.length === 0) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="ascii-icon">  ┌──────────────┐
+  │  📚 empty    │
+  │              │
+  │  add subject │
+  │  to begin    │
+  └──────────────┘</div>
+      <p>no subjects added yet</p></div>`;
+    return;
+  }
+  container.innerHTML = state.subjects.map((s, i) => `
+    <div class="subject-item">
+      <div class="subject-check ${s.done ? 'checked' : ''}" onclick="toggleSubject(${i})">✓</div>
+      <span class="subject-name ${s.done ? 'done' : ''}">${s.name}</span>
+      <button class="sm-btn" onclick="removeSubject(${i})" style="font-size:11px;">×</button>
+    </div>
+  `).join('');
+}
+
+function toggleSubject(i) {
+  state.subjects[i].done = !state.subjects[i].done;
+  saveState();
+  renderSubjects();
+}
+
+function removeSubject(i) {
+  state.subjects.splice(i, 1);
+  saveState();
+  renderSubjects();
+  updateSubjectSelect();
+}
+
+function updateSubjectSelect() {
+  const sel = document.getElementById('session-subject');
+  sel.innerHTML = '<option value="">no subject selected</option>' +
+    state.subjects.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+}
+
+// === GOALS ===
+function setGoal() {
+  const name = document.getElementById('goal-name').value.trim();
+  const hours = parseFloat(document.getElementById('goal-hours').value);
+  if (!name || !hours) { showToast('fill in both fields'); return; }
+  state.goalName = name;
+  state.goalHours = hours;
+  saveState();
+  updateGoalDisplay();
+  updateOverview();
+  updateBarModules();
+  showToast('goal set: ' + name + ' — ' + hours + 'h/day');
+}
+
+function updateGoalDisplay() {
+  const container = document.getElementById('goal-display');
+  if (!state.goalName) {
+    container.innerHTML = '<div class="empty-state" style="padding:16px;"><p style="font-size:11px;">no targets configured yet</p></div>';
+    return;
+  }
+  container.innerHTML = `
+    <div class="stat-card" style="text-align:left;padding:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div class="stat-label">active goal</div>
+          <div style="font-size:16px;font-weight:600;color:var(--accent);margin-top:4px;">${state.goalName}</div>
+          <div class="stat-sub">${state.goalHours}h daily target</div>
+        </div>
+        <button class="sm-btn" onclick="clearGoal()" style="font-size:11px;">×</button>
+      </div>
+    </div>`;
+}
+
+function clearGoal() {
+  state.goalName = '';
+  state.goalHours = 6;
+  saveState();
+  updateGoalDisplay();
+  updateOverview();
+  updateBarModules();
+}
+
+// === OVERVIEW UPDATES ===
+function updateOverview() {
+  const todayH = (state.todaySeconds / 3600).toFixed(1);
+  const pct = Math.min(1, state.todaySeconds / (state.goalHours * 3600));
+  const offset = 283 - (283 * pct);
+
+  document.getElementById('progress-ring').style.strokeDashoffset = offset;
+  document.getElementById('ring-val').textContent = todayH + 'h';
+  document.getElementById('ring-goal').textContent = 'of ' + state.goalHours + '.0h';
+
+  document.getElementById('stat-goal').textContent = state.goalName || '—';
+  document.getElementById('stat-streak').textContent = state.streak;
+  document.getElementById('neo-streak').textContent = state.streak + ' days';
+  document.getElementById('neo-today').textContent = todayH + 'h';
+  document.getElementById('neo-goal').textContent = state.goalHours + '.0h';
+  document.getElementById('neo-sessions').textContent = state.sessions.length;
+
+  // Update syllabus preview
+  const sylContainer = document.getElementById('overview-syllabus');
+  if (state.subjects.length > 0) {
+    const done = state.subjects.filter(s => s.done).length;
+    const total = state.subjects.length;
+    const pctSyl = Math.round((done / total) * 100);
+    sylContainer.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="font-size:12px;color:var(--subtext0);">${done}/${total} subjects complete</span>
+        <span style="font-size:14px;font-weight:600;color:var(--accent);">${pctSyl}%</span>
+      </div>
+      <div style="height:6px;background:var(--surface0);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${pctSyl}%;background:var(--accent);border-radius:3px;
+          box-shadow:0 0 8px var(--accent-glow);transition:width 0.5s;"></div>
+      </div>
+      <div style="margin-top:12px;">
+        ${state.subjects.slice(0, 5).map(s => `
+          <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;">
+            <span style="color:${s.done ? 'var(--green)' : 'var(--overlay0)'};">${s.done ? '✓' : '○'}</span>
+            <span style="color:${s.done ? 'var(--overlay0)' : 'var(--text)'};${s.done ? 'text-decoration:line-through;' : ''}">${s.name}</span>
+          </div>
+        `).join('')}
+      </div>`;
+  }
+}
+
+function updateBarModules() {
+  const todayH = (state.todaySeconds / 3600).toFixed(1);
+  document.getElementById('bar-streak').textContent = state.streak + ' day streak';
+  document.getElementById('bar-today').textContent = todayH + 'h today';
+}
+
+function updateTodayLog() {
+  const container = document.getElementById('today-log');
+  const today = new Date().toDateString();
+  const todaySessions = state.sessions.filter(s => new Date(s.date).toDateString() === today);
+  if (todaySessions.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="padding:16px;"><p style="font-size:11px;">no sessions completed today</p></div>';
+    return;
+  }
+  container.innerHTML = todaySessions.map(s => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--surface0);font-size:11px;">
+      <div>
+        <div style="color:var(--text);">${s.name}</div>
+        <div style="color:var(--overlay0);font-size:10px;">${s.tag}${s.subject ? ' · ' + s.subject : ''}</div>
+      </div>
+      <div style="color:var(--accent);font-weight:600;">${s.duration}m</div>
+    </div>
+  `).join('');
+}
+
+function updateHistory() {
+  const container = document.getElementById('history-body');
+  if (state.sessions.length === 0) return;
+  container.innerHTML = `
+    <div class="prompt-line">
+      <span class="arrow">❯</span>
+      <span class="path">~/history</span>
+      <span class="cmd">cat sessions.log</span>
+    </div>
+    <table class="session-table">
+      <thead><tr><th>date</th><th>name</th><th>tag</th><th>subject</th><th>duration</th></tr></thead>
+      <tbody>
+        ${state.sessions.map(s => `
+          <tr>
+            <td>${new Date(s.date).toLocaleDateString()}</td>
+            <td style="color:var(--text);">${s.name}</td>
+            <td><span style="color:var(--mauve);">${s.tag}</span></td>
+            <td>${s.subject || '—'}</td>
+            <td style="color:var(--accent);font-weight:600;">${s.duration}m</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function updateAnalytics() {
+  // Week chart
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = new Date().getDay();
+  const chartEl = document.getElementById('week-chart');
+  const maxVal = Math.max(...state.weeklyData, 1);
+  let weekTotal = 0;
+  chartEl.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const idx = (today + 1 + i) % 7;
+    const val = state.weeklyData[idx] || 0;
+    weekTotal += val;
+    const h = Math.max(2, (val / maxVal) * 80);
+    chartEl.innerHTML += `
+      <div class="bar-col">
+        <div class="bar-fill" style="height:${h}px;${val === 0 ? 'opacity:0.2;' : ''}"></div>
+        <div class="bar-label">${days[idx]}</div>
+      </div>`;
+  }
+  document.getElementById('week-total').textContent = weekTotal + 'm total';
+  document.getElementById('week-avg').textContent = (weekTotal / 7).toFixed(0) + 'm';
+
+  // Heatmap
+  const heatEl = document.getElementById('heatmap');
+  heatEl.innerHTML = '';
+  for (let i = 0; i < 189; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'heat-cell';
+    const r = Math.random();
+    if (state.sessions.length > 0) {
+      if (r > 0.85) cell.classList.add('l4');
+      else if (r > 0.7) cell.classList.add('l3');
+      else if (r > 0.55) cell.classList.add('l2');
+      else if (r > 0.4) cell.classList.add('l1');
+    }
+    heatEl.appendChild(cell);
+  }
+  document.getElementById('heat-stats').textContent =
+    state.sessions.length + ' sessions · current streak: ' + state.streak + ' days';
+
+  // Distribution
+  const distEl = document.getElementById('distribution-body');
+  const subjectTimes = {};
+  state.sessions.forEach(s => {
+    const key = s.subject || 'uncategorized';
+    subjectTimes[key] = (subjectTimes[key] || 0) + s.duration;
+  });
+  const entries = Object.entries(subjectTimes).sort((a,b) => b[1] - a[1]);
+  if (entries.length === 0) {
+    distEl.innerHTML = '<div class="empty-state"><p style="font-size:11px;">no subject sessions logged yet</p></div>';
+  } else {
+    const maxT = entries[0][1];
+    const colors = ['var(--mauve)','var(--blue)','var(--teal)','var(--green)','var(--yellow)','var(--peach)','var(--red)','var(--pink)'];
+    distEl.innerHTML = entries.map(([name, mins], i) => `
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+        <span style="font-size:11px;color:var(--subtext0);width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${name}</span>
+        <div style="flex:1;height:8px;background:var(--surface0);border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${(mins/maxT)*100}%;background:${colors[i%colors.length]};border-radius:4px;
+            box-shadow:0 0 6px ${colors[i%colors.length]};transition:width 0.5s;"></div>
+        </div>
+        <span style="font-size:11px;color:var(--text);font-weight:600;min-width:40px;text-align:right;">${mins}m</span>
+      </div>
+    `).join('');
+  }
+}
+
+// === TOAST ===
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = '❯ ' + msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// === DATA MANAGEMENT ===
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'hyprstudy-export.json';
+  a.click();
+  showToast('data exported');
+}
+
+function clearData() {
+  if (!confirm('clear all data? this cannot be undone.')) return;
+  localStorage.removeItem('hyprstudy');
+  location.reload();
+}
+
+// === INIT ===
+loadState();
+updatePomoDisplay();
+updateOverview();
+updateBarModules();
+renderSubjects();
+updateSubjectSelect();
+updateGoalDisplay();
+updateTodayLog();
+updateHistory();
+updateAnalytics();
+
+// Apply saved settings display
+document.getElementById('set-focus').textContent = state.pomoSettings.focus + 'm';
+document.getElementById('set-short').textContent = state.pomoSettings.short + 'm';
+document.getElementById('set-long').textContent = state.pomoSettings.long + 'm';
+document.getElementById('set-cycles').textContent = state.pomoSettings.cycles + 'x';
+</script>
+</body>
+</html>

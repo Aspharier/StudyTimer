@@ -1,31 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Timer as TimerIcon, 
-  BookOpen, 
-  History as HistoryIcon, 
-  BarChart2, 
-  User, 
-  Play, 
-  Pause, 
-  Square, 
-  SkipForward, 
-  Plus, 
-  Trash2, 
-  Edit2, 
-  Check, 
-  Flame, 
-  ChevronLeft,
-  ChevronRight, 
-  X,
-  Calendar,
-  AlertCircle,
-  Palette,
-  Menu
-} from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line } from 'recharts';
 import { DataService } from './services/dataService';
 import { signInWithPopup, googleProvider, auth, signOut } from './firebase';
-import { getDailyRecommendations } from './services/recommendationEngine';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -43,7 +19,14 @@ export default function App() {
   const [mockTests, setMockTests] = useState([]);
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const [theme, setTheme] = useState(localStorage.getItem('focusly_theme') || 'midnight');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const [clockTime, setClockTime] = useState('--:--');
+  const [toastMsg, setToastMsg] = useState(null);
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
 
   const handleFocusNow = (subjectId, topicName) => {
     setPrefilledSubjectId(subjectId);
@@ -72,6 +55,7 @@ export default function App() {
     };
   }, []);
 
+  // Update theme classes on body
   useEffect(() => {
     const THEMES = ['midnight', 'ocean', 'forest', 'paper', 'sakura', 'aurora', 'ember', 'lavender', 'mint'];
     THEMES.forEach(t => document.body.classList.remove(`theme-${t}`));
@@ -79,164 +63,203 @@ export default function App() {
     localStorage.setItem('focusly_theme', theme);
   }, [theme]);
 
+  // Clock tick
+  useEffect(() => {
+    const updateClock = () => {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      setClockTime(`${h}:${m}`);
+    };
+    updateClock();
+    const id = setInterval(updateClock, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Keyboard navigation shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= 6) {
+        const tabs = ['dashboard', 'timer', 'syllabus', 'history', 'analytics', 'account'];
+        setActiveTab(tabs[num - 1]);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const activeGoal = examGoals.find(g => g.isActive) || null;
+
+  // Stats computed for top bar Waybar display
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todaySessions = sessions.filter(s => s.date === todayStr);
+  const todaySeconds = todaySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+  const todayHours = (todaySeconds / 3600).toFixed(1);
+
+  const currentStreak = (() => {
+    const dates = new Set(sessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date));
+    let streak = 0;
+    let d = new Date();
+    const todayISO = d.toISOString().split('T')[0];
+    if (!dates.has(todayISO)) {
+      d.setDate(d.getDate() - 1);
+    }
+    while (dates.has(d.toISOString().split('T')[0])) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+    return streak;
+  })();
 
   return (
     <div className="app-container">
-      {/* Mobile Header */}
-      <header className="mobile-header">
-        <button className="menu-toggle-btn" onClick={() => setIsSidebarOpen(true)}>
-          <Menu size={20} />
-        </button>
-        <span className="mobile-logo">&gt;_ <span>FOCUSLY</span></span>
-        <div className="mobile-avatar" onClick={() => { setActiveTab('account'); setIsSidebarOpen(false); }}>
-          {user ? (user.photoURL ? <img src={user.photoURL} alt="" /> : user.displayName?.charAt(0)?.toUpperCase()) : '\u2665'}
+      {/* WAYBAR TOP BAR */}
+      <div className="waybar">
+        <div className="waybar-left">
+          <span className="bar-logo">⌘ hyprstudy</span>
+          <div className="bar-separator"></div>
+          <button className={`ws-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')} title="overview">1</button>
+          <button className={`ws-btn ${activeTab === 'timer' ? 'active' : ''}`} onClick={() => setActiveTab('timer')} title="timer">2</button>
+          <button className={`ws-btn ${activeTab === 'syllabus' ? 'active' : ''}`} onClick={() => setActiveTab('syllabus')} title="syllabus">3</button>
+          <button className={`ws-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')} title="history">4</button>
+          <button className={`ws-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')} title="analytics">5</button>
+          <button className={`ws-btn ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} title="account">6</button>
         </div>
-      </header>
-
-      {/* Sidebar Overlay Backdrop */}
-      {isSidebarOpen && <div className="sidebar-backdrop" onClick={() => setIsSidebarOpen(false)} />}
-
-      {/* Sidebar Navigation */}
-      <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
-        <div className="logo">
-          <span className="logo-prompt">&gt;_</span>
-          <span>FOCUSLY</span>
-        </div>
-        <nav className="nav-links">
-          <button 
-            className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}
-          >
-            <BarChart2 size={20} /> Dashboard
-          </button>
-          <button 
-            className={`nav-item ${activeTab === 'timer' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('timer'); setIsSidebarOpen(false); }}
-          >
-            <TimerIcon size={20} /> Pomodoro Timer
-          </button>
-          <button 
-            className={`nav-item ${activeTab === 'syllabus' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('syllabus'); setIsSidebarOpen(false); }}
-          >
-            <BookOpen size={20} /> Syllabus
-          </button>
-          <button 
-            className={`nav-item ${activeTab === 'history' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('history'); setIsSidebarOpen(false); }}
-          >
-            <HistoryIcon size={20} /> History
-          </button>
-          <button 
-            className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('analytics'); setIsSidebarOpen(false); }}
-          >
-            <Calendar size={20} /> Analytics
-          </button>
-          <button 
-            className={`nav-item ${activeTab === 'account' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('account'); setIsSidebarOpen(false); }}
-          >
-            <User size={20} /> Account Sync
-          </button>
-        </nav>
-
-        {/* Theme Selector inside sidebar */}
-        <div style={{ padding: '0 6px', marginBottom: '12px' }}>
-          <div className="section-label" style={{ marginBottom: '8px' }}>
-            <Palette size={11} /> Theme
+        <div className="waybar-center">
+          <div className="bar-module">
+            <span className="icon">◉</span>
+            <span className="val">{currentStreak} day streak</span>
           </div>
-          <select 
-            value={theme} 
-            onChange={(e) => setTheme(e.target.value)}
-            className="input-field"
-            style={{ fontSize: '13px', padding: '9px 12px' }}
-          >
-            <option value="midnight">🌑 Midnight</option>
-            <option value="ocean">🌊 Ocean</option>
-            <option value="forest">🌿 Forest</option>
-            <option value="paper">📄 Paper</option>
-            <option value="sakura">🌸 Sakura</option>
-            <option value="aurora">🌌 Aurora</option>
-            <option value="ember">🔥 Ember</option>
-            <option value="lavender">💜 Lavender</option>
-            <option value="mint">🌱 Mint</option>
-          </select>
-        </div>
-
-        {/* User Status at bottom of sidebar */}
-        <div className="user-profile-section">
-          <div className="user-avatar">
-            {user ? (user.photoURL ? <img src={user.photoURL} alt="" /> : user.displayName?.charAt(0)) : '✦'}
-          </div>
-          <div className="user-info">
-            <span className="user-name">{user ? user.displayName : 'Local User'}</span>
-            <span className="user-status">{user ? 'Cloud Synced' : 'Offline Mode'}</span>
+          <div className="bar-module">
+            <span className="icon">⏱</span>
+            <span className="val">{todayHours}h today</span>
           </div>
         </div>
-      </aside>
+        <div className="waybar-right">
+          <div className="bar-module">
+            <span className="icon">♫</span>
+            <span className="val">lofi beats</span>
+          </div>
+          <div className="bar-module">
+            <span className="icon">⚡</span>
+            <span className="val">{clockTime}</span>
+          </div>
+        </div>
+      </div>
 
-      {/* Main Contents */}
-      <main className="main-content">
-        <div style={{ display: activeTab === 'dashboard' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
-          <DashboardView 
-            activeGoal={activeGoal} 
-            sessions={sessions} 
-            subjects={subjects}
-            topics={topics}
-            setActiveTab={setActiveTab}
-            onFocusNow={handleFocusNow}
-          />
+      {/* NOTIFICATION TOAST */}
+      {toastMsg && <div className="toast show">{toastMsg}</div>}
+
+      {/* COMPOSITOR GRID WRAPPER */}
+      <div className="compositor-wrapper" style={{ padding: 'calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap)', height: '100%', width: '100%' }}>
+        <div className={`compositor ${
+          activeTab === 'dashboard' ? 'layout-overview' :
+          activeTab === 'timer' ? 'layout-timer' :
+          activeTab === 'analytics' ? 'layout-analytics' :
+          'layout-single'
+        }`} style={{ position: 'relative', top: 0, left: 0, right: 0, bottom: 0 }}>
+          
+          {activeTab === 'dashboard' && (
+            <DashboardView 
+              activeGoal={activeGoal} 
+              sessions={sessions} 
+              subjects={subjects}
+              topics={topics}
+              setActiveTab={setActiveTab}
+              onFocusNow={handleFocusNow}
+              currentStreak={currentStreak}
+              todayHours={todayHours}
+              showToast={showToast}
+              theme={theme}
+            />
+          )}
+
+          {activeTab === 'timer' && (
+            <TimerView 
+              subjects={subjects} 
+              onSaveSession={(session) => {
+                DataService.saveSession(session);
+                showToast('session saved');
+              }}
+              prefilledSubjectId={prefilledSubjectId}
+              prefilledSessionName={prefilledSessionName}
+              clearPrefill={() => {
+                setPrefilledSubjectId('');
+                setPrefilledSessionName('');
+              }}
+              showToast={showToast}
+            />
+          )}
+
+          {activeTab === 'syllabus' && (
+            <SyllabusView 
+              activeGoal={activeGoal} 
+              subjects={subjects} 
+              topics={topics}
+              showToast={showToast}
+              setActiveTab={setActiveTab}
+            />
+          )}
+
+          {activeTab === 'history' && (
+            <HistoryView 
+              sessions={sessions} 
+              subjects={subjects} 
+              onDeleteSession={(id) => {
+                DataService.deleteSession(id);
+                showToast('session deleted');
+              }}
+              showToast={showToast}
+            />
+          )}
+
+          {activeTab === 'analytics' && (
+            <AnalyticsView 
+              sessions={sessions} 
+              subjects={subjects}
+              topics={topics}
+              activeGoal={activeGoal}
+              mockTests={mockTests}
+              onSaveMockTest={(test) => {
+                DataService.saveMockTest(test);
+                showToast('mock test score saved');
+              }}
+              onDeleteMockTest={(id) => {
+                DataService.deleteMockTest(id);
+                showToast('mock test deleted');
+              }}
+              streak={currentStreak}
+              showToast={showToast}
+            />
+          )}
+
+          {activeTab === 'account' && (
+            <AccountView 
+              user={user} 
+              examGoals={examGoals}
+              lastSyncTime={lastSyncTime}
+              onSaveGoal={(goal) => {
+                DataService.saveExamGoal(goal);
+                showToast('exam goal saved');
+              }}
+              onDeleteGoal={(id) => {
+                DataService.deleteExamGoal(id);
+                showToast('exam goal deleted');
+              }}
+              onSetActiveGoal={(id) => {
+                DataService.setActiveExamGoal(id);
+                showToast('active goal updated');
+              }}
+              showToast={showToast}
+              theme={theme}
+              setTheme={setTheme}
+            />
+          )}
+
         </div>
-        <div style={{ display: activeTab === 'timer' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
-          <TimerView 
-            subjects={subjects} 
-            onSaveSession={DataService.saveSession}
-            prefilledSubjectId={prefilledSubjectId}
-            prefilledSessionName={prefilledSessionName}
-            clearPrefill={() => {
-              setPrefilledSubjectId('');
-              setPrefilledSessionName('');
-            }}
-          />
-        </div>
-        <div style={{ display: activeTab === 'syllabus' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
-          <SyllabusView 
-            activeGoal={activeGoal} 
-            subjects={subjects} 
-            topics={topics}
-          />
-        </div>
-        <div style={{ display: activeTab === 'history' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
-          <HistoryView 
-            sessions={sessions} 
-            subjects={subjects} 
-            onDeleteSession={DataService.deleteSession}
-          />
-        </div>
-        <div style={{ display: activeTab === 'analytics' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
-          <AnalyticsView 
-            sessions={sessions} 
-            subjects={subjects}
-            topics={topics}
-            activeGoal={activeGoal}
-            mockTests={mockTests}
-            onSaveMockTest={DataService.saveMockTest}
-            onDeleteMockTest={DataService.deleteMockTest}
-          />
-        </div>
-        <div style={{ display: activeTab === 'account' ? 'flex' : 'none', flexDirection: 'column', gap: '20px' }}>
-          <AccountView 
-            user={user} 
-            examGoals={examGoals}
-            lastSyncTime={lastSyncTime}
-            onSaveGoal={DataService.saveExamGoal}
-            onDeleteGoal={DataService.deleteExamGoal}
-            onSetActiveGoal={DataService.setActiveExamGoal}
-          />
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
@@ -245,71 +268,12 @@ export default function App() {
 // VIEW COMPONENTS
 // ----------------------------------------------------
 
-function WmBar({ user, sessions, activeTab }) {
-  const [time, setTime] = React.useState(new Date());
-
-  React.useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
+function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, onFocusNow, currentStreak, todayHours, showToast, theme }) {
   const todayStr = new Date().toISOString().split('T')[0];
   const todaySessions = sessions.filter(s => s.date === todayStr);
-  const todaySeconds = todaySessions.reduce((a, s) => a + s.completedDurationSeconds, 0);
-  const todayHours = (todaySeconds / 3600).toFixed(1);
-
-  const hh = String(time.getHours()).padStart(2, '0');
-  const mm = String(time.getMinutes()).padStart(2, '0');
-  const ss = String(time.getSeconds()).padStart(2, '0');
-
-  const PAGE_LABELS = {
-    dashboard: 'OVERVIEW',
-    timer: 'T1M3R',
-    syllabus: 'SYLLABUS',
-    history: 'HISTORY',
-    analytics: 'ANALYTICS',
-    account: 'ACCOUNT',
-  };
-
-  return (
-    <div className="wm-bar">
-      <div className="wm-bar-left">
-        <span style={{ color: 'var(--accent-color)', letterSpacing: '0.12em', fontWeight: 800 }}>
-          &gt;_ {PAGE_LABELS[activeTab] || 'FOCUSLY'}
-        </span>
-        <div className="wm-bar-module">
-          <span style={{ color: 'var(--clr-green, #a6e3a1)' }}>STD</span>
-          <span style={{ color: 'var(--primary-color)' }}>{todayHours}h</span>
-        </div>
-        <div className="wm-bar-module">
-          <span>SES</span>
-          <span style={{ color: 'var(--primary-color)' }}>{todaySessions.length}</span>
-        </div>
-      </div>
-      <div className="wm-bar-right">
-        <div className="wm-bar-module">
-          <span style={{ color: user ? 'var(--clr-green, #a6e3a1)' : 'var(--clr-yellow, #f9e2af)' }}>
-            {user ? 'SYNCED' : 'LOCAL'}
-          </span>
-        </div>
-        <div className="wm-bar-module wm-bar-module-accent">
-          <span>{hh}:{mm}:{ss}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, onFocusNow }) {
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todaySessions = sessions.filter(s => s.date === todayStr);
-  const todaySeconds = todaySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
-  
   const dailyTargetMinutes = activeGoal ? activeGoal.dailyTargetMinutes : 360;
-  const progressPercent = Math.min(todaySeconds / (dailyTargetMinutes * 60), 1);
+  const progressPercent = Math.min((todayHours * 3600) / (dailyTargetMinutes * 60), 1);
 
-  // Days left calculation
   const getDaysRemaining = () => {
     if (!activeGoal) return null;
     const diffTime = new Date(activeGoal.examDate) - new Date();
@@ -318,223 +282,221 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
 
   const daysRemaining = getDaysRemaining();
 
-  // Streak Calculation
-  const calculateStreak = () => {
-    const dates = new Set(sessions.map(s => s.date));
-    let streak = 0;
-    let d = new Date();
-    
-    // Check if user did session today, otherwise start yesterday
-    const todayISO = d.toISOString().split('T')[0];
-    if (!dates.has(todayISO)) {
-      d.setDate(d.getDate() - 1);
-    }
-    
-    while (dates.has(d.toISOString().split('T')[0])) {
-      streak++;
-      d.setDate(d.getDate() - 1);
-    }
-    return streak;
-  };
-
-  const currentStreak = calculateStreak();
-
-  // Top 5 Subjects Progress
   const subjectsWithRates = subjects.map(s => {
-    const sTopics = topicsBySubjectId(s.id);
+    const sTopics = topics.filter(t => String(t.subjectId) === String(s.id));
     const completed = sTopics.filter(t => t.status === 'COMPLETED').length;
     const rate = sTopics.length > 0 ? completed / sTopics.length : 0;
     return { ...s, total: sTopics.length, completed, rate };
   }).sort((a, b) => b.rate - a.rate).slice(0, 5);
 
-  function topicsBySubjectId(subjectId) {
-    return topics.filter(t => String(t.subjectId) === String(subjectId));
-  }
-
+  const recentSessionsList = sessions.slice(0, 4);
 
   return (
     <>
-      {/* ── Page Header ── */}
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: '26px', fontWeight: '700', letterSpacing: '-0.03em' }}>Overview</h1>
-          <p style={{ color: 'var(--secondary-color)', fontSize: '13px', marginTop: '2px' }}>
-            {activeGoal ? activeGoal.name : 'No exam goal set'}
+      {/* Window 1: Neofetch Stats */}
+      <div className="hypr-window active-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            neofetch <span className="class-name">— stats</span>
+          </div>
+        </div>
+        <div className="win-body">
+          <div className="neofetch">
+            <div className="neo-logo">{`  ╔═════╗
+  ║     ║
+  ║  ⌘  ║
+  ║     ║
+  ╚═════╝
+ /     \\`}</div>
+            <div className="neo-info">
+              <div><span className="key">user</span><span className="sep">@</span><span className="val">hyprstudy</span></div>
+              <div><span className="key">streak</span><span className="sep">: </span><span className="val">{currentStreak} days</span></div>
+              <div><span className="key">today</span><span className="sep">: </span><span className="val">{todayHours}h</span></div>
+              <div><span className="key">goal</span><span className="sep">: </span><span className="val">{(dailyTargetMinutes / 60).toFixed(1)}h</span></div>
+              <div><span className="key">sessions</span><span className="sep">: </span><span className="val">{todaySessions.length}</span></div>
+              <div><span className="key">theme</span><span className="sep">: </span><span className="val">{theme}</span></div>
+              <div><span className="key">shell</span><span className="sep">: </span><span className="val">pomodoro-sh 1.0</span></div>
+            </div>
+          </div>
+          <div className="stat-row">
+            <div className="stat-card">
+              <div className="stat-label">exam goal</div>
+              <div className="stat-value accent" style={{ fontSize: activeGoal ? '18px' : '28px' }}>
+                {activeGoal ? `${daysRemaining} days` : '—'}
+              </div>
+              <div className="stat-sub">{activeGoal ? activeGoal.name : 'no goal set'}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">streak</div>
+              <div className="stat-value peach">{currentStreak}</div>
+              <div className="stat-sub">days</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Window 2: Progress Ring */}
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            progress <span className="class-name">— today</span>
+          </div>
+        </div>
+        <div className="win-body">
+          <div className="ring-container">
+            <svg className="ring-svg" viewBox="0 0 100 100">
+              <circle className="ring-bg" cx="50" cy="50" r="42"/>
+              <circle className="ring-fg" cx="50" cy="50" r="42"
+                transform="rotate(-90 50 50)"
+                style={{ strokeDashoffset: 283 - 283 * progressPercent }}
+              />
+              <text className="ring-text" x="50" y="47" fontSize="16" fontWeight="700">{todayHours}h</text>
+              <text className="ring-text" x="50" y="60" fontSize="8" fill="var(--overlay0)">of {(dailyTargetMinutes / 60).toFixed(1)}h</text>
+            </svg>
+            <div className="ring-info">
+              <h3>today's progress</h3>
+              {todayHours > 0 ? (
+                <p>Keep up the great work!<br/>You have logged {todayHours} hours today.<br/><br/><span style={{ color: 'var(--green)' }}>❯</span> stay consistent!</p>
+              ) : (
+                <p>Start a focus session<br/>to track your progress.<br/><br/><span style={{ color: 'var(--green)' }}>❯</span> switch to workspace 2<br/>&nbsp;&nbsp;to begin studying.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Window 3: Quick Actions */}
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            quick_actions <span className="class-name">— sh</span>
+          </div>
+        </div>
+        <div className="win-body">
+          <div className="prompt-line">
+            <span className="arrow">❯</span>
+            <span className="path">~/study</span>
+            <span className="cmd cursor-blink">ready</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <button className="hypr-btn primary" onClick={() => setActiveTab('timer')} style={{ width: '100%', justifyContent: 'center' }}>
+              ▶ start focus session
+            </button>
+            <button className="hypr-btn" onClick={() => setActiveTab('syllabus')} style={{ width: '100%', justifyContent: 'center' }}>
+              📖 manage syllabus
+            </button>
+            <button className="hypr-btn" onClick={() => setActiveTab('analytics')} style={{ width: '100%', justifyContent: 'center' }}>
+              📊 view analytics
+            </button>
+            <button className="hypr-btn" onClick={() => setActiveTab('account')} style={{ width: '100%', justifyContent: 'center' }}>
+              ⚙ set exam goal
+            </button>
+          </div>
+          <div className="section-head" style={{ marginTop: '16px' }}>
+            <div className="line"></div>
+            <div className="label">tip</div>
+            <div className="line"></div>
+          </div>
+          <p style={{ fontSize: '11px', color: 'var(--overlay0)', lineHeight: '1.6' }}>
+            use workspace switcher in the top bar or press <span style={{ color: 'var(--accent)' }}>1-6</span> to navigate between panels.
           </p>
         </div>
-        <button className="btn btn-accent" onClick={() => setActiveTab('timer')}>
-          <Play size={14} /> Start Focusing
-        </button>
       </div>
 
-      {/* ── Hero Stats Row ── */}
-      <div className="db-hero-strip">
-
-        {/* Exam Countdown */}
-        <div className="db-stat-block db-stat-accent">
-          {activeGoal ? (
-            <>
-              <span className="db-stat-eyebrow">
-                <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor"><circle cx="4" cy="4" r="4"/></svg>
-                {activeGoal.name}
-              </span>
-              <div className="db-stat-number" style={{ color: 'var(--accent-color)' }}>{daysRemaining}</div>
-              <div className="db-stat-label">days remaining</div>
-              <button
-                className="db-stat-link"
-                onClick={() => setActiveTab('account')}
-              >Manage Goals →</button>
-            </>
+      {/* Window 4: Syllabus Preview (spans 2 cols) */}
+      <div className="hypr-window span-2">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            syllabus <span className="class-name">— preview</span>
+          </div>
+        </div>
+        <div className="win-body">
+          {subjectsWithRates.length === 0 ? (
+            <div className="empty-state">
+              <div className="ascii-icon">{`  ┌──────────┐
+  │  ░░░░░░  │
+  │  ░░░░░░  │
+  │  ░░░░░░  │
+  └──────────┘`}</div>
+              <p>no subjects in your syllabus yet</p>
+              <button className="hypr-btn" onClick={() => setActiveTab('syllabus')}>add subjects →</button>
+            </div>
           ) : (
-            <>
-              <span className="db-stat-eyebrow">Exam Goal</span>
-              <div className="db-stat-number" style={{ color: 'var(--tertiary-color)', fontSize: '28px' }}>—</div>
-              <div className="db-stat-label">no goal set</div>
-              <button className="db-stat-link" onClick={() => setActiveTab('account')}>Set Goal →</button>
-            </>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {subjectsWithRates.map(s => (
+                <div key={s.id} style={{ paddingBottom: '8px', borderBottom: '1px solid var(--surface0)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: s.colorHex }} />
+                      <span style={{ fontWeight: '600' }}>{s.name}</span>
+                    </div>
+                    <span className="chip" style={{ fontSize: '9px', padding: '1px 6px', background: `${s.colorHex}22`, color: s.colorHex, border: `1px solid ${s.colorHex}44`, cursor: 'default' }}>
+                      {(s.rate * 100).toFixed(0)}% done
+                    </span>
+                  </div>
+                  <div className="progress-bar-bg" style={{ height: '3px' }}>
+                    <div className="progress-bar-fill" style={{ width: `${s.rate * 100}%`, backgroundColor: s.colorHex }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
-
-        {/* Divider */}
-        <div className="db-divider" />
-
-        {/* Daily Progress Ring */}
-        <div className="db-stat-block db-stat-center">
-          <span className="db-stat-eyebrow">
-            <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{color:'var(--accent-color)'}}><circle cx="4" cy="4" r="4"/></svg>
-            Today's Progress
-          </span>
-          <div className="db-ring-wrap">
-            <svg viewBox="0 0 100 100" className="db-ring-svg">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="var(--surface-variant)" strokeWidth="6"/>
-              <circle
-                cx="50" cy="50" r="42" fill="none"
-                stroke="var(--accent-color)"
-                strokeWidth="6"
-                strokeLinecap="round"
-                strokeDasharray="263.89"
-                strokeDashoffset={263.89 - 263.89 * progressPercent}
-                style={{ transition: 'stroke-dashoffset 1s ease', filter: 'drop-shadow(0 0 8px var(--accent-glow))' }}
-              />
-            </svg>
-            <div className="db-ring-inner">
-              <span className="db-ring-val">{(todaySeconds / 3600).toFixed(1)}h</span>
-              <span className="db-ring-sub">of {(dailyTargetMinutes / 60).toFixed(1)}h</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="db-divider" />
-
-        {/* Streak */}
-        <div className="db-stat-block">
-          <span className="db-stat-eyebrow">
-            <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{color:'#F97316'}}><circle cx="4" cy="4" r="4"/></svg>
-            Streak
-          </span>
-          <div className="db-stat-number" style={{ color: currentStreak > 0 ? '#F97316' : 'var(--secondary-color)' }}>
-            {currentStreak}
-          </div>
-          <div className="db-stat-label">day streak</div>
-          <div className="db-streak-msg">
-            {currentStreak > 0 ? '🔥 Amazing consistency!' : 'Study today to start'}
-          </div>
-        </div>
-
       </div>
 
-      {/* ── Syllabus Completion Card ── */}
-      <div className="card">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-          <div className="card-title" style={{ marginBottom: 0 }}>
-            <BookOpen size={16} style={{ opacity: 0.7 }} /> Syllabus Completion
+      {/* Window 5: Recent Sessions */}
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            recent <span className="class-name">— sessions</span>
           </div>
-          {subjectsWithRates.length > 0 && (
-            <button
-              className="db-stat-link"
-              onClick={() => setActiveTab('syllabus')}
-              style={{ fontSize: '12px' }}
-            >View All →</button>
+        </div>
+        <div className="win-body">
+          {recentSessionsList.length === 0 ? (
+            <div className="empty-state">
+              <div className="ascii-icon">{`  ╭────╮
+  │ ▸▸ │
+  │    │
+  ╰────╯`}</div>
+              <p>no sessions recorded</p>
+              <button className="hypr-btn" onClick={() => setActiveTab('timer')}>start studying →</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {recentSessionsList.map(s => {
+                const subj = subjects.find(sub => String(sub.id) === String(s.subjectId));
+                return (
+                  <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', paddingBottom: '6px', borderBottom: '1px solid var(--surface0)' }}>
+                    <div style={{ minWidth: 0, flex: 1, marginRight: '8px' }}>
+                      <div style={{ fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
+                      <div style={{ color: 'var(--overlay0)', fontSize: '10px' }}>{s.date}</div>
+                    </div>
+                    {subj && (
+                      <span className="chip" style={{ fontSize: '8px', padding: '1px 5px', border: `1px solid ${subj.colorHex}55`, color: subj.colorHex, background: `${subj.colorHex}15`, cursor: 'default' }}>
+                        {subj.name}
+                      </span>
+                    )}
+                    <span style={{ fontWeight: '700', marginLeft: '6px' }}>{Math.round(s.completedDurationSeconds / 60)}m</span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
-
-        {subjectsWithRates.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-            {subjectsWithRates.map(s => (
-              <div key={s.id} className="db-syllabus-row">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span
-                      style={{
-                        width: '8px', height: '8px', borderRadius: '50%',
-                        backgroundColor: s.colorHex, flexShrink: 0,
-                        boxShadow: `0 0 6px ${s.colorHex}88`
-                      }}
-                    />
-                    <span style={{ fontWeight: '600', fontSize: '14px', color: 'var(--primary-color)' }}>{s.name}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--secondary-color)' }}>
-                      {s.completed}/{s.total} topics
-                    </span>
-                    <span style={{
-                      fontSize: '12px', fontWeight: '700', color: s.colorHex,
-                      background: `${s.colorHex}18`, padding: '2px 8px',
-                      borderRadius: '9999px', border: `1px solid ${s.colorHex}35`
-                    }}>
-                      {(s.rate * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                </div>
-                <div style={{
-                  width: '100%', height: '4px',
-                  background: 'var(--surface-variant)',
-                  borderRadius: '9999px', overflow: 'hidden'
-                }}>
-                  <div style={{
-                    width: `${s.rate * 100}%`, height: '100%',
-                    background: s.colorHex,
-                    borderRadius: '9999px',
-                    transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)',
-                    boxShadow: `0 0 8px ${s.colorHex}66`
-                  }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '32px 20px' }}>
-            <div style={{
-              width: '48px', height: '48px', borderRadius: '50%',
-              background: 'var(--accent-dim)', border: '1px solid var(--border-accent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 12px', color: 'var(--accent-color)'
-            }}>
-              <BookOpen size={20} />
-            </div>
-            <p style={{ color: 'var(--secondary-color)', marginBottom: '16px', fontSize: '14px' }}>No subjects in your syllabus yet.</p>
-            <button className="btn btn-secondary" style={{ fontSize: '13px' }} onClick={() => setActiveTab('syllabus')}>Add Subjects</button>
-          </div>
-        )}
       </div>
     </>
   );
 }
 
-// ----------------------------------------------------
-// Browser end-of-session Chime and Notification helper
-function playChimeAndNotify(message) {
-  // Removed browser notifications and chime sound synthesis as requested
-}
-
-// TIMER VIEW (POMODORO)
-// ----------------------------------------------------
-function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessionName, clearPrefill }) {
+function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessionName, clearPrefill, showToast }) {
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [sessionName, setSessionName] = useState('Study Session');
   const [selectedTag, setSelectedTag] = useState('');
-  const [notes, setNotes] = useState('');
 
   // Configuration
   const [focusMinutes, setFocusMinutes] = useState(25);
@@ -554,10 +516,8 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
 
   const intervalRef = useRef(null);
   const expectedEndTimeRef = useRef(null);
-  const totalPhaseSeconds = currentPhase === 'FOCUS' ? focusMinutes * 60 : (currentPhase === 'SHORT_BREAK' ? shortBreakMinutes * 60 : longBreakMinutes * 60);
-  const progressPercent = Math.min((totalPhaseSeconds - timerSecondsLeft) / totalPhaseSeconds, 1);
 
-  // Handle Prefill from dashboard quick-focus launch
+  // Sync Prefill from dashboard quick-focus launch
   useEffect(() => {
     if (prefilledSubjectId) {
       setSelectedSubjectId(prefilledSubjectId);
@@ -595,7 +555,7 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
         setIsTimerRunning(false);
         expectedEndTimeRef.current = null;
         handleFinishSession(true);
-        playChimeAndNotify('Congratulations! All focus cycles completed.');
+        showToast('All focus cycles completed!');
       } else {
         // Go to Break
         const isLongBreak = currentCycle % 4 === 0;
@@ -604,9 +564,9 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
         setCurrentPhase(isLongBreak ? 'LONG_BREAK' : 'SHORT_BREAK');
         setTimerSecondsLeft(breakSeconds);
         
-        // Auto-start break!
+        // Auto-start break
         expectedEndTimeRef.current = Date.now() + (breakSeconds * 1000);
-        playChimeAndNotify('Focus session completed! Time for a break.');
+        showToast('Focus session completed! Time for a break.');
       }
     } else {
       // Break over, go back to Focus
@@ -617,9 +577,9 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
       setTimerSecondsLeft(focusSeconds);
       setCurrentCycle(nextCycle);
       
-      // Auto-start next focus!
+      // Auto-start next focus
       expectedEndTimeRef.current = Date.now() + (focusSeconds * 1000);
-      playChimeAndNotify('Break is over! Time to focus.');
+      showToast('Break is over! Time to focus.');
     }
   };
 
@@ -671,14 +631,12 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
 
   const stopTimer = () => {
     pauseTimer();
-    // Calculate studied time so far
     let totalCompleted = accumulatedCompletedSeconds;
     if (currentPhase === 'FOCUS') {
       totalCompleted += (focusMinutes * 60 - timerSecondsLeft);
     }
 
     if (totalCompleted > 10) {
-      // Log session
       setAccumulatedCompletedSeconds(totalCompleted);
       handleFinishSession(false);
     } else {
@@ -701,7 +659,7 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
       startTime: Date.now() - (completedSeconds * 1000),
       endTime: Date.now(),
       isCompleted: completedSeconds >= (focusMinutes * totalCycles * 60),
-      notes: sessionNotesInput.trim() || notes || null,
+      notes: sessionNotesInput.trim() || null,
       tag: selectedTag || null,
       subjectId: selectedSubjectId || null
     };
@@ -737,7 +695,7 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [isTimerRunning, currentPhase, currentCycle, focusMinutes, shortBreakMinutes, longBreakMinutes, totalCycles]);
 
-  // Adjusters
+  // Adjusters sync
   useEffect(() => {
     if (!isTimerRunning) {
       setTimerSecondsLeft(focusMinutes * 60);
@@ -752,180 +710,199 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
 
   return (
     <>
-      {!isSessionActive && (
-        <div className="page-header">
-          <h1>Pomodoro Timer</h1>
-        </div>
-      )}
-
-      <div className={`timer-view-layout ${isSessionActive ? 'immersive-active' : ''}`}>
-        {/* Left column: Timer Display */}
-        <div className="card timer-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '24px', minHeight: '450px' }}>
-          <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--accent-color)' }}>
-            {currentPhase === 'FOCUS' ? 'Focus Session' : (currentPhase === 'SHORT_BREAK' ? 'Short Break' : 'Long Break')}
-            {` (Cycle ${currentCycle}/${totalCycles})`}
+      {/* Large Pomodoro Window */}
+      <div className={`hypr-window active-window span-2 ${isSessionActive ? 'immersive-active' : ''}`} style={{ minHeight: 0 }}>
+        {!isSessionActive && (
+          <div className="win-titlebar">
+            <div className="win-title">
+              <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+              pomodoro <span className="class-name">— focus session</span>
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <span className="tag active">{currentPhase.toLowerCase()}</span>
+            </div>
           </div>
-
-          <div className="timer-ring-container">
-            <svg className="timer-svg" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="40" className="timer-circle-bg" strokeWidth="6" />
-              <circle 
-                cx="50" 
-                cy="50" 
-                r="40" 
-                className="timer-circle-progress" 
-                strokeWidth="6"
-                style={{
-                  strokeDashoffset: 251.3 * progressPercent,
-                  stroke: currentPhase === 'FOCUS' ? 'var(--accent-color)' : '#3B82F6'
-                }}
-              />
-            </svg>
-            <div className="timer-display">
-              <span className="timer-clock">{formatClock(timerSecondsLeft)}</span>
-              <span className="timer-label">{currentPhase}</span>
+        )}
+        <div className="win-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="pomo-display">
+            <div className="pomo-phase">
+              {currentPhase === 'FOCUS' ? 'focus session' : currentPhase === 'SHORT_BREAK' ? 'short break' : 'long break'}
+            </div>
+            <div className={`pomo-time ${currentPhase === 'FOCUS' ? 'focus' : 'break'}`}>
+              {formatClock(timerSecondsLeft)}
+            </div>
+            <div className="pomo-cycle">
+              cycle {currentCycle} / {totalCycles}
             </div>
           </div>
 
-          {/* Timer Controls */}
-          <div style={{ display: 'flex', gap: '16px' }}>
+          <div className="pomo-bar" style={{ display: 'flex', gap: '4px', justifyContent: 'center', margin: '8px 0' }}>
+            {Array.from({ length: totalCycles }).map((_, i) => {
+              const num = i + 1;
+              let clName = 'pomo-pip';
+              if (num < currentCycle) clName += ' done';
+              else if (num === currentCycle && currentPhase === 'FOCUS') clName += ' current';
+              return <div key={i} className={clName} />;
+            })}
+          </div>
+
+          <div className="pomo-controls">
             {isTimerRunning ? (
-              <button className="btn btn-secondary" onClick={pauseTimer}>
-                <Pause size={18} /> Pause
-              </button>
+              <button className="hypr-btn primary" onClick={pauseTimer}>⏸ pause</button>
             ) : (
-              <button className="btn btn-accent" onClick={startTimer}>
-                <Play size={18} /> Focus
-              </button>
+              <button className="hypr-btn primary" onClick={startTimer}>▶ start</button>
             )}
-            
-            <button className="btn btn-secondary" onClick={skipPhase}>
-              <SkipForward size={18} /> Skip
-            </button>
+            <button className="hypr-btn" onClick={skipPhase}>⏭ skip</button>
+            <button className="hypr-btn danger" onClick={stopTimer}>⏹ stop</button>
+          </div>
 
-            <button className="btn btn-danger" onClick={stopTimer}>
-              <Square size={18} /> Stop
-            </button>
+          {!isSessionActive && (
+            <>
+              <div className="section-head" style={{ width: '100%', marginTop: '24px' }}>
+                <div className="line"></div>
+                <div className="label">session config</div>
+                <div className="line"></div>
+              </div>
+              <div style={{ width: '100%', maxWidth: '400px' }}>
+                <div className="setting-row">
+                  <span className="setting-label">focus duration</span>
+                  <div className="setting-control">
+                    <button className="sm-btn" onClick={() => setFocusMinutes(p => Math.max(5, p - 5))}>−</button>
+                    <span className="setting-val">{focusMinutes}m</span>
+                    <button className="sm-btn" onClick={() => setFocusMinutes(p => p + 5)}>+</button>
+                  </div>
+                </div>
+                <div className="setting-row">
+                  <span className="setting-label">short break</span>
+                  <div className="setting-control">
+                    <button className="sm-btn" onClick={() => setShortBreakMinutes(p => Math.max(1, p - 1))}>−</button>
+                    <span className="setting-val">{shortBreakMinutes}m</span>
+                    <button className="sm-btn" onClick={() => setShortBreakMinutes(p => p + 1)}>+</button>
+                  </div>
+                </div>
+                <div className="setting-row">
+                  <span className="setting-label">long break</span>
+                  <div className="setting-control">
+                    <button className="sm-btn" onClick={() => setLongBreakMinutes(p => Math.max(5, p - 5))}>−</button>
+                    <span className="setting-val">{longBreakMinutes}m</span>
+                    <button className="sm-btn" onClick={() => setLongBreakMinutes(p => p + 5)}>+</button>
+                  </div>
+                </div>
+                <div className="setting-row">
+                  <span className="setting-label">target cycles</span>
+                  <div className="setting-control">
+                    <button className="sm-btn" onClick={() => setTotalCycles(p => Math.max(1, p - 1))}>−</button>
+                    <span className="setting-val">{totalCycles}x</span>
+                    <button className="sm-btn" onClick={() => setTotalCycles(p => p + 1)}>+</button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Session Details Window */}
+      <div className="hypr-window" style={{ display: isSessionActive ? 'none' : 'flex' }}>
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            session_details <span className="class-name">— metadata</span>
           </div>
         </div>
-
-        {/* Right column: Config & Tags */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div className="card">
-            <div className="card-title">Session Details</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {subjects.length > 0 && (
-                <div className="form-group">
-                  <label className="form-label">Subject</label>
-                  <select 
-                    className="input-field" 
-                    value={selectedSubjectId}
-                    onChange={(e) => setSelectedSubjectId(e.target.value)}
-                    disabled={isTimerRunning}
-                  >
-                    <option value="">Custom (No Subject)</option>
-                    {subjects.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="form-group">
-                <label className="form-label">Session Name</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  value={sessionName}
-                  onChange={(e) => setSessionName(e.target.value)}
-                  disabled={isTimerRunning}
-                />
-              </div>
-
-              {/* Tags Selector */}
-              <div className="form-group">
-                <label className="form-label">Session Tag</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {['NEW_TOPIC', 'REVISION', 'PRACTICE', 'MOCK_TEST'].map(t => {
-                    const label = t.replace('_', ' ');
-                    const isSelected = selectedTag === t;
-                    return (
-                      <span 
-                        key={t}
-                        className="chip"
-                        onClick={() => setSelectedTag(isSelected ? '' : t)}
-                        style={{
-                          backgroundColor: isSelected ? 'var(--accent-color)' : 'var(--surface-variant)',
-                          color: isSelected ? 'var(--bg-color)' : 'var(--primary-color)'
-                        }}
-                      >
-                        {label}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+        <div className="win-body">
+          <div className="prompt-line">
+            <span className="arrow">❯</span>
+            <span className="path">~/session</span>
+            <span className="cmd">tag --set</span>
           </div>
+          <label style={{ fontSize: '11px', color: 'var(--overlay0)', display: 'block', marginBottom: '6px' }}>session name</label>
+          <input 
+            className="hypr-input" 
+            value={sessionName} 
+            onChange={(e) => setSessionName(e.target.value)} 
+            placeholder="e.g. chapter 3 review..." 
+            style={{ marginBottom: '12px' }}
+            disabled={isTimerRunning}
+          />
+          <label style={{ fontSize: '11px', color: 'var(--overlay0)', display: 'block', marginBottom: '6px' }}>tag</label>
+          <div className="tag-row">
+            {['NEW_TOPIC', 'REVISION', 'PRACTICE', 'MOCK_TEST'].map(t => {
+              const label = t.replace('_', ' ').toLowerCase();
+              const isSelected = selectedTag === t;
+              return (
+                <button 
+                  key={t}
+                  className={`tag ${isSelected ? 'active' : ''}`}
+                  onClick={() => setSelectedTag(isSelected ? '' : t)}
+                  disabled={isTimerRunning}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="section-head" style={{ marginTop: '16px' }}>
+            <div className="line"></div>
+            <div className="label">subject</div>
+            <div className="line"></div>
+          </div>
+          <select 
+            className="hypr-input" 
+            value={selectedSubjectId}
+            onChange={(e) => setSelectedSubjectId(e.target.value)}
+            style={{ cursor: 'pointer' }}
+            disabled={isTimerRunning}
+          >
+            <option value="">no subject selected</option>
+            {subjects.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-          {/* Time Config Adjuster */}
-          {!isTimerRunning && (
-            <div className="card">
-              <div className="card-title">Adjust Timing</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-
-                {/* Row helper: label + stepper */}
-                {[
-                  { label: 'Focus duration', value: `${focusMinutes}m`,  onDec: () => setFocusMinutes(p => Math.max(5, p - 5)),  onInc: () => setFocusMinutes(p => p + 5) },
-                  { label: 'Short break',    value: `${shortBreakMinutes}m`, onDec: () => setShortBreakMinutes(p => Math.max(1, p - 1)), onInc: () => setShortBreakMinutes(p => p + 1) },
-                  { label: 'Target cycles',  value: `${totalCycles}x`,   onDec: () => setTotalCycles(p => Math.max(1, p - 1)),  onInc: () => setTotalCycles(p => p + 1) },
-                ].map(({ label, value, onDec, onInc }) => (
-                  <div key={label} style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '10px 12px',
-                    background: 'var(--surface-variant)',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border-color)',
-                  }}>
-                    <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--primary-color)' }}>{label}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button
-                        onClick={onDec}
-                        style={{
-                          width: '28px', height: '28px', borderRadius: 'var(--radius-xs)',
-                          background: 'var(--surface-hover)', border: '1px solid var(--border-color)',
-                          color: 'var(--primary-color)', cursor: 'pointer', fontSize: '16px',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontFamily: 'inherit', flexShrink: 0, transition: 'var(--transition-fast)',
-                        }}
-                      >−</button>
-                      <span style={{
-                        width: '38px', textAlign: 'center',
-                        fontSize: '13px', fontWeight: '700',
-                        color: 'var(--accent-color)',
-                        fontFamily: 'var(--font-mono)',
-                        letterSpacing: '0.04em',
-                      }}>{value}</span>
-                      <button
-                        onClick={onInc}
-                        style={{
-                          width: '28px', height: '28px', borderRadius: 'var(--radius-xs)',
-                          background: 'var(--surface-hover)', border: '1px solid var(--border-color)',
-                          color: 'var(--primary-color)', cursor: 'pointer', fontSize: '16px',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontFamily: 'inherit', flexShrink: 0, transition: 'var(--transition-fast)',
-                        }}
-                      >+</button>
+      {/* Today's Log Window */}
+      <div className="hypr-window" style={{ display: isSessionActive ? 'none' : 'flex' }}>
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            today_log <span className="class-name">— sessions</span>
+          </div>
+        </div>
+        <div className="win-body">
+          {(() => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const todaySess = sessions.filter(s => s.date === todayStr);
+            if (todaySess.length === 0) {
+              return (
+                <div className="empty-state">
+                  <p style={{ fontSize: '11px' }}>no sessions completed today</p>
+                </div>
+              );
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {todaySess.map(s => {
+                  const subj = subjects.find(sub => String(sub.id) === String(s.subjectId));
+                  return (
+                    <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', paddingBottom: '6px', borderBottom: '1px solid var(--surface0)' }}>
+                      <div style={{ minWidth: 0, flex: 1, marginRight: '8px' }}>
+                        <div style={{ fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
+                        {s.tag && <div style={{ fontSize: '9px', color: 'var(--accent)' }}>#{s.tag.toLowerCase()}</div>}
+                      </div>
+                      {subj && (
+                        <span className="chip" style={{ fontSize: '8px', padding: '1px 5px', border: `1px solid ${subj.colorHex}55`, color: subj.colorHex, background: `${subj.colorHex}15`, cursor: 'default' }}>
+                          {subj.name}
+                        </span>
+                      )}
+                      <span style={{ fontWeight: '700', marginLeft: '6px' }}>{Math.round(s.completedDurationSeconds / 60)}m</span>
                     </div>
-                  </div>
-                ))}
-
+                  );
+                })}
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
 
@@ -936,15 +913,16 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
             <div className="modal-header">Session Finished! 🔥</div>
             <p>Write down notes about what you studied during this session:</p>
             <textarea 
-              className="input-field" 
+              className="hypr-input" 
               rows="4" 
               placeholder="e.g., Solved Boolean Algebra minimization sheets, solved K-Map exceptions."
               value={sessionNotesInput}
               onChange={(e) => setSessionNotesInput(e.target.value)}
+              style={{ resize: 'vertical', minHeight: '80px' }}
             />
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => { setIsCompletedModalOpen(false); resetTimer(); }}>Discard</button>
-              <button className="btn btn-accent" onClick={saveAndExit}>Save & Exit</button>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button className="hypr-btn" onClick={() => { setIsCompletedModalOpen(false); resetTimer(); }}>Discard</button>
+              <button className="hypr-btn primary" onClick={saveAndExit}>Save & Exit</button>
             </div>
           </div>
         </div>
@@ -953,10 +931,7 @@ function TimerView({ subjects, onSaveSession, prefilledSubjectId, prefilledSessi
   );
 }
 
-// ----------------------------------------------------
-// SYLLABUS VIEW
-// ----------------------------------------------------
-function SyllabusView({ activeGoal, subjects, topics }) {
+function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab }) {
   const [showAddSubj, setShowAddSubj] = useState(false);
   const [showAddTopicSubjId, setShowAddTopicSubjId] = useState(null);
   const [subjectName, setSubjectName] = useState('');
@@ -977,6 +952,7 @@ function SyllabusView({ activeGoal, subjects, topics }) {
       colorHex,
       sortOrder: subjects.length
     });
+    showToast(`subject added: ${subjectName}`);
     setSubjectName('');
     setShowAddSubj(false);
   };
@@ -990,6 +966,7 @@ function SyllabusView({ activeGoal, subjects, topics }) {
       sortOrder: topics.filter(t => t.subjectId === showAddTopicSubjId).length,
       subTopics: []
     });
+    showToast(`topic added: ${topicName}`);
     setTopicName('');
     setShowAddTopicSubjId(null);
   };
@@ -1026,6 +1003,7 @@ function SyllabusView({ activeGoal, subjects, topics }) {
         ...topic,
         subTopics: updatedSubTopics
       });
+      showToast('sub-topic deleted');
     }
   };
 
@@ -1046,204 +1024,212 @@ function SyllabusView({ activeGoal, subjects, topics }) {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Syllabus</h1>
-          <p style={{ color: 'var(--secondary-color)', fontSize: '14px' }}>Track and check off subjects and preparation topics.</p>
+      <div className="hypr-window active-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            syllabus <span className="class-name">— subject tracker</span>
+          </div>
+          {activeGoal && (
+            <button className="hypr-btn primary" onClick={() => setShowAddSubj(true)}>
+              + add subject
+            </button>
+          )}
         </div>
-        {activeGoal && (
-          <button className="btn btn-accent" onClick={() => setShowAddSubj(true)}>
-            <Plus size={15} /> Add Subject
-          </button>
-        )}
-      </div>
+        <div className="win-body">
+          <div className="prompt-line">
+            <span className="arrow">❯</span>
+            <span className="path">~/syllabus</span>
+            <span className="cmd">ls --subjects</span>
+          </div>
 
-      {!activeGoal ? (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <AlertCircle size={48} color="var(--error-color)" style={{ margin: '0 auto 16px' }} />
-          <div className="card-title" style={{ justifyContent: 'center' }}>Set an active exam goal first</div>
-          <p style={{ color: 'var(--secondary-color)' }}>You must configure an active exam goal in the Account Sync tab before tracking your syllabus subjects.</p>
-        </div>
-      ) : subjects.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <p style={{ color: 'var(--secondary-color)', marginBottom: '16px' }}>Your syllabus is empty. Get started by adding a subject.</p>
-          <button className="btn btn-primary" onClick={() => setShowAddSubj(true)}>Add Your First Subject</button>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {subjects.map(s => {
-            const subjTopics = topics.filter(t => String(t.subjectId) === String(s.id));
-            const completed = subjTopics.filter(t => t.status === 'COMPLETED').length;
-            const rate = subjTopics.length > 0 ? completed / subjTopics.length : 0;
-            const isExpanded = expandedSubjId === s.id;
+          {!activeGoal ? (
+            <div className="empty-state">
+              <div className="ascii-icon">{`  ╭──────────╮
+  │   ⚠️      │
+  │          │
+  │ set goal │
+  │  first   │
+  ╰──────────╯`}</div>
+              <p>You must configure an active exam goal in the Account Sync tab before tracking your syllabus subjects.</p>
+              <button className="hypr-btn" onClick={() => setActiveTab('account')}>configure goal →</button>
+            </div>
+          ) : subjects.length === 0 ? (
+            <div className="empty-state">
+              <div className="ascii-icon">{`  ┌──────────────┐
+  │  📚 empty    │
+  │              │
+  │  add subject │
+  │  to begin    │
+  └──────────────┘`}</div>
+              <p>Your syllabus is empty. Get started by adding a subject.</p>
+              <button className="hypr-btn primary" onClick={() => setShowAddSubj(true)}>add subject</button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {subjects.map(s => {
+                const subjTopics = topics.filter(t => String(t.subjectId) === String(s.id));
+                const completed = subjTopics.filter(t => t.status === 'COMPLETED').length;
+                const rate = subjTopics.length > 0 ? completed / subjTopics.length : 0;
+                const isExpanded = expandedSubjId === s.id;
 
-            return (
-              <div key={s.id} className="card" style={{ padding: '20px' }}>
-                <div className="flex-row-between" style={{ cursor: 'pointer' }} onClick={() => setExpandedSubjId(isExpanded ? null : s.id)}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexGrow: 1 }}>
-                    <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: s.colorHex }} />
-                    <div>
-                      <div style={{ fontWeight: '700', fontSize: '18px' }}>{s.name}</div>
-                      <div style={{ fontSize: '12px', color: 'var(--secondary-color)' }}>
-                        {completed}/{subjTopics.length} topics completed
+                return (
+                  <div key={s.id} style={{ padding: '12px', border: '1px solid var(--surface0)', borderRadius: '8px', background: 'var(--surface1)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setExpandedSubjId(isExpanded ? null : s.id)}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexGrow: 1, minWidth: 0 }}>
+                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: s.colorHex, flexShrink: 0 }} />
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: '700', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--overlay0)', marginTop: '2px' }}>
+                            {completed}/{subjTopics.length} topics completed
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <span style={{ fontWeight: '700', color: s.colorHex }}>{(rate * 100).toFixed(0)}%</span>
-                    <button className="btn btn-secondary" style={{ padding: '6px' }} onClick={(e) => {
-                      e.stopPropagation();
-                      if (confirm("Delete subject and all its topics?")) {
-                        DataService.deleteSubject(s.id);
-                      }
-                    }}>
-                      <Trash2 size={16} color="var(--error-color)" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="progress-bar-bg" style={{ marginTop: '12px', height: '6px' }}>
-                  <div className="progress-bar-fill" style={{ width: `${rate * 100}%`, backgroundColor: s.colorHex }} />
-                </div>
-
-                {/* Expanded Topics List */}
-                {isExpanded && (
-                  <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '16px', borderTop: '1px solid var(--surface-variant)', paddingTop: '16px' }}>
-                    
-                    {/* Inline Config for Target Hours and Priority */}
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end', background: 'rgba(255,255,255,0.01)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                        <label className="form-label" style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--secondary-color)' }}>Target Study Time (Hours)</label>
-                        <input 
-                          type="number" 
-                          className="input-field" 
-                          style={{ height: '32px', fontSize: '12px' }}
-                          value={s.targetHours || ''} 
-                          onChange={(e) => DataService.saveSubject({ ...s, targetHours: parseInt(e.target.value) || null })}
-                          placeholder="e.g. 40"
-                        />
-                      </div>
-                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                        <label className="form-label" style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--secondary-color)' }}>Exam Priority</label>
-                        <select 
-                          className="input-field" 
-                          style={{ height: '32px', fontSize: '12px' }}
-                          value={s.priority || 'MEDIUM'} 
-                          onChange={(e) => DataService.saveSubject({ ...s, priority: e.target.value })}
-                        >
-                          <option value="HIGH">🔥 High Priority</option>
-                          <option value="MEDIUM">⚡ Medium Priority</option>
-                          <option value="LOW">💤 Low Priority</option>
-                        </select>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                        <span style={{ fontWeight: '700', color: s.colorHex }}>{(rate * 100).toFixed(0)}%</span>
+                        <button className="sm-btn" onClick={() => {
+                          if (confirm("Delete subject and all its topics?")) {
+                            DataService.deleteSubject(s.id);
+                            showToast('subject deleted');
+                          }
+                        }}>
+                          ×
+                        </button>
                       </div>
                     </div>
 
-                    {subjTopics.length === 0 ? (
-                      <p style={{ color: 'var(--secondary-color)', fontSize: '13px', textAlign: 'center', padding: '8px' }}>No topics found. Add one below!</p>
-                    ) : (
-                      subjTopics.map(t => {
-                        const statusColors = {
-                          NOT_STARTED: { bg: 'var(--surface-variant)', text: 'var(--secondary-color)', label: 'Not Started' },
-                          IN_PROGRESS: { bg: 'rgba(59, 130, 246, 0.15)', text: '#3B82F6', label: 'In Progress' },
-                          COMPLETED: { bg: 'rgba(16, 185, 129, 0.15)', text: '#10B981', label: 'Completed' },
-                          NEEDS_REVISION: { bg: 'rgba(249, 115, 22, 0.15)', text: '#F97316', label: 'Revision' }
-                        };
-                        const conf = statusColors[t.status] || statusColors.NOT_STARTED;
+                    <div className="progress-bar-bg" style={{ marginTop: '10px', height: '4px' }}>
+                      <div className="progress-bar-fill" style={{ width: `${rate * 100}%`, backgroundColor: s.colorHex }} />
+                    </div>
 
-                        return (
-                          <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', padding: '8px 12px' }}>
-                            <div className="flex-row-between" style={{ width: '100%' }}>
-                              <span style={{ fontSize: '14px', fontWeight: '500' }}>{t.name}</span>
-                              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                <span 
-                                  className="chip"
-                                  style={{ backgroundColor: conf.bg, color: conf.text }}
-                                  onClick={() => handleCycleStatus(t)}
-                                >
-                                  {conf.label}
-                                </span>
-                                <button 
-                                  className="btn btn-secondary" 
-                                  style={{ padding: '4px 8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }} 
-                                  onClick={() => {
-                                    setActiveAddSubTopicId(activeAddSubTopicId === t.id ? null : t.id);
-                                    setSubTopicName('');
-                                  }}
-                                >
-                                  <Plus size={12} /> Sub-topic
-                                </button>
-                                <button className="btn btn-secondary" style={{ padding: '4px' }} onClick={() => DataService.deleteTopic(t.id)}>
-                                  <Trash2 size={14} color="rgba(255, 107, 107, 0.6)" />
-                                </button>
-                              </div>
-                            </div>
+                    {isExpanded && (
+                      <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--surface0)', paddingTop: '12px' }}>
+                        <div style={{ display: 'flex', gap: '12px', background: 'var(--crust)', padding: '10px', borderRadius: '6px', border: '1px solid var(--surface0)' }} onClick={(e) => e.stopPropagation()}>
+                          <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">target hours</label>
+                            <input 
+                              type="number" 
+                              className="hypr-input" 
+                              style={{ height: '30px', padding: '4px 8px' }}
+                              value={s.targetHours || ''} 
+                              onChange={(e) => DataService.saveSubject({ ...s, targetHours: parseInt(e.target.value) || null })}
+                              placeholder="e.g. 40"
+                            />
+                          </div>
+                          <div className="form-group" style={{ flex: 1 }}>
+                            <label className="form-label">priority</label>
+                            <select 
+                              className="hypr-input" 
+                              style={{ height: '30px', padding: '4px 8px', cursor: 'pointer' }}
+                              value={s.priority || 'MEDIUM'} 
+                              onChange={(e) => DataService.saveSubject({ ...s, priority: e.target.value })}
+                            >
+                              <option value="HIGH">HIGH Priority</option>
+                              <option value="MEDIUM">MEDIUM Priority</option>
+                              <option value="LOW">LOW Priority</option>
+                            </select>
+                          </div>
+                        </div>
 
-                            {/* Subtopics rendering */}
-                            {(t.subTopics || []).map(sub => {
-                              const subStatusColors = {
-                                NOT_STARTED: { bg: 'var(--surface-variant)', text: 'var(--secondary-color)', label: 'Not Started' },
-                                IN_PROGRESS: { bg: 'rgba(59, 130, 246, 0.15)', text: '#3B82F6', label: 'In Progress' },
-                                COMPLETED: { bg: 'rgba(16, 185, 129, 0.15)', text: '#10B981', label: 'Finished' }
-                              };
-                              const subConf = subStatusColors[sub.status] || subStatusColors.NOT_STARTED;
-                              return (
-                                <div key={sub.id} className="flex-row-between" style={{ padding: '6px 12px 6px 20px', background: 'transparent', borderLeft: '2px solid var(--surface-variant)', marginLeft: '12px', marginTop: '4px' }}>
-                                  <span style={{ fontSize: '13px', color: 'var(--text-color)', opacity: 0.9 }}>{sub.name}</span>
+                        {subjTopics.length === 0 ? (
+                          <p style={{ color: 'var(--overlay0)', fontSize: '11px', textAlign: 'center', padding: '8px' }}>No topics found. Add one below!</p>
+                        ) : (
+                          subjTopics.map(t => {
+                            const confs = {
+                              NOT_STARTED: { label: 'not started', color: 'var(--overlay0)' },
+                              IN_PROGRESS: { label: 'in progress', color: 'var(--blue)' },
+                              COMPLETED: { label: 'completed', color: 'var(--green)' },
+                              NEEDS_REVISION: { label: 'needs revision', color: 'var(--peach)' }
+                            };
+                            const topicConf = confs[t.status] || confs.NOT_STARTED;
+
+                            return (
+                              <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', background: 'var(--crust)', border: '1px solid var(--surface0)', borderRadius: '6px', padding: '8px 12px' }} onClick={(e) => e.stopPropagation()}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: '500' }}>{t.name}</span>
                                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                     <span 
                                       className="chip"
-                                      style={{ backgroundColor: subConf.bg, color: subConf.text, fontSize: '11px', padding: '2px 8px' }}
-                                      onClick={() => handleCycleSubTopicStatus(t, sub.id)}
+                                      style={{ borderColor: topicConf.color, color: topicConf.color, fontSize: '9px', padding: '2px 8px' }}
+                                      onClick={() => handleCycleStatus(t)}
                                     >
-                                      {subConf.label}
+                                      {topicConf.label}
                                     </span>
-                                    <button className="btn btn-secondary" style={{ padding: '3px' }} onClick={() => handleDeleteSubTopic(t, sub.id)}>
-                                      <Trash2 size={12} color="rgba(255, 107, 107, 0.6)" />
+                                    <button className="chip" style={{ fontSize: '9px', padding: '2px 8px' }} onClick={() => {
+                                      setActiveAddSubTopicId(activeAddSubTopicId === t.id ? null : t.id);
+                                      setSubTopicName('');
+                                    }}>
+                                      + sub-topic
+                                    </button>
+                                    <button className="sm-btn" onClick={() => {
+                                      DataService.deleteTopic(t.id);
+                                      showToast('topic deleted');
+                                    }}>
+                                      ×
                                     </button>
                                   </div>
                                 </div>
-                              );
-                            })}
 
-                            {/* Add subtopic inline input */}
-                            {activeAddSubTopicId === t.id && (
-                              <div style={{ paddingLeft: '20px', borderLeft: '2px solid var(--accent-color)', marginLeft: '12px', marginTop: '6px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                <input 
-                                  type="text" 
-                                  className="input-field" 
-                                  style={{ padding: '4px 8px', fontSize: '12px', width: '180px', margin: 0 }}
-                                  placeholder="Sub-topic name..." 
-                                  value={subTopicName}
-                                  onChange={(e) => setSubTopicName(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleAddSubTopic(t);
-                                  }}
-                                  autoFocus
-                                />
-                                <button className="btn btn-accent" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => handleAddSubTopic(t)}>Add</button>
-                                <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => { setActiveAddSubTopicId(null); setSubTopicName(''); }}>Cancel</button>
+                                {(t.subTopics || []).map(sub => {
+                                  const subConfs = {
+                                    NOT_STARTED: { label: 'todo', color: 'var(--overlay0)' },
+                                    IN_PROGRESS: { label: 'doing', color: 'var(--blue)' },
+                                    COMPLETED: { label: 'done', color: 'var(--green)' }
+                                  };
+                                  const subConf = subConfs[sub.status] || subConfs.NOT_STARTED;
+
+                                  return (
+                                    <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px 4px 16px', borderLeft: '1px solid var(--surface2)', marginLeft: '8px', marginTop: '2px' }}>
+                                      <span style={{ fontSize: '11px', color: 'var(--text)', opacity: 0.8 }}>{sub.name}</span>
+                                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                        <span 
+                                          className="chip"
+                                          style={{ borderColor: subConf.color, color: subConf.color, fontSize: '8px', padding: '1px 6px' }}
+                                          onClick={() => handleCycleSubTopicStatus(t, sub.id)}
+                                        >
+                                          {subConf.label}
+                                        </span>
+                                        <button className="sm-btn" style={{ width: '20px', height: '20px', fontSize: '10px' }} onClick={() => handleDeleteSubTopic(t, sub.id)}>
+                                          ×
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+
+                                {activeAddSubTopicId === t.id && (
+                                  <div style={{ display: 'flex', gap: '6px', marginLeft: '8px', marginTop: '6px', paddingLeft: '8px', borderLeft: '1px solid var(--accent)' }}>
+                                    <input 
+                                      className="hypr-input"
+                                      style={{ height: '26px', fontSize: '11px', padding: '2px 8px', maxWidth: '200px' }}
+                                      value={subTopicName}
+                                      onChange={(e) => setSubTopicName(e.target.value)}
+                                      placeholder="Sub-topic name..."
+                                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddSubTopic(t); }}
+                                      autoFocus
+                                    />
+                                    <button className="hypr-btn" style={{ padding: '2px 8px', fontSize: '10px' }} onClick={() => handleAddSubTopic(t)}>add</button>
+                                    <button className="hypr-btn" style={{ padding: '2px 8px', fontSize: '10px' }} onClick={() => { setActiveAddSubTopicId(null); setSubTopicName(''); }}>cancel</button>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
+                            );
+                          })
+                        )}
 
-                    <button 
-                      className="btn btn-secondary" 
-                      style={{ alignSelf: 'center', marginTop: '12px' }}
-                      onClick={() => setShowAddTopicSubjId(s.id)}
-                    >
-                      <Plus size={16} /> Add Topic
-                    </button>
+                        <button className="hypr-btn" style={{ alignSelf: 'center', marginTop: '8px' }} onClick={() => setShowAddTopicSubjId(s.id)}>
+                          + add topic
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Add Subject Modal */}
       {showAddSubj && (
@@ -1253,8 +1239,7 @@ function SyllabusView({ activeGoal, subjects, topics }) {
             <div className="form-group">
               <label className="form-label">Subject Name</label>
               <input 
-                type="text" 
-                className="input-field" 
+                className="hypr-input" 
                 placeholder="e.g., Digital Logic, Computer Networks"
                 value={subjectName} 
                 onChange={(e) => setSubjectName(e.target.value)} 
@@ -1262,20 +1247,20 @@ function SyllabusView({ activeGoal, subjects, topics }) {
             </div>
             <div>
               <label className="form-label">Choose color:</label>
-              <div className="color-picker">
+              <div className="color-picker" style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
                 {colors.map(c => (
                   <div 
                     key={c} 
                     className={`color-option ${colorHex === c ? 'selected' : ''}`}
-                    style={{ backgroundColor: c }}
+                    style={{ backgroundColor: c, width: '24px', height: '24px', borderRadius: '4px', cursor: 'pointer', border: colorHex === c ? '2px solid var(--text)' : '2px solid transparent' }}
                     onClick={() => setColorHex(c)}
                   />
                 ))}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-              <button className="btn btn-secondary" onClick={() => setShowAddSubj(false)}>Cancel</button>
-              <button className="btn btn-accent" onClick={handleAddSubject}>Add</button>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button className="hypr-btn" onClick={() => setShowAddSubj(false)}>Cancel</button>
+              <button className="hypr-btn primary" onClick={handleAddSubject}>Add</button>
             </div>
           </div>
         </div>
@@ -1289,16 +1274,15 @@ function SyllabusView({ activeGoal, subjects, topics }) {
             <div className="form-group">
               <label className="form-label">Topic Name</label>
               <input 
-                type="text" 
-                className="input-field" 
-                placeholder="e.g., Minimization using K-Maps, Boolean Identities"
+                className="hypr-input" 
+                placeholder="e.g., Minimization using K-Maps"
                 value={topicName} 
                 onChange={(e) => setTopicName(e.target.value)} 
               />
             </div>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setShowAddTopicSubjId(null)}>Cancel</button>
-              <button className="btn btn-accent" onClick={handleAddTopic}>Add</button>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button className="hypr-btn" onClick={() => setShowAddTopicSubjId(null)}>Cancel</button>
+              <button className="hypr-btn primary" onClick={handleAddTopic}>Add</button>
             </div>
           </div>
         </div>
@@ -1307,10 +1291,7 @@ function SyllabusView({ activeGoal, subjects, topics }) {
   );
 }
 
-// ----------------------------------------------------
-// HISTORY VIEW
-// ----------------------------------------------------
-function HistoryView({ sessions, subjects, onDeleteSession }) {
+function HistoryView({ sessions, subjects, onDeleteSession, showToast }) {
   const [filterSubjectId, setFilterSubjectId] = useState('');
 
   const filteredSessions = filterSubjectId 
@@ -1333,30 +1314,36 @@ function HistoryView({ sessions, subjects, onDeleteSession }) {
     const dateLabel = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     const timeLabel = dateObj.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     const durationMins = Math.round(s.completedDurationSeconds / 60);
+    const subj = subjects.find(sub => String(sub.id) === String(s.subjectId));
 
     return (
-      <div key={s.id} className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <div style={{ fontWeight: '700', fontSize: '16px' }}>{s.label}</div>
-          <div style={{ fontSize: '12px', color: 'var(--secondary-color)', display: 'flex', gap: '12px' }}>
+      <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid var(--surface0)', borderRadius: '8px', background: 'var(--surface1)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0, flex: 1, marginRight: '12px' }}>
+          <div style={{ fontWeight: '700', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
+          <div style={{ fontSize: '11px', color: 'var(--overlay0)', display: 'flex', gap: '8px', alignItems: 'center' }}>
             <span>{dateLabel} at {timeLabel}</span>
-            {s.tag && <span style={{ color: 'var(--accent-color)', fontWeight: '600' }}>#{s.tag}</span>}
+            {s.tag && <span style={{ color: 'var(--accent)' }}>#{s.tag.toLowerCase()}</span>}
+            {subj && (
+              <span className="chip" style={{ fontSize: '8px', padding: '1px 5px', border: `1px solid ${subj.colorHex}55`, color: subj.colorHex, background: `${subj.colorHex}15`, cursor: 'default' }}>
+                {subj.name}
+              </span>
+            )}
           </div>
           {s.notes && (
-            <div style={{ fontSize: '13px', color: 'var(--primary-color)', background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: '4px', marginTop: '6px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--text)', opacity: 0.8, background: 'var(--crust)', padding: '6px 10px', borderRadius: '4px', marginTop: '4px' }}>
               {s.notes}
             </div>
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-          <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--accent-color)' }}>{durationMins}m</span>
-          <button className="btn btn-secondary" style={{ padding: '6px' }} onClick={() => {
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexShrink: 0 }}>
+          <span style={{ fontSize: '16px', fontWeight: '800', color: 'var(--accent)' }}>{durationMins}m</span>
+          <button className="sm-btn" onClick={() => {
             if (confirm("Delete this session record?")) {
               onDeleteSession(s.id);
             }
           }}>
-            <Trash2 size={16} color="var(--error-color)" />
+            ×
           </button>
         </div>
       </div>
@@ -1364,270 +1351,72 @@ function HistoryView({ sessions, subjects, onDeleteSession }) {
   };
 
   return (
-    <>
-      <div className="page-header">
-        <div>
-          <h1>Session History</h1>
-          <p style={{ color: 'var(--secondary-color)', fontSize: '14px' }}>Overview of your logged study sessions.</p>
+    <div className="hypr-window active-window">
+      <div className="win-titlebar">
+        <div className="win-title">
+          <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+          history <span className="class-name">— session log</span>
         </div>
         {subjects.length > 0 && (
           <select 
-            className="input-field" 
-            style={{ width: '220px' }}
+            className="hypr-input" 
+            style={{ width: '180px', height: '28px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}
             value={filterSubjectId}
             onChange={(e) => setFilterSubjectId(e.target.value)}
           >
-            <option value="">Filter by Subject (All)</option>
+            <option value="">filter subject (all)</option>
             {subjects.map(s => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
         )}
       </div>
-
-      {filteredSessions.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <p style={{ color: 'var(--secondary-color)' }}>No study sessions recorded yet.</p>
+      <div className="win-body">
+        <div className="prompt-line">
+          <span className="arrow">❯</span>
+          <span className="path">~/history</span>
+          <span className="cmd">cat sessions.log</span>
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '24px' }}>
-          {todaySessions.length > 0 && (
-            <div>
-              <h3 style={{ marginBottom: '12px', color: 'var(--accent-color)', fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '800' }}>Today</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {todaySessions.map(renderSessionCard)}
-              </div>
-            </div>
-          )}
-          
-          {yesterdaySessions.length > 0 && (
-            <div>
-              <h3 style={{ marginBottom: '12px', color: 'var(--secondary-color)', fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '800' }}>Yesterday</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {yesterdaySessions.map(renderSessionCard)}
-              </div>
-            </div>
-          )}
 
-          {earlierSessions.length > 0 && (
-            <div>
-              <h3 style={{ marginBottom: '12px', color: 'var(--secondary-color)', fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase', fontWeight: '800' }}>Earlier</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {earlierSessions.map(renderSessionCard)}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </>
-  );
-}
-
-function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete }) {
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [testName, setTestName] = useState('');
-  const [subjectId, setSubjectId] = useState(subjects[0]?.id || '');
-  const [obtainedMarks, setObtainedMarks] = useState('');
-  const [totalMarks, setTotalMarks] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
-
-  if (!activeGoal) return null;
-
-  const goalTests = mockTests
-    .filter(t => String(t.examGoalId) === String(activeGoal.id))
-    .sort((a, b) => new Date(a.date) - new Date(b.date)); // chronological for chart
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!testName || !obtainedMarks || !totalMarks || !subjectId) return;
-
-    const obtained = parseFloat(obtainedMarks);
-    const total = parseFloat(totalMarks);
-    const scorePercentage = total > 0 ? (obtained / total) * 100 : 0;
-
-    onSave({
-      examGoalId: activeGoal.id,
-      subjectId: subjectId,
-      testName,
-      scorePercentage,
-      obtainedMarks: obtained,
-      totalMarks: total,
-      notes,
-      date,
-      createdAt: Date.now()
-    });
-
-    setTestName('');
-    setObtainedMarks('');
-    setTotalMarks('');
-    setNotes('');
-    setShowAddForm(false);
-  };
-
-  const chartData = goalTests.map(t => {
-    const subj = subjects.find(s => String(s.id) === String(t.subjectId));
-    return {
-      date: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      score: Math.round(t.scorePercentage),
-      name: t.testName,
-      subject: subj?.name || 'Subject'
-    };
-  });
-
-  return (
-    <div className="card" style={{ marginTop: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h3 style={{ fontSize: '18px', fontWeight: '800' }}>Mock Test Performance</h3>
-        {subjects.length > 0 && (
-          <button 
-            className="btn btn-primary" 
-            onClick={() => setShowAddForm(!showAddForm)}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-          >
-            <Plus size={16} /> Log Score
-          </button>
-        )}
-      </div>
-
-      {showAddForm && (
-        <form onSubmit={handleSubmit} className="card" style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', marginBottom: '24px', border: '1px solid var(--border-color)' }}>
-          <h4 style={{ marginBottom: '16px', fontSize: '15px', fontWeight: '700' }}>Log Mock Test Record</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Test Name</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                value={testName} 
-                onChange={e => setTestName(e.target.value)} 
-                required 
-                placeholder="e.g. Midterm, Practice Test 1"
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Subject</label>
-              <select 
-                className="input-field" 
-                value={subjectId} 
-                onChange={e => setSubjectId(e.target.value)} 
-                required
-              >
-                {subjects.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Obtained Marks</label>
-              <input 
-                type="number" 
-                step="any" 
-                className="input-field" 
-                value={obtainedMarks} 
-                onChange={e => setObtainedMarks(e.target.value)} 
-                required 
-                placeholder="e.g. 85"
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Total Marks</label>
-              <input 
-                type="number" 
-                step="any" 
-                className="input-field" 
-                value={totalMarks} 
-                onChange={e => setTotalMarks(e.target.value)} 
-                required 
-                placeholder="e.g. 100"
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Date</label>
-              <input 
-                type="date" 
-                className="input-field" 
-                value={date} 
-                onChange={e => setDate(e.target.value)} 
-                required 
-              />
-            </div>
+        {filteredSessions.length === 0 ? (
+          <div className="empty-state">
+            <div className="ascii-icon">{`  ╭──────────────╮
+  │  no data     │
+  │              │
+  │  complete a  │
+  │  session to  │
+  │  see logs    │
+  ╰──────────────╯`}</div>
+            <p>no study sessions recorded yet</p>
           </div>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontSize: '12px', color: 'var(--secondary-color)', marginBottom: '6px' }}>Notes</label>
-            <textarea 
-              className="input-field" 
-              value={notes} 
-              onChange={e => setNotes(e.target.value)} 
-              placeholder="Any comments, weaknesses noticed, etc. (optional)"
-              style={{ minHeight: '60px', fontFamily: 'inherit' }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Save Score</button>
-          </div>
-        </form>
-      )}
-
-      {chartData.length > 0 && (
-        <div style={{ height: '220px', marginBottom: '24px', width: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <XAxis dataKey="date" stroke="var(--secondary-color)" fontSize={11} tickLine={false} />
-              <YAxis stroke="var(--secondary-color)" fontSize={11} tickLine={false} domain={[0, 100]} unit="%" />
-              <Tooltip 
-                contentStyle={{ background: 'var(--bg-card)', borderColor: 'var(--border-color)', borderRadius: '8px', color: 'var(--clr-text)' }}
-                labelStyle={{ fontWeight: 'bold', marginBottom: '4px' }}
-              />
-              <Line type="monotone" dataKey="score" stroke="var(--accent-color)" strokeWidth={3} dot={{ fill: 'var(--accent-color)', r: 5 }} activeDot={{ r: 7 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {goalTests.slice().reverse().map(t => {
-          const subj = subjects.find(s => String(s.id) === String(t.subjectId));
-          const score = Math.round(t.scorePercentage);
-          return (
-            <div key={t.id} className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)' }}>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {todaySessions.length > 0 && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: subj?.colorHex || 'var(--accent-color)', background: `${subj?.colorHex || 'var(--accent-color)'}1A`, padding: '2px 6px', borderRadius: '4px' }}>
-                    {subj?.name || 'Subject'}
-                  </span>
-                  <span style={{ fontSize: '11px', color: 'var(--secondary-color)' }}>{t.date}</span>
+                <h4 style={{ marginBottom: '8px', color: 'var(--accent)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>Today</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {todaySessions.map(renderSessionCard)}
                 </div>
-                <h4 style={{ fontSize: '16px', fontWeight: '700', marginBottom: '4px' }}>{t.testName}</h4>
-                <div style={{ fontSize: '12px', color: 'var(--secondary-color)' }}>
-                  Marks: {t.obtainedMarks} / {t.totalMarks}
+              </div>
+            )}
+            
+            {yesterdaySessions.length > 0 && (
+              <div>
+                <h4 style={{ marginBottom: '8px', color: 'var(--overlay0)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>Yesterday</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {yesterdaySessions.map(renderSessionCard)}
                 </div>
-                {t.notes && (
-                  <p style={{ fontSize: '12px', color: 'var(--clr-text)', background: 'rgba(255,255,255,0.02)', padding: '6px 10px', borderRadius: '4px', marginTop: '6px', maxWidth: '500px' }}>
-                    {t.notes}
-                  </p>
-                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <span style={{ fontSize: '20px', fontWeight: '900', color: score >= 75 ? 'var(--clr-green, #a6e3a1)' : score >= 50 ? 'var(--clr-yellow, #f9e2af)' : 'var(--clr-red, #f38ba8)' }}>
-                  {score}%
-                </span>
-                <button className="btn btn-secondary" style={{ padding: '6px' }} onClick={() => {
-                  if (confirm("Delete this mock test score record?")) {
-                    onDelete(t.id);
-                  }
-                }}>
-                  <Trash2 size={16} color="var(--error-color)" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
+            )}
 
-        {goalTests.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '20px', color: 'var(--secondary-color)', fontSize: '13px' }}>
-            No mock tests recorded for this goal yet.
+            {earlierSessions.length > 0 && (
+              <div>
+                <h4 style={{ marginBottom: '8px', color: 'var(--overlay0)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px' }}>Earlier</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {earlierSessions.map(renderSessionCard)}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1635,7 +1424,7 @@ function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete }) 
   );
 }
 
-function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSaveMockTest, onDeleteMockTest }) {
+function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSaveMockTest, onDeleteMockTest, streak, showToast }) {
   const [selectedDate, setSelectedDate] = useState(null);
 
   const weeks = React.useMemo(() => {
@@ -1753,53 +1542,120 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
 
   const barData = getBarData();
 
-  const getStreak = () => {
-    const dates = new Set(sessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date));
-    let streak = 0;
-    const checkDate = new Date();
-    
-    let todayStr = checkDate.toISOString().split('T')[0];
-    let yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    let yesterdayStr = yesterday.toISOString().split('T')[0];
-    
-    if (!dates.has(todayStr) && !dates.has(yesterdayStr)) {
-      return 0;
-    }
-    
-    let startDate = dates.has(todayStr) ? checkDate : yesterday;
-    while (true) {
-      const dateStr = startDate.toISOString().split('T')[0];
-      if (dates.has(dateStr)) {
-        streak++;
-        startDate.setDate(startDate.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-    return streak;
-  };
-
-  const streak = getStreak();
-  const sessionCount = sessions.filter(s => s.completedDurationSeconds > 0).length;
-
-
-
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Study Analytics</h1>
-          <p style={{ color: 'var(--secondary-color)', fontSize: '14px' }}>
-            {sessionCount} sessions logged · {streak} day streak
-          </p>
+      {/* Window 1: Study Time Last 7 Days */}
+      <div className="hypr-window active-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            study_time <span className="class-name">— last 7 days</span>
+          </div>
+        </div>
+        <div className="win-body" style={{ minHeight: '220px' }}>
+          <div style={{ width: '100%', height: '180px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barData} margin={{ top: 10, right: 10, left: -30, bottom: 0 }}>
+                <XAxis dataKey="day" stroke="var(--overlay0)" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--overlay0)" fontSize={10} tickFormatter={(v) => `${v}h`} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(v) => [`${v} hours`, 'Hours Studied']} cursor={{ fill: 'var(--surface2)' }} />
+                <Bar dataKey="hours" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
+      {/* Window 2: Activity Heatmap */}
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            activity <span className="class-name">— contribution graph</span>
+          </div>
+        </div>
+        <div className="win-body">
+          <div className="github-heatmap-wrapper">
+            <div className="github-heatmap-inner">
+              <div className="github-heatmap-months">
+                {monthLabels.map((lbl, idx) => (
+                  <div
+                    key={idx}
+                    className="github-heatmap-month-label"
+                    style={{ gridColumn: `${lbl.colIndex + 2} / span 4` }}
+                  >
+                    {lbl.text}
+                  </div>
+                ))}
+              </div>
 
-      <div className="grid-2" style={{ marginTop: '24px' }}>
-        <div className="card chart-card">
-          <div className="card-title">Subject Distribution (mins)</div>
+              <div className="github-heatmap-grid">
+                <span className="github-heatmap-weekday-label" style={{ gridRow: 2, gridColumn: 1 }}>Mon</span>
+                <span className="github-heatmap-weekday-label" style={{ gridRow: 4, gridColumn: 1 }}>Wed</span>
+                <span className="github-heatmap-weekday-label" style={{ gridRow: 6, gridColumn: 1 }}>Fri</span>
+
+                {weeks.flatMap((week, wIdx) => 
+                  week.map((day, dIdx) => {
+                    const isOutOfRange = day < startDate || day > today;
+                    if (isOutOfRange) {
+                      return (
+                        <div
+                          key={`cell-${wIdx}-${dIdx}`}
+                          className="github-heatmap-cell empty"
+                          style={{ gridRow: dIdx + 1, gridColumn: wIdx + 2 }}
+                        />
+                      );
+                    }
+
+                    const pad = (n) => String(n).padStart(2, '0');
+                    const dateStr = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+                    const daySessions = sessions.filter(s => s.date === dateStr);
+                    const seconds = daySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+                    const hours = seconds / 3600;
+
+                    let level = 0;
+                    if (seconds > 0) {
+                      if (seconds < 30 * 60) level = 1;
+                      else if (seconds < 60 * 60) level = 2;
+                      else if (seconds < 120 * 60) level = 3;
+                      else level = 4;
+                    }
+
+                    return (
+                      <div
+                        key={`cell-${wIdx}-${dIdx}`}
+                        className={`github-heatmap-cell level-${level}`}
+                        style={{ gridRow: dIdx + 1, gridColumn: wIdx + 2 }}
+                        title={`${day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}: ${hours.toFixed(1)}h studied`}
+                        onClick={() => setSelectedDate(day)}
+                      />
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="github-heatmap-legend">
+            <span>Less</span>
+            <div className="github-heatmap-legend-cell level-0" />
+            <div className="github-heatmap-legend-cell level-1" />
+            <div className="github-heatmap-legend-cell level-2" />
+            <div className="github-heatmap-legend-cell level-3" />
+            <div className="github-heatmap-legend-cell level-4" />
+            <span>More</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Window 3: Subject Distribution */}
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            distribution <span className="class-name">— by subject</span>
+          </div>
+        </div>
+        <div className="win-body">
           {pieData.length > 0 ? (
             <div className="chart-distribution-layout">
               <div className="chart-pie-wrapper">
@@ -1809,8 +1665,8 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
                       data={pieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={70}
+                      innerRadius={35}
+                      outerRadius={50}
                       paddingAngle={3}
                       dataKey="value"
                     >
@@ -1824,133 +1680,35 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
               </div>
               <div className="chart-legend-wrapper">
                 {pieData.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
-                      <span style={{ fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', paddingBottom: '3px', borderBottom: '1px solid var(--surface0)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                     </div>
-                    <span style={{ color: 'var(--secondary-color)', fontSize: '11px', flexShrink: 0 }}>{item.value}m</span>
+                    <span style={{ color: 'var(--overlay0)', flexShrink: 0 }}>{item.value}m</span>
                   </div>
                 ))}
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexGrow: 1, color: 'var(--secondary-color)', fontSize: '14px' }}>
-              No subject sessions logged yet.
+            <div className="empty-state">
+              <p style={{ fontSize: '11px' }}>no subject sessions logged yet</p>
             </div>
           )}
         </div>
-
-        <div className="card chart-card">
-          <div className="card-title">Study Time (last 7 days)</div>
-          <div style={{ width: '100%', flexGrow: 1, height: '200px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="day" stroke="var(--secondary-color)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--secondary-color)" fontSize={11} tickFormatter={(v) => `${v}h`} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(v) => `${v} hours`} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
-                <Bar dataKey="hours" fill="var(--accent-color)" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
       </div>
 
-      <div className="card heatmap-card" style={{ marginTop: '24px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '16px' }}>
-          <div className="card-title" style={{ marginBottom: 0 }}>Study Activity</div>
-          <div style={{ fontSize: '13px', color: 'var(--secondary-color)' }}>
-            {sessionsInPastYear} sessions in the past year • Current streak: {streak} days
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--secondary-color)', opacity: 0.8 }}>
-            Tracking since {trackingSinceStr}
-          </div>
-        </div>
-
-        <div className="github-heatmap-wrapper">
-          <div className="github-heatmap-inner">
-            <div className="github-heatmap-months">
-              {monthLabels.map((lbl, idx) => (
-                <div
-                  key={idx}
-                  className="github-heatmap-month-label"
-                  style={{ gridColumn: `${lbl.colIndex + 2} / span 4` }}
-                >
-                  {lbl.text}
-                </div>
-              ))}
-            </div>
-
-            <div className="github-heatmap-grid">
-              {/* Weekday labels */}
-              <span className="github-heatmap-weekday-label" style={{ gridRow: 2, gridColumn: 1 }}>Mon</span>
-              <span className="github-heatmap-weekday-label" style={{ gridRow: 4, gridColumn: 1 }}>Wed</span>
-              <span className="github-heatmap-weekday-label" style={{ gridRow: 6, gridColumn: 1 }}>Fri</span>
-
-              {/* Cells */}
-              {weeks.flatMap((week, wIdx) => 
-                week.map((day, dIdx) => {
-                  const isOutOfRange = day < startDate || day > today;
-                  if (isOutOfRange) {
-                    return (
-                      <div
-                        key={`cell-${wIdx}-${dIdx}`}
-                        className="github-heatmap-cell empty"
-                        style={{ gridRow: dIdx + 1, gridColumn: wIdx + 2 }}
-                      />
-                    );
-                  }
-
-                  const pad = (n) => String(n).padStart(2, '0');
-                  const dateStr = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
-                  const daySessions = sessions.filter(s => s.date === dateStr);
-                  const seconds = daySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
-                  const hours = seconds / 3600;
-
-                  let level = 0;
-                  if (seconds > 0) {
-                    if (seconds < 30 * 60) level = 1;
-                    else if (seconds < 60 * 60) level = 2;
-                    else if (seconds < 120 * 60) level = 3;
-                    else level = 4;
-                  }
-
-                  return (
-                    <div
-                      key={`cell-${wIdx}-${dIdx}`}
-                      className={`github-heatmap-cell level-${level}`}
-                      style={{ gridRow: dIdx + 1, gridColumn: wIdx + 2 }}
-                      title={`${day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}: ${hours.toFixed(1)}h studied`}
-                      onClick={() => setSelectedDate(day)}
-                    />
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="github-heatmap-legend">
-          <span>Less</span>
-          <div className="github-heatmap-legend-cell level-0" />
-          <div className="github-heatmap-legend-cell level-1" />
-          <div className="github-heatmap-legend-cell level-2" />
-          <div className="github-heatmap-legend-cell level-3" />
-          <div className="github-heatmap-legend-cell level-4" />
-          <span>More</span>
-        </div>
-      </div>
-
-
-
+      {/* Window 4: Mock Tests performance */}
       <MockTestSection 
         mockTests={mockTests} 
         subjects={subjects} 
         activeGoal={activeGoal} 
         onSave={onSaveMockTest} 
         onDelete={onDeleteMockTest} 
+        showToast={showToast}
       />
 
+      {/* Selected day sessions Modal */}
       {selectedDate && (() => {
         const daySessions = getDaySessions(selectedDate);
         const totalSeconds = daySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
@@ -1959,66 +1717,38 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
         return (
           <div className="modal-overlay" onClick={() => setSelectedDate(null)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px', width: '92%' }}>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--surface0)', paddingBottom: '8px', marginBottom: '12px' }}>
                 <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800' }}>{selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</h3>
-                  <div style={{ fontSize: '12px', color: 'var(--secondary-color)', marginTop: '2px' }}>{totalHours.toFixed(1)} hours studying recorded</div>
+                  <div className="modal-header">{selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--overlay0)', marginTop: '2px' }}>{totalHours.toFixed(1)} hours study recorded</div>
                 </div>
-                <button className="btn btn-secondary" style={{ padding: '6px' }} onClick={() => setSelectedDate(null)}>
-                  <X size={18} />
-                </button>
+                <button className="sm-btn" onClick={() => setSelectedDate(null)}>×</button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '320px', overflowY: 'auto', paddingRight: '2px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
                 {daySessions.length === 0 ? (
-                  <p style={{ color: 'var(--secondary-color)', textAlign: 'center', margin: '24px 0', fontSize: '13px' }}>No sessions logged for this day.</p>
+                  <p style={{ color: 'var(--overlay0)', textAlign: 'center', margin: '24px 0', fontSize: '12px' }}>No sessions logged for this day.</p>
                 ) : (
                   daySessions.map(s => {
                     const timeStr = new Date(s.startTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
                     const mins = Math.round(s.completedDurationSeconds / 60);
+                    const subj = subjects.find(sub => String(sub.id) === String(s.subjectId));
                     return (
-                      <div key={s.id} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '12px 14px',
-                        background: 'var(--surface-variant)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        minHeight: '0',
-                        overflow: 'visible',
-                      }}>
-                        <div style={{
-                          flexShrink: 0,
-                          fontSize: '11px',
-                          fontWeight: '700',
-                          color: 'var(--secondary-color)',
-                          fontFamily: 'inherit',
-                          letterSpacing: '0.04em',
-                          minWidth: '40px',
-                          textAlign: 'center',
-                          lineHeight: 1.4,
-                        }}>
+                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'var(--surface1)', border: '1px solid var(--surface0)', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--overlay0)', minWidth: '45px', textAlign: 'center' }}>
                           {timeStr}
                         </div>
-                        <div style={{ width: '1px', height: '32px', background: 'var(--border-color)', flexShrink: 0 }} />
+                        <div style={{ width: '1px', height: '24px', background: 'var(--surface0)' }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: '700', fontSize: '13px', color: 'var(--primary-color)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.02em' }}>
-                            {s.label}
-                          </div>
-                          {s.tag && (
-                            <div style={{ fontSize: '10px', color: 'var(--accent-color)', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                              #{s.tag}
-                            </div>
-                          )}
-                          {s.notes && (
-                            <div style={{ fontSize: '11px', color: 'var(--secondary-color)', marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {s.notes}
-                            </div>
-                          )}
+                          <div style={{ fontWeight: '700', fontSize: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
+                          {s.tag && <div style={{ fontSize: '9px', color: 'var(--accent)' }}>#{s.tag.toLowerCase()}</div>}
                         </div>
-                        <div style={{ flexShrink: 0, fontWeight: '800', color: 'var(--accent-color)', fontSize: '13px', letterSpacing: '0.04em' }}>
+                        {subj && (
+                          <span className="chip" style={{ fontSize: '8px', padding: '1px 5px', border: `1px solid ${subj.colorHex}55`, color: subj.colorHex, background: `${subj.colorHex}15`, cursor: 'default' }}>
+                            {subj.name}
+                          </span>
+                        )}
+                        <div style={{ fontWeight: '700', fontSize: '12px', color: 'var(--accent)' }}>
                           {mins}m
                         </div>
                       </div>
@@ -2026,11 +1756,9 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
                   })
                 )}
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-                <button className="btn btn-accent" onClick={() => setSelectedDate(null)}>Close</button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                <button className="hypr-btn" onClick={() => setSelectedDate(null)}>Close</button>
               </div>
-
             </div>
           </div>
         );
@@ -2039,10 +1767,187 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
   );
 }
 
-// ----------------------------------------------------
-// ACCOUNT / GOALS SYNC VIEW
-// ----------------------------------------------------
-function AccountView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, onSetActiveGoal }) {
+function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete, showToast }) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [testName, setTestName] = useState('');
+  const [subjectId, setSubjectId] = useState(subjects[0]?.id || '');
+  const [obtainedMarks, setObtainedMarks] = useState('');
+  const [totalMarks, setTotalMarks] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (subjects.length > 0 && !subjectId) {
+      setSubjectId(subjects[0].id);
+    }
+  }, [subjects]);
+
+  if (!activeGoal) {
+    return (
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            mock_tests <span className="class-name">— performance</span>
+          </div>
+        </div>
+        <div className="win-body">
+          <div className="empty-state">
+            <p>set active goal to view tests</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const goalTests = mockTests
+    .filter(t => String(t.examGoalId) === String(activeGoal.id))
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!testName || !obtainedMarks || !totalMarks || !subjectId) return;
+
+    const obtained = parseFloat(obtainedMarks);
+    const total = parseFloat(totalMarks);
+    const scorePercentage = total > 0 ? (obtained / total) * 100 : 0;
+
+    onSave({
+      examGoalId: activeGoal.id,
+      subjectId: subjectId,
+      testName,
+      scorePercentage,
+      obtainedMarks: obtained,
+      totalMarks: total,
+      notes,
+      date,
+      createdAt: Date.now()
+    });
+
+    setTestName('');
+    setObtainedMarks('');
+    setTotalMarks('');
+    setNotes('');
+    setShowAddForm(false);
+  };
+
+  const chartData = goalTests.map(t => {
+    const subj = subjects.find(s => String(s.id) === String(t.subjectId));
+    return {
+      date: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      score: Math.round(t.scorePercentage),
+      name: t.testName,
+      subject: subj?.name || 'Subject'
+    };
+  });
+
+  return (
+    <div className="hypr-window">
+      <div className="win-titlebar">
+        <div className="win-title">
+          <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+          mock_tests <span className="class-name">— performance</span>
+        </div>
+        {subjects.length > 0 && !showAddForm && (
+          <button className="hypr-btn" style={{ padding: '3px 8px', fontSize: '10px' }} onClick={() => setShowAddForm(true)}>
+            + log score
+          </button>
+        )}
+      </div>
+      <div className="win-body">
+        {showAddForm ? (
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div className="form-group">
+              <label className="form-label">test name</label>
+              <input className="hypr-input" value={testName} onChange={e => setTestName(e.target.value)} required placeholder="e.g. Midterm 1" />
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">obtained</label>
+                <input className="hypr-input" type="number" step="any" value={obtainedMarks} onChange={e => setObtainedMarks(e.target.value)} required placeholder="85" />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">total</label>
+                <input className="hypr-input" type="number" step="any" value={totalMarks} onChange={e => setTotalMarks(e.target.value)} required placeholder="100" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">subject</label>
+                <select className="hypr-input" value={subjectId} onChange={e => setSubjectId(e.target.value)} required>
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">date</label>
+                <input className="hypr-input" type="date" value={date} onChange={e => setDate(e.target.value)} required />
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">notes (optional)</label>
+              <input className="hypr-input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Weaknesses, etc." />
+            </div>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '4px' }}>
+              <button type="button" className="hypr-btn" onClick={() => setShowAddForm(false)}>Cancel</button>
+              <button type="submit" className="hypr-btn primary">Save</button>
+            </div>
+          </form>
+        ) : (
+          <>
+            {chartData.length > 0 && (
+              <div style={{ height: '110px', width: '100%', marginBottom: '12px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData} margin={{ top: 5, right: 5, left: -30, bottom: 0 }}>
+                    <XAxis dataKey="date" stroke="var(--overlay0)" fontSize={9} tickLine={false} />
+                    <YAxis stroke="var(--overlay0)" fontSize={9} tickLine={false} domain={[0, 100]} unit="%" />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="score" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--accent)', r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {goalTests.slice().reverse().map(t => {
+                const subj = subjects.find(s => String(s.id) === String(t.subjectId));
+                const score = Math.round(t.scorePercentage);
+                return (
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', background: 'var(--crust)', border: '1px solid var(--surface0)', borderRadius: '6px', fontSize: '11px' }}>
+                    <div style={{ minWidth: 0, flex: 1, marginRight: '8px' }}>
+                      <div style={{ fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.testName}</div>
+                      <div style={{ color: 'var(--overlay0)', fontSize: '10px', marginTop: '2px' }}>
+                        {t.date} · {t.obtainedMarks}/{t.totalMarks}
+                      </div>
+                    </div>
+                    {subj && (
+                      <span className="chip" style={{ fontSize: '8px', padding: '1px 5px', border: `1px solid ${subj.colorHex}55`, color: subj.colorHex, background: `${subj.colorHex}15`, marginRight: '6px', cursor: 'default' }}>
+                        {subj.name}
+                      </span>
+                    )}
+                    <span style={{ fontWeight: '800', color: score >= 75 ? 'var(--green)' : score >= 50 ? 'var(--yellow)' : 'var(--red)', marginRight: '8px' }}>
+                      {score}%
+                    </span>
+                    <button className="sm-btn" style={{ width: '20px', height: '20px', fontSize: '10px' }} onClick={() => onDelete(t.id)}>
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+
+              {goalTests.length === 0 && (
+                <p style={{ color: 'var(--overlay0)', textAlign: 'center', fontSize: '11px', margin: '12px 0' }}>No tests recorded yet.</p>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AccountView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, onSetActiveGoal, showToast, theme, setTheme }) {
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [goalName, setGoalName] = useState('');
   const [goalDate, setGoalDate] = useState('');
@@ -2055,6 +1960,7 @@ function AccountView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, 
     }
     try {
       await signInWithPopup(auth, googleProvider);
+      showToast('signed in successfully');
     } catch (e) {
       console.error("Auth failed:", e);
       alert("Login failed: " + e.message);
@@ -2064,6 +1970,7 @@ function AccountView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, 
   const handleLogout = async () => {
     if (auth) {
       await signOut(auth);
+      showToast('signed out');
     }
   };
 
@@ -2073,7 +1980,7 @@ function AccountView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, 
       name: goalName.trim(),
       examDate: goalDate,
       dailyTargetMinutes: targetMins,
-      isActive: examGoals.length === 0, // set active if first
+      isActive: examGoals.length === 0,
       createdAt: Date.now()
     });
     setGoalName('');
@@ -2081,85 +1988,147 @@ function AccountView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, 
     setShowAddGoal(false);
   };
 
-  return (
-    <>
-      <div className="page-header">
-        <div>
-          <h1>Account &amp; Sync</h1>
-          <p style={{ color: 'var(--secondary-color)', fontSize: '14px' }}>Link a Google Account to synchronize study data across laptop and phone.</p>
-        </div>
-        {user ? (
-          <button className="btn btn-secondary" onClick={handleLogout}>
-            Sign Out
-          </button>
-        ) : (
-          <button className="btn btn-accent" onClick={handleLogin}>
-            Sign In with Google
-          </button>
-        )}
-      </div>
+  const exportData = () => {
+    const data = {
+      examGoals: JSON.parse(localStorage.getItem('focusly_exam_goals') || '[]'),
+      subjects: JSON.parse(localStorage.getItem('focusly_subjects') || '[]'),
+      topics: JSON.parse(localStorage.getItem('focusly_topics') || '[]'),
+      sessions: JSON.parse(localStorage.getItem('focusly_sessions') || '[]'),
+      mockTests: JSON.parse(localStorage.getItem('focusly_mock_tests') || '[]')
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `focusly_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('export complete');
+  };
 
-      <div className="grid-2">
-        {/* Connection status card */}
-        <div className="card">
-          <div className="card-title">Cloud Sync Status</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <div style={{
-                width: '12px', height: '12px', borderRadius: '50%',
-                backgroundColor: user ? 'var(--accent-color)' : 'var(--error-color)'
-              }} />
-              <span style={{ fontWeight: '700' }}>
-                {user ? 'Connected and Synced' : 'Running Offline'}
+  const clearData = () => {
+    if (confirm("Are you absolutely sure you want to clear all your local study data? This cannot be undone!")) {
+      localStorage.clear();
+      showToast('data cleared, reloading...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }
+  };
+
+  return (
+    <div className="hypr-window active-window">
+      <div className="win-titlebar">
+        <div className="win-title">
+          <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+          account <span className="class-name">— sync & config</span>
+        </div>
+      </div>
+      <div className="win-body" style={{ maxWidth: '560px', margin: '0 auto', width: '100%' }}>
+        <div className="prompt-line">
+          <span className="arrow">❯</span>
+          <span className="path">~/account</span>
+          <span className="cmd">status</span>
+        </div>
+
+        <div className="neofetch" style={{ marginBottom: '16px' }}>
+          <div className="neo-info" style={{ width: '100%' }}>
+            <div><span className="key">sync_status</span><span className="sep">: </span>
+              <span className="val" style={{ color: user ? 'var(--green)' : 'var(--peach)' }}>
+                {user ? 'connected & running' : 'offline (local mode)'}
               </span>
             </div>
-            <p style={{ color: 'var(--secondary-color)', fontSize: '14px' }}>
-              {user 
-                ? `You are signed in as ${user.email}. All sessions, syllabus subjects, and targets are backed up and synced automatically to the cloud.`
-                : "You are currently running in Local Mode. Data is kept in your browser cache only. Log in to backing up and syncing with your phone app."
-              }
-            </p>
-            {user && lastSyncTime && (
-              <div style={{ fontSize: '12px', color: 'var(--secondary-color)', marginTop: '-8px' }}>
-                Last Synced: {lastSyncTime}
-              </div>
-            )}
+            <div><span className="key">account</span><span className="sep">: </span><span class="val">{user ? user.email : 'local guest'}</span></div>
+            <div><span className="key">database</span><span className="sep">: </span><span class="val">{user ? 'firestore' : 'localStorage'}</span></div>
+            {lastSyncTime && <div><span className="key">last_sync</span><span class="sep">: </span><span class="val">{lastSyncTime}</span></div>}
           </div>
         </div>
 
-        {/* Goal Manager Panel */}
-        <div className="card">
-          <div className="flex-row-between" style={{ marginBottom: '16px' }}>
-            <div className="card-title" style={{ margin: 0 }}>Exam Target Goals</div>
-            <button className="btn btn-secondary" style={{ padding: '6px 12px' }} onClick={() => setShowAddGoal(true)}>
-              <Plus size={16} /> New Goal
-            </button>
-          </div>
+        <div className="section-head">
+          <div className="line"></div>
+          <div className="label">cloud integration</div>
+          <div className="line"></div>
+        </div>
+        <p style={{ fontSize: '11px', color: 'var(--overlay0)', marginBottom: '10px', lineHeight: '1.6' }}>
+          link a google account to sync study data across devices. data is stored locally until then.
+        </p>
+        {user ? (
+          <button className="hypr-btn danger" style={{ width: '100%', justifyContent: 'center', marginBottom: '18px' }} onClick={handleLogout}>
+            sign out account
+          </button>
+        ) : (
+          <button className="hypr-btn primary" style={{ width: '100%', justifyContent: 'center', marginBottom: '18px' }} onClick={handleLogin}>
+            sign in with google
+          </button>
+        )}
 
-          {examGoals.length === 0 ? (
-            <p style={{ color: 'var(--secondary-color)', fontSize: '14px', textAlign: 'center', padding: '24px' }}>No targets configured yet.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {examGoals.map(g => (
-                <div key={g.id} className="flex-row-between" style={{ padding: '12px 16px', background: g.isActive ? 'var(--accent-dim)' : 'var(--surface-variant)', borderRadius: 'var(--radius-sm)', border: g.isActive ? '1px solid var(--accent-color)' : '1px solid transparent' }}>
-                  <div>
-                    <div style={{ fontWeight: '700', color: 'var(--primary-color)' }}>{g.name}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--secondary-color)' }}>Date: {g.examDate} | target {(g.dailyTargetMinutes / 60).toFixed(1)}h</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {!g.isActive && (
-                      <button className="btn btn-secondary" style={{ padding: '6px 10px', fontSize: '12px' }} onClick={() => onSetActiveGoal(g.id)}>
-                        Set Active
-                      </button>
-                    )}
-                    <button className="btn btn-secondary" style={{ padding: '4px' }} onClick={() => onDeleteGoal(g.id)}>
-                      <Trash2 size={16} color="var(--error-color)" />
-                    </button>
+        <div className="section-head">
+          <div className="line"></div>
+          <div className="label">active theme select</div>
+          <div className="line"></div>
+        </div>
+        <select 
+          value={theme} 
+          onChange={(e) => setTheme(e.target.value)}
+          className="hypr-input"
+          style={{ marginBottom: '18px', cursor: 'pointer' }}
+        >
+          <option value="midnight">🌑 Midnight</option>
+          <option value="ocean">🌊 Ocean</option>
+          <option value="forest">🌿 Forest</option>
+          <option value="paper">📄 Paper</option>
+          <option value="sakura">🌸 Sakura</option>
+          <option value="aurora">🌌 Aurora</option>
+          <option value="ember">🔥 Ember</option>
+          <option value="lavender">💜 Lavender</option>
+          <option value="mint">🌱 Mint</option>
+        </select>
+
+        <div className="section-head">
+          <div className="line"></div>
+          <div className="label">exam goals manager</div>
+          <div className="line"></div>
+        </div>
+        
+        {examGoals.length === 0 ? (
+          <div className="empty-state" style={{ padding: '16px', background: 'var(--crust)', border: '1px solid var(--surface0)', borderRadius: '8px', marginBottom: '12px' }}>
+            <p style={{ fontSize: '11px', margin: 0 }}>no targets configured yet</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+            {examGoals.map(g => (
+              <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: 'var(--crust)', border: g.isActive ? '1px solid var(--accent)' : '1px solid var(--surface0)', borderRadius: '8px', fontSize: '11px' }}>
+                <div>
+                  <div style={{ fontWeight: '700', color: 'var(--text)' }}>{g.name}</div>
+                  <div style={{ color: 'var(--overlay0)', fontSize: '10px', marginTop: '2px' }}>
+                    exam date: {g.examDate} · target: {(g.dailyTargetMinutes / 60).toFixed(1)}h/day
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {!g.isActive && (
+                    <button className="hypr-btn" style={{ padding: '3px 8px', fontSize: '10px' }} onClick={() => onSetActiveGoal(g.id)}>
+                      activate
+                    </button>
+                  )}
+                  <button className="sm-btn" onClick={() => onDeleteGoal(g.id)}>×</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button className="hypr-btn" style={{ width: '100%', justifyContent: 'center', marginBottom: '20px' }} onClick={() => setShowAddGoal(true)}>
+          + add new exam goal
+        </button>
+
+        <div className="section-head">
+          <div className="line"></div>
+          <div className="label">data management</div>
+          <div className="line"></div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="hypr-btn" style={{ flex: 1, justifyContent: 'center' }} onClick={exportData}>export backup</button>
+          <button className="hypr-btn danger" style={{ flex: 1, justifyContent: 'center' }} onClick={clearData}>clear cache</button>
         </div>
       </div>
 
@@ -2169,39 +2138,28 @@ function AccountView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, 
           <div className="modal-content">
             <div className="modal-header">New Exam Target</div>
             <div className="form-group">
-              <label className="form-label">Exam Name</label>
-              <input 
-                type="text" 
-                className="input-field" 
-                placeholder="e.g., GATE 2027 CSE, Tech Placements"
-                value={goalName} 
-                onChange={(e) => setGoalName(e.target.value)} 
-              />
+              <label className="form-label">exam name</label>
+              <input className="hypr-input" placeholder="e.g. GATE 2027 CSE, JEE Advanced" value={goalName} onChange={(e) => setGoalName(e.target.value)} />
             </div>
             <div className="form-group">
-              <label className="form-label">Target Date</label>
-              <input 
-                type="date" 
-                className="input-field" 
-                value={goalDate} 
-                onChange={(e) => setGoalDate(e.target.value)} 
-              />
+              <label className="form-label">target date</label>
+              <input className="hypr-input" type="date" value={goalDate} onChange={(e) => setGoalDate(e.target.value)} />
             </div>
             <div className="form-group">
-              <label className="form-label">Daily Study Target</label>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <button className="btn btn-secondary" onClick={() => setTargetMins(prev => Math.max(60, prev - 30))}>-30m</button>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: '700' }}>{(targetMins / 60).toFixed(1)} hours</span>
-                <button className="btn btn-secondary" onClick={() => setTargetMins(prev => prev + 30)}>+30m</button>
+              <label className="form-label">daily study target</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', marginTop: '4px' }}>
+                <button className="hypr-btn" onClick={() => setTargetMins(prev => Math.max(60, prev - 30))}>-30m</button>
+                <span style={{ fontSize: '14px', fontWeight: '700', minWidth: '80px', textAlign: 'center' }}>{(targetMins / 60).toFixed(1)} hrs</span>
+                <button className="hypr-btn" onClick={() => setTargetMins(prev => prev + 30)}>+30m</button>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '12px' }}>
-              <button className="btn btn-secondary" onClick={() => setShowAddGoal(false)}>Cancel</button>
-              <button className="btn btn-accent" onClick={handleSaveGoal}>Create</button>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button className="hypr-btn" onClick={() => setShowAddGoal(false)}>Cancel</button>
+              <button className="hypr-btn primary" onClick={handleSaveGoal}>Create</button>
             </div>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
