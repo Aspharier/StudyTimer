@@ -291,7 +291,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
   return (
     <>
       {/* Window 1: Neofetch Stats */}
-      <div className="hypr-window active-window">
+      <div className="hypr-window">
         <div className="win-titlebar">
           <div className="win-title">
             <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
@@ -708,7 +708,7 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
   return (
     <>
       {/* Large Pomodoro Window */}
-      <div className={`hypr-window active-window span-2 ${isSessionActive ? 'immersive-active' : ''}`} style={{ minHeight: 0 }}>
+      <div className={`hypr-window span-2 ${isSessionActive ? 'immersive-active' : ''}`} style={{ minHeight: 0 }}>
         {!isSessionActive && (
           <div className="win-titlebar">
             <div className="win-title">
@@ -1021,7 +1021,7 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
 
   return (
     <>
-      <div className="hypr-window active-window">
+      <div className="hypr-window">
         <div className="win-titlebar">
           <div className="win-title">
             <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
@@ -1348,7 +1348,7 @@ function HistoryView({ sessions, subjects, onDeleteSession, showToast }) {
   };
 
   return (
-    <div className="hypr-window active-window">
+    <div className="hypr-window">
       <div className="win-titlebar">
         <div className="win-title">
           <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
@@ -1542,7 +1542,7 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
   return (
     <>
       {/* Window 1: Study Time Last 7 Days */}
-      <div className="hypr-window active-window">
+      <div className="hypr-window">
         <div className="win-titlebar">
           <div className="win-title">
             <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
@@ -1560,6 +1560,57 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      </div>
+
+      {/* Window 3: Subject Distribution */}
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            distribution <span className="class-name">— by subject</span>
+          </div>
+        </div>
+        <div className="win-body">
+          {pieData.length > 0 ? (
+            <div className="chart-distribution-layout">
+              <div className="chart-pie-wrapper">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={35}
+                      outerRadius={50}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => `${value} mins`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="chart-legend-wrapper">
+                {pieData.map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', paddingBottom: '3px', borderBottom: '1px solid var(--surface0)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                    </div>
+                    <span style={{ color: 'var(--overlay0)', flexShrink: 0 }}>{item.value}m</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="empty-state">
+              <p style={{ fontSize: '11px' }}>no subject sessions logged yet</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1641,57 +1692,6 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
             <div className="github-heatmap-legend-cell level-4" />
             <span>More</span>
           </div>
-        </div>
-      </div>
-
-      {/* Window 3: Subject Distribution */}
-      <div className="hypr-window">
-        <div className="win-titlebar">
-          <div className="win-title">
-            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
-            distribution <span className="class-name">— by subject</span>
-          </div>
-        </div>
-        <div className="win-body">
-          {pieData.length > 0 ? (
-            <div className="chart-distribution-layout">
-              <div className="chart-pie-wrapper">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={35}
-                      outerRadius={50}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => `${value} mins`} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="chart-legend-wrapper">
-                {pieData.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', paddingBottom: '3px', borderBottom: '1px solid var(--surface0)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                      <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-                    </div>
-                    <span style={{ color: 'var(--overlay0)', flexShrink: 0 }}>{item.value}m</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="empty-state">
-              <p style={{ fontSize: '11px' }}>no subject sessions logged yet</p>
-            </div>
-          )}
         </div>
       </div>
 
@@ -2014,7 +2014,7 @@ function AccountView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, 
   };
 
   return (
-    <div className="hypr-window active-window">
+    <div className="hypr-window">
       <div className="win-titlebar">
         <div className="win-title">
           <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
