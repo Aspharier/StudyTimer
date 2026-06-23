@@ -383,16 +383,16 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <button className="hypr-btn primary" onClick={() => setActiveTab('timer')} style={{ width: '100%', justifyContent: 'center' }}>
-              ▶ start focus session
+              start focus session
             </button>
             <button className="hypr-btn" onClick={() => setActiveTab('syllabus')} style={{ width: '100%', justifyContent: 'center' }}>
-              📖 manage syllabus
+              manage syllabus
             </button>
             <button className="hypr-btn" onClick={() => setActiveTab('analytics')} style={{ width: '100%', justifyContent: 'center' }}>
-              📊 view analytics
+              view analytics
             </button>
             <button className="hypr-btn" onClick={() => setActiveTab('account')} style={{ width: '100%', justifyContent: 'center' }}>
-              ⚙ set exam goal
+              set exam goal
             </button>
           </div>
           <div className="section-head" style={{ marginTop: '16px' }}>
