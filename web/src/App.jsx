@@ -19,6 +19,7 @@ export default function App() {
   const [mockTests, setMockTests] = useState([]);
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const [theme, setTheme] = useState(localStorage.getItem('focusly_theme') || 'midnight');
+  const [isSessionActiveGlobally, setIsSessionActiveGlobally] = useState(false);
 
   const [clockTime, setClockTime] = useState('--:--');
   const [toastMsg, setToastMsg] = useState(null);
@@ -79,6 +80,7 @@ export default function App() {
   // Keyboard navigation shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
+      if (isSessionActiveGlobally) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
       const num = parseInt(e.key);
       if (num >= 1 && num <= 6) {
@@ -88,7 +90,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isSessionActiveGlobally]);
 
   const activeGoal = examGoals.find(g => g.isActive) || null;
 
@@ -116,40 +118,50 @@ export default function App() {
   return (
     <div className="app-container">
       {/* WAYBAR TOP BAR */}
-      <div className="waybar">
-        <div className="waybar-left">
-          <span className="bar-logo">⌘ focusly</span>
-          <div className="bar-separator"></div>
-          <button className={`ws-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')} title="overview">1</button>
-          <button className={`ws-btn ${activeTab === 'timer' ? 'active' : ''}`} onClick={() => setActiveTab('timer')} title="timer">2</button>
-          <button className={`ws-btn ${activeTab === 'syllabus' ? 'active' : ''}`} onClick={() => setActiveTab('syllabus')} title="syllabus">3</button>
-          <button className={`ws-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')} title="history">4</button>
-          <button className={`ws-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')} title="analytics">5</button>
-          <button className={`ws-btn ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} title="account">6</button>
-        </div>
-        <div className="waybar-center">
-          <div className="bar-module">
-            <span className="icon">◉</span>
-            <span className="val">{currentStreak} day streak</span>
+      {!isSessionActiveGlobally && (
+        <div className="waybar">
+          <div className="waybar-left">
+            <span className="bar-logo">⌘ focusly</span>
+            <div className="bar-separator"></div>
+            <button className={`ws-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')} title="overview">1</button>
+            <button className={`ws-btn ${activeTab === 'timer' ? 'active' : ''}`} onClick={() => setActiveTab('timer')} title="timer">2</button>
+            <button className={`ws-btn ${activeTab === 'syllabus' ? 'active' : ''}`} onClick={() => setActiveTab('syllabus')} title="syllabus">3</button>
+            <button className={`ws-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')} title="history">4</button>
+            <button className={`ws-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')} title="analytics">5</button>
+            <button className={`ws-btn ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} title="account">6</button>
           </div>
-          <div className="bar-module">
-            <span className="icon">⏱</span>
-            <span className="val">{todayHours}h today</span>
+          <div className="waybar-center">
+            <div className="bar-module">
+              <span className="icon">◉</span>
+              <span className="val">{currentStreak} day streak</span>
+            </div>
+            <div className="bar-module">
+              <span className="icon">⏱</span>
+              <span className="val">{todayHours}h today</span>
+            </div>
+          </div>
+          <div className="waybar-right">
+            <div className="bar-module">
+              <span className="icon">⚡</span>
+              <span className="val">{clockTime}</span>
+            </div>
           </div>
         </div>
-        <div className="waybar-right">
-          <div className="bar-module">
-            <span className="icon">⚡</span>
-            <span className="val">{clockTime}</span>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* NOTIFICATION TOAST */}
       {toastMsg && <div className="toast show">{toastMsg}</div>}
 
       {/* COMPOSITOR GRID WRAPPER */}
-      <div className="compositor-wrapper" style={{ padding: 'calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap)', minHeight: '100vh', width: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div className="compositor-wrapper" style={{ 
+        padding: isSessionActiveGlobally 
+          ? 'var(--window-gap)' 
+          : 'calc(var(--bar-height) + var(--window-gap)) var(--window-gap) var(--window-gap)', 
+        minHeight: '100vh', 
+        width: '100%', 
+        display: 'flex', 
+        flexDirection: 'column' 
+      }}>
         <div className={`compositor ${
           activeTab === 'dashboard' ? 'layout-overview' :
           activeTab === 'timer' ? 'layout-timer' :
@@ -187,6 +199,7 @@ export default function App() {
                 setPrefilledSessionName('');
               }}
               showToast={showToast}
+              onSessionActiveChange={setIsSessionActiveGlobally}
             />
           )}
 
@@ -490,7 +503,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
   );
 }
 
-function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, prefilledSessionName, clearPrefill, showToast }) {
+function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, prefilledSessionName, clearPrefill, showToast, onSessionActiveChange }) {
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [sessionName, setSessionName] = useState('Study Session');
   const [selectedTag, setSelectedTag] = useState('');
@@ -511,6 +524,13 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
   const [accumulatedCompletedSeconds, setAccumulatedCompletedSeconds] = useState(0);
   const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false);
   const [sessionNotesInput, setSessionNotesInput] = useState('');
+
+  // Notify parent of isSessionActive state
+  useEffect(() => {
+    if (onSessionActiveChange) {
+      onSessionActiveChange(isSessionActive);
+    }
+  }, [isSessionActive, onSessionActiveChange]);
 
   const intervalRef = useRef(null);
   const expectedEndTimeRef = useRef(null);
