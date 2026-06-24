@@ -17,6 +17,12 @@ export default function App() {
   const [topics, setTopics] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [mockTests, setMockTests] = useState([]);
+  const [flashcards, setFlashcards] = useState([]);
+  const [mistakes, setMistakes] = useState([]);
+  const [dailyTargets, setDailyTargets] = useState([]);
+  const [streakFreezes, setStreakFreezes] = useState([]);
+  const [freezeTokens, setFreezeTokens] = useState(1);
+  const [longestStreak, setLongestStreak] = useState(0);
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const [theme, setTheme] = useState(localStorage.getItem('focusly_theme') || 'midnight');
   const [isSessionActiveGlobally, setIsSessionActiveGlobally] = useState(false);
@@ -43,6 +49,12 @@ export default function App() {
     const unsubTopics = DataService.subscribeToTopics(setTopics);
     const unsubSessions = DataService.subscribeToSessions(setSessions);
     const unsubMockTests = DataService.subscribeToMockTests(setMockTests);
+    const unsubFlashcards = DataService.subscribeToFlashcards(setFlashcards);
+    const unsubMistakes = DataService.subscribeToMistakes(setMistakes);
+    const unsubDailyTargets = DataService.subscribeToDailyTargets(setDailyTargets);
+    const unsubStreakFreezes = DataService.subscribeToStreakFreezes(setStreakFreezes);
+    const unsubFreezeTokens = DataService.subscribeToFreezeTokens(setFreezeTokens);
+    const unsubLongestStreak = DataService.subscribeToLongestStreak(setLongestStreak);
     const unsubLastSync = DataService.subscribeToLastSyncTime(setLastSyncTime);
 
     return () => {
@@ -52,6 +64,12 @@ export default function App() {
       unsubTopics();
       unsubSessions();
       unsubMockTests();
+      unsubFlashcards();
+      unsubMistakes();
+      unsubDailyTargets();
+      unsubStreakFreezes();
+      unsubFreezeTokens();
+      unsubLongestStreak();
       unsubLastSync();
     };
   }, []);
@@ -79,14 +97,17 @@ export default function App() {
 
   // Keyboard navigation shortcuts
   useEffect(() => {
+    if (isSessionActiveGlobally) return;
     const handleKeyDown = (e) => {
-      if (isSessionActiveGlobally) return;
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
-      const num = parseInt(e.key);
-      if (num >= 1 && num <= 6) {
-        const tabs = ['dashboard', 'timer', 'syllabus', 'history', 'analytics', 'account'];
-        setActiveTab(tabs[num - 1]);
-      }
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+      const key = e.key;
+      if (key === '1') setActiveTab('dashboard');
+      else if (key === '2') setActiveTab('timer');
+      else if (key === '3') setActiveTab('syllabus');
+      else if (key === '4') setActiveTab('history');
+      else if (key === '5') setActiveTab('analytics');
+      else if (key === '6') setActiveTab('account');
+      else if (key === '7') setActiveTab('mistakes');
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -100,19 +121,65 @@ export default function App() {
   const todaySeconds = todaySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
   const todayHours = (todaySeconds / 3600).toFixed(1);
 
+  const getDaysRemaining = () => {
+    if (!activeGoal) return null;
+    const diffTime = new Date(activeGoal.examDate) - new Date();
+    return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+  };
+  const daysRemaining = getDaysRemaining();
+
   const currentStreak = (() => {
     const dates = new Set(sessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date));
+    const freezes = new Set(streakFreezes);
     let streak = 0;
     let d = new Date();
-    const todayISO = d.toISOString().split('T')[0];
-    if (!dates.has(todayISO)) {
+    let checkDateStr = d.toISOString().split('T')[0];
+    
+    // If today is not studied and not frozen, check yesterday to continue a previous streak
+    if (!dates.has(checkDateStr) && !freezes.has(checkDateStr)) {
       d.setDate(d.getDate() - 1);
+      checkDateStr = d.toISOString().split('T')[0];
     }
-    while (dates.has(d.toISOString().split('T')[0])) {
+    
+    while (dates.has(checkDateStr) || freezes.has(checkDateStr)) {
       streak++;
       d.setDate(d.getDate() - 1);
+      checkDateStr = d.toISOString().split('T')[0];
     }
     return streak;
+  })();
+
+  // Sync longest streak
+  useEffect(() => {
+    if (currentStreak > longestStreak) {
+      DataService.saveLongestStreak(currentStreak);
+    }
+  }, [currentStreak, longestStreak]);
+
+  // Award streak freeze tokens on multiples of 7
+  useEffect(() => {
+    if (currentStreak > 0 && currentStreak % 7 === 0) {
+      const lastAwardedMilestone = parseInt(localStorage.getItem('focusly_last_awarded_milestone') || '0');
+      if (currentStreak > lastAwardedMilestone) {
+        localStorage.setItem('focusly_last_awarded_milestone', String(currentStreak));
+        DataService.awardStreakFreeze();
+        showToast(`Congratulations! You earned a Streak Freeze token for reaching a ${currentStreak}-day streak! ❄️`);
+      }
+    }
+  }, [currentStreak]);
+
+  const weeklyStreakDays = (() => {
+    const dates = new Set(sessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date));
+    let studiedDays = 0;
+    const d = new Date();
+    for (let i = 0; i < 7; i++) {
+      const dateStr = d.toISOString().split('T')[0];
+      if (dates.has(dateStr)) {
+        studiedDays++;
+      }
+      d.setDate(d.getDate() - 1);
+    }
+    return studiedDays;
   })();
 
   return (
@@ -129,12 +196,19 @@ export default function App() {
             <button className={`ws-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')} title="history">4</button>
             <button className={`ws-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')} title="analytics">5</button>
             <button className={`ws-btn ${activeTab === 'account' ? 'active' : ''}`} onClick={() => setActiveTab('account')} title="account">6</button>
+            <button className={`ws-btn ${activeTab === 'mistakes' ? 'active' : ''}`} onClick={() => setActiveTab('mistakes')} title="mistake log">7</button>
           </div>
           <div className="waybar-center">
             <div className="bar-module">
               <span className="icon">◉</span>
               <span className="val">{currentStreak} day streak</span>
             </div>
+            {activeGoal && daysRemaining !== null && (
+              <div className="bar-module">
+                <span className="icon">📅</span>
+                <span className="val">{daysRemaining}d to exam</span>
+              </div>
+            )}
             <div className="bar-module">
               <span className="icon">⏱</span>
               <span className="val">{todayHours}h today</span>
@@ -181,6 +255,12 @@ export default function App() {
               todayHours={todayHours}
               showToast={showToast}
               theme={theme}
+              flashcards={flashcards}
+              dailyTargets={dailyTargets}
+              freezeTokens={freezeTokens}
+              streakFreezes={streakFreezes}
+              longestStreak={longestStreak}
+              weeklyStreakDays={weeklyStreakDays}
             />
           )}
 
@@ -268,6 +348,22 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'mistakes' && (
+            <MistakesView 
+              subjects={subjects}
+              mistakes={mistakes}
+              onSaveMistake={(m) => {
+                DataService.saveMistake(m);
+                showToast('mistake logged');
+              }}
+              onDeleteMistake={(id) => {
+                DataService.deleteMistake(id);
+                showToast('mistake deleted');
+              }}
+              showToast={showToast}
+            />
+          )}
+
         </div>
       </div>
     </div>
@@ -278,11 +374,26 @@ export default function App() {
 // VIEW COMPONENTS
 // ----------------------------------------------------
 
-function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, onFocusNow, currentStreak, todayHours, showToast, theme }) {
+function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, onFocusNow, currentStreak, todayHours, showToast, theme, flashcards, dailyTargets, freezeTokens, streakFreezes, longestStreak, weeklyStreakDays }) {
   const todayStr = new Date().toISOString().split('T')[0];
   const todaySessions = sessions.filter(s => s.date === todayStr);
   const dailyTargetMinutes = activeGoal ? activeGoal.dailyTargetMinutes : 360;
   const progressPercent = Math.min((todayHours * 3600) / (dailyTargetMinutes * 60), 1);
+
+  // Active Recall deck reviewer state
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [currentReviewCardIndex, setCurrentReviewCardIndex] = useState(0);
+  const [revealAnswer, setRevealAnswer] = useState(false);
+
+  // Daily target planner state
+  const [dailySubjectId, setDailySubjectId] = useState(subjects[0]?.id || '');
+  const [dailyTargetMins, setDailyTargetMins] = useState(60);
+
+  useEffect(() => {
+    if (subjects.length > 0 && !dailySubjectId) {
+      setDailySubjectId(subjects[0].id);
+    }
+  }, [subjects]);
 
   const getDaysRemaining = () => {
     if (!activeGoal) return null;
@@ -297,12 +408,112 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
     const completed = sTopics.filter(t => t.status === 'COMPLETED').length;
     const rate = sTopics.length > 0 ? completed / sTopics.length : 0;
     return { ...s, total: sTopics.length, completed, rate };
-  }).sort((a, b) => b.rate - a.rate).slice(0, 5);
+  }).sort((a, b) => b.rate - a.rate);
 
   const recentSessionsList = sessions.slice(0, 4);
 
+  // Calculate due cards count
+  const todayISO = new Date().toISOString().split('T')[0];
+  const dueCards = flashcards.filter(c => !c.nextReviewDate || c.nextReviewDate <= todayISO);
+
+  // Handle flashcard grading using SM-2
+  const handleGradeCard = (card, q) => {
+    let { easeFactor, intervalDays, repetitions } = card;
+    easeFactor = easeFactor || 2.5;
+    intervalDays = intervalDays !== undefined ? intervalDays : 0;
+    repetitions = repetitions !== undefined ? repetitions : 0;
+
+    if (q >= 3) {
+      if (repetitions === 0) {
+        intervalDays = 1;
+      } else if (repetitions === 1) {
+        intervalDays = 6;
+      } else {
+        intervalDays = Math.round(intervalDays * easeFactor);
+      }
+      repetitions++;
+    } else {
+      repetitions = 0;
+      intervalDays = 1;
+    }
+
+    easeFactor = easeFactor + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
+    if (easeFactor < 1.3) easeFactor = 1.3;
+
+    const nextDate = new Date();
+    nextDate.setDate(nextDate.getDate() + intervalDays);
+
+    const updatedCard = {
+      ...card,
+      easeFactor,
+      intervalDays,
+      repetitions,
+      nextReviewDate: nextDate.toISOString().split('T')[0]
+    };
+
+    DataService.saveFlashcard(updatedCard);
+    showToast('flashcard graded');
+
+    setRevealAnswer(false);
+    if (currentReviewCardIndex + 1 < dueCards.length) {
+      setCurrentReviewCardIndex(prev => prev + 1);
+    } else {
+      setIsReviewModalOpen(false);
+      setCurrentReviewCardIndex(0);
+    }
+  };
+
+  // Streak rescue computations
+  const yesterdayStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  })();
+  const datesStudied = new Set(sessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date));
+  const yesterdayFrozen = streakFreezes.includes(yesterdayStr);
+  const yesterdayStudied = datesStudied.has(yesterdayStr);
+  const canRescueStreak = !yesterdayStudied && !yesterdayFrozen && freezeTokens > 0 && currentStreak > 0;
+
+  // Daily target helpers
+  const todayTargets = dailyTargets.filter(t => t.date === todayStr);
+
+  const handleAddDailyTarget = () => {
+    if (!dailySubjectId) return;
+    DataService.saveDailyTarget({
+      subjectId: dailySubjectId,
+      targetMinutes: parseInt(dailyTargetMins) || 30,
+      date: todayStr
+    });
+    showToast('Daily target added!');
+  };
+
+  const totalPlannedMins = todayTargets.reduce((acc, t) => acc + t.targetMinutes, 0);
+  const totalAchievedMins = todayTargets.reduce((acc, t) => {
+    const tSessions = todaySessions.filter(s => String(s.subjectId) === String(t.subjectId));
+    const tSecs = tSessions.reduce((sum, s) => sum + s.completedDurationSeconds, 0);
+    return acc + Math.min(t.targetMinutes, Math.round(tSecs / 60));
+  }, 0);
+  const dailyPercentage = totalPlannedMins > 0 ? Math.round((totalAchievedMins / totalPlannedMins) * 100) : 0;
+
   return (
     <>
+      {/* Streak Rescue Banner */}
+      {canRescueStreak && (
+        <div className="span-3" style={{ gridColumn: 'span 3', width: '100%' }}>
+          <div className="streak-rescue-banner" style={{ background: 'rgba(243, 139, 168, 0.15)', border: '1px solid var(--red)', borderRadius: '8px', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <div style={{ fontSize: '11px', color: 'var(--red)', fontWeight: '600' }}>
+              ❄️ Streak Rescue: You missed studying yesterday! Protect your {currentStreak} day streak using a freeze token?
+            </div>
+            <button className="hypr-btn danger" style={{ padding: '4px 10px', fontSize: '10px' }} onClick={async () => {
+              const success = await DataService.useStreakFreeze(yesterdayStr);
+              if (success) showToast('Streak rescued with a Freeze Token! ❄️');
+            }}>
+              Use Streak Freeze ({freezeTokens} left)
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Window 1: Neofetch Stats */}
       <div className="hypr-window">
         <div className="win-titlebar">
@@ -329,20 +540,43 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
               <div><span className="key">shell</span><span className="sep">: </span><span className="val">pomodoro-sh 1.0</span></div>
             </div>
           </div>
-          <div className="stat-row">
+          <div className="stat-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
             <div className="stat-card">
               <div className="stat-label">exam goal</div>
-              <div className="stat-value accent" style={{ fontSize: activeGoal ? '18px' : '28px' }}>
+              <div className="stat-value accent" style={{ fontSize: activeGoal ? '14px' : '20px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {activeGoal ? `${daysRemaining} days` : '—'}
               </div>
-              <div className="stat-sub">{activeGoal ? activeGoal.name : 'no goal set'}</div>
+              <div className="stat-sub" style={{ fontSize: '9px' }}>{activeGoal ? activeGoal.name : 'no goal set'}</div>
             </div>
             <div className="stat-card">
               <div className="stat-label">streak</div>
               <div className="stat-value peach">{currentStreak}</div>
               <div className="stat-sub">days</div>
             </div>
+            <div className="stat-card" onClick={() => dueCards.length > 0 && setIsReviewModalOpen(true)} style={{ cursor: dueCards.length > 0 ? 'pointer' : 'default' }}>
+              <div className="stat-label">recall cards</div>
+              <div className={`stat-value ${dueCards.length > 0 ? 'red' : 'green'}`}>{dueCards.length}</div>
+              <div className="stat-sub">due review</div>
+            </div>
           </div>
+
+          {activeGoal && (
+            <div className="reverse-planner" style={{ marginTop: '10px', padding: '8px', background: 'var(--crust)', borderRadius: '6px', border: '1px solid var(--surface0)', fontSize: '10px', lineHeight: '1.4' }}>
+              <div style={{ fontWeight: '700', marginBottom: '2px', color: 'var(--accent)' }}>📅 Reverse Planning Stats</div>
+              <div>
+                You have <strong>{daysRemaining} days</strong> and <strong>{subjects.length} subjects</strong> — that's ~<strong>{(daysRemaining / (subjects.length || 1)).toFixed(1)} days</strong> per subject.
+              </div>
+              {subjects.some(s => sessions.filter(se => String(se.subjectId) === String(s.id)).reduce((acc, se) => acc + se.completedDurationSeconds, 0) === 0) ? (
+                <div style={{ color: 'var(--yellow)', marginTop: '2px' }}>
+                  ⚠️ Warn: You have subjects with 0 study hours logged. Consider studying them.
+                </div>
+              ) : (
+                <div style={{ color: 'var(--green)', marginTop: '2px' }}>
+                  ✓ Great job! All active subjects have study hours registered.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -411,7 +645,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
             <div className="line"></div>
           </div>
           <p style={{ fontSize: '11px', color: 'var(--overlay0)', lineHeight: '1.6' }}>
-            use workspace switcher in the top bar or press <span style={{ color: 'var(--accent)' }}>1-6</span> to navigate between panels.
+            use workspace switcher in the top bar or press <span style={{ color: 'var(--accent)' }}>1-7</span> to navigate between panels.
           </p>
         </div>
       </div>
@@ -421,7 +655,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
         <div className="win-titlebar">
           <div className="win-title">
             <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
-            syllabus <span className="class-name">— preview</span>
+            syllabus <span className="class-name">— overall subject progress</span>
           </div>
         </div>
         <div className="win-body">
@@ -445,11 +679,11 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
                       <span style={{ fontWeight: '600' }}>{s.name}</span>
                     </div>
                     <span className="chip" style={{ fontSize: '9px', padding: '1px 6px', background: `${s.colorHex}22`, color: s.colorHex, border: `1px solid ${s.colorHex}44`, cursor: 'default' }}>
-                      {(s.rate * 100).toFixed(0)}% done
+                      {(s.rate * 100).toFixed(0)}% topics done ({s.completed}/{s.total})
                     </span>
                   </div>
-                  <div className="progress-bar-bg" style={{ height: '3px' }}>
-                    <div className="progress-bar-fill" style={{ width: `${s.rate * 100}%`, backgroundColor: s.colorHex }} />
+                  <div className="progress-bar-bg" style={{ height: '5px', borderRadius: '3px' }}>
+                    <div className="progress-bar-fill" style={{ width: `${s.rate * 100}%`, backgroundColor: s.colorHex, borderRadius: '3px' }} />
                   </div>
                 </div>
               ))}
@@ -499,7 +733,287 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
           )}
         </div>
       </div>
+
+      {/* Window 6: Daily Planner Checklist (spans 2 cols) */}
+      <div className="hypr-window span-2">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            daily_planner <span className="class-name">— target checklist</span>
+          </div>
+        </div>
+        <div className="win-body">
+          {subjects.length === 0 ? (
+            <div className="empty-state">
+              <p>Add subjects in the syllabus tab to configure daily targets.</p>
+            </div>
+          ) : (
+            <div>
+              {/* Form to add target */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', background: 'var(--crust)', padding: '8px', borderRadius: '6px', border: '1px solid var(--surface0)' }}>
+                <select className="hypr-input" style={{ flex: 2, height: '28px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }} value={dailySubjectId} onChange={e => setDailySubjectId(e.target.value)}>
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <input type="number" className="hypr-input" style={{ flex: 1, height: '28px', padding: '2px 8px', fontSize: '11px' }} placeholder="Minutes" value={dailyTargetMins} onChange={e => setDailyTargetMins(e.target.value)} />
+                <button className="hypr-btn primary" style={{ padding: '2px 10px', fontSize: '10px' }} onClick={handleAddDailyTarget}>+ add target</button>
+              </div>
+
+              {/* Targets Checklist */}
+              {todayTargets.length === 0 ? (
+                <p style={{ color: 'var(--overlay0)', fontSize: '11px', textAlign: 'center', margin: '12px 0' }}>No daily study targets planned for today yet.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {todayTargets.map(t => {
+                    const subj = subjects.find(s => String(s.id) === String(t.subjectId));
+                    const matchingSessions = todaySessions.filter(s => String(s.subjectId) === String(t.subjectId));
+                    const completedMins = Math.round(matchingSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0) / 60);
+                    const isDone = completedMins >= t.targetMinutes;
+                    return (
+                      <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', background: isDone ? 'rgba(166, 227, 161, 0.05)' : 'var(--crust)', border: isDone ? '1px solid var(--green)' : '1px solid var(--surface0)', borderRadius: '6px', fontSize: '11px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ color: isDone ? 'var(--green)' : 'var(--overlay0)', fontWeight: '700' }}>
+                            {isDone ? '✓ [DONE]' : '☐ [TODO]'}
+                          </span>
+                          <span style={{ fontWeight: '600', color: subj?.colorHex }}>{subj?.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ color: 'var(--overlay0)' }}>
+                            {completedMins}m / {t.targetMinutes}m completed
+                          </span>
+                          <button className="sm-btn" style={{ width: '18px', height: '18px', fontSize: '9px' }} onClick={() => handleDeleteDailyTarget(t.id)}>×</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div style={{ borderTop: '1px dashed var(--surface0)', paddingTop: '8px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', color: 'var(--overlay0)' }}>
+                    <span>Daily Completion: {dailyPercentage}%</span>
+                    <span>{dailyPercentage >= 100 ? '🔥 Daily goal fully achieved!' : 'Keep pushing!'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Window 7: Streaks & Recall Stats (1 col) */}
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            gamification <span className="class-name">— recovery</span>
+          </div>
+        </div>
+        <div className="win-body" style={{ fontSize: '11px', lineHeight: '1.6' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '4px', borderBottom: '1px solid var(--surface0)' }}>
+              <span style={{ color: 'var(--overlay0)' }}>Freeze Tokens:</span>
+              <strong style={{ color: 'var(--blue)' }}>{freezeTokens} available</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '4px', borderBottom: '1px solid var(--surface0)' }}>
+              <span style={{ color: 'var(--overlay0)' }}>Longest Streak:</span>
+              <strong style={{ color: 'var(--peach)' }}>{longestStreak} days</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '4px', borderBottom: '1px solid var(--surface0)' }}>
+              <span style={{ color: 'var(--overlay0)' }}>Weekly studied:</span>
+              <strong style={{ color: 'var(--green)' }}>{weeklyStreakDays} / 7 days</strong>
+            </div>
+          </div>
+          <p style={{ fontSize: '10px', color: 'var(--overlay0)', marginTop: '8px', lineHeight: '1.4' }}>
+            * earn 1 streak freeze token automatically for every 7 days studied. freezes protect your streak when you miss a day.
+          </p>
+        </div>
+      </div>
+
+      {/* Active Recall reviewer Modal overlay */}
+      {isReviewModalOpen && dueCards.length > 0 && (() => {
+        const card = dueCards[currentReviewCardIndex];
+        const subj = subjects.find(s => String(s.id) === String(card.subjectId));
+        return (
+          <div className="modal-overlay">
+            <div className="modal-content" style={{ maxWidth: '480px', width: '92%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--surface0)', paddingBottom: '8px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div className="modal-header">Active Recall Reviewer</div>
+                  {subj && <span className="chip" style={{ fontSize: '8px', padding: '1px 5px', border: `1px solid ${subj.colorHex}55`, color: subj.colorHex, background: `${subj.colorHex}15` }}>{subj.name}</span>}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--overlay0)' }}>
+                  Card {currentReviewCardIndex + 1} of {dueCards.length}
+                </div>
+              </div>
+
+              <div style={{ minHeight: '120px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--crust)', border: '1px solid var(--surface0)', borderRadius: '6px', padding: '16px', margin: '8px 0', textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: 'var(--overlay0)', textTransform: 'uppercase', marginBottom: '8px' }}>Question</div>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{card.question}</div>
+                
+                {revealAnswer && (
+                  <div style={{ marginTop: '16px', borderTop: '1px dashed var(--surface0)', paddingTop: '16px', width: '100%' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--overlay0)', textTransform: 'uppercase', marginBottom: '8px' }}>Answer</div>
+                    <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--green)', whiteSpace: 'pre-wrap' }}>{card.answer}</div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '12px' }}>
+                {!revealAnswer ? (
+                  <>
+                    <button className="hypr-btn" onClick={() => setIsReviewModalOpen(false)}>Close</button>
+                    <button className="hypr-btn primary" onClick={() => setRevealAnswer(true)}>Reveal Answer</button>
+                  </>
+                ) : (
+                  <>
+                    <button className="hypr-btn danger" style={{ padding: '6px 12px' }} onClick={() => handleGradeCard(card, 1)}>Again (Hard)</button>
+                    <button className="hypr-btn primary" style={{ padding: '6px 12px' }} onClick={() => handleGradeCard(card, 3)}>Good (Ok)</button>
+                    <button className="hypr-btn success" style={{ padding: '6px 12px', background: 'var(--green)', color: 'var(--bg-color)' }} onClick={() => handleGradeCard(card, 5)}>Easy (Simple)</button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
+  );
+}
+
+function MistakesView({ subjects, mistakes, onSaveMistake, onDeleteMistake, showToast }) {
+  const [subjectId, setSubjectId] = useState(subjects[0]?.id || '');
+  const [topicName, setTopicName] = useState('');
+  const [whatWentWrong, setWhatWentWrong] = useState('');
+  const [correctApproach, setCorrectApproach] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (subjects.length > 0 && !subjectId) {
+      setSubjectId(subjects[0].id);
+    }
+  }, [subjects]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!subjectId || !topicName.trim() || !whatWentWrong.trim() || !correctApproach.trim()) return;
+    
+    onSaveMistake({
+      subjectId,
+      topicName: topicName.trim(),
+      whatWentWrong: whatWentWrong.trim(),
+      correctApproach: correctApproach.trim(),
+      date: new Date().toISOString().split('T')[0],
+      createdAt: Date.now()
+    });
+
+    setTopicName('');
+    setWhatWentWrong('');
+    setCorrectApproach('');
+  };
+
+  const filteredMistakes = mistakes.filter(m => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return true;
+    const subj = subjects.find(s => String(s.id) === String(m.subjectId));
+    return (m.topicName || '').toLowerCase().includes(query) ||
+           (m.whatWentWrong || '').toLowerCase().includes(query) ||
+           (m.correctApproach || '').toLowerCase().includes(query) ||
+           (subj?.name || '').toLowerCase().includes(query);
+  });
+
+  return (
+    <div className="hypr-window">
+      <div className="win-titlebar">
+        <div className="win-title">
+          <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+          mistake_log <span className="class-name">— error book</span>
+        </div>
+        <input 
+          type="text" 
+          className="hypr-input" 
+          style={{ width: '200px', height: '28px', padding: '2px 8px', fontSize: '11px' }}
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search errors, topics..."
+        />
+      </div>
+      <div className="win-body" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
+        {/* Left Column: Form */}
+        <div style={{ borderRight: '1px solid var(--surface0)', paddingRight: '16px' }}>
+          <div className="prompt-line">
+            <span className="arrow">❯</span>
+            <span className="path">~/mistakes</span>
+            <span className="cmd">log --new</span>
+          </div>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div className="form-group">
+              <label className="form-label">Subject</label>
+              <select className="hypr-input" value={subjectId} onChange={e => setSubjectId(e.target.value)} required>
+                {subjects.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Topic / Test Context</label>
+              <input className="hypr-input" placeholder="e.g. Optics - Snell's Law" value={topicName} onChange={e => setTopicName(e.target.value)} required />
+            </div>
+            <div className="form-group">
+              <label className="form-label">What Went Wrong?</label>
+              <textarea className="hypr-input" rows="3" placeholder="Describe the error, misconception, or mistake..." value={whatWentWrong} onChange={e => setWhatWentWrong(e.target.value)} required style={{ resize: 'vertical' }} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Correct Approach / Concept</label>
+              <textarea className="hypr-input" rows="3" placeholder="What is the correct way, formula, or concept to remember?" value={correctApproach} onChange={e => setCorrectApproach(e.target.value)} required style={{ resize: 'vertical' }} />
+            </div>
+            <button type="submit" className="hypr-btn primary" style={{ width: '100%', justifyContent: 'center', marginTop: '6px' }}>Save Log</button>
+          </form>
+        </div>
+
+        {/* Right Column: Mistakes List */}
+        <div style={{ overflowY: 'auto', maxHeight: '550px' }}>
+          <div className="prompt-line">
+            <span className="arrow">❯</span>
+            <span className="path">~/mistakes</span>
+            <span className="cmd">cat log.json</span>
+          </div>
+
+          {filteredMistakes.length === 0 ? (
+            <div className="empty-state">
+              <p style={{ fontSize: '11px' }}>No mistakes logged yet.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {filteredMistakes.map(m => {
+                const subj = subjects.find(s => String(s.id) === String(m.subjectId));
+                return (
+                  <div key={m.id} style={{ border: '1px solid var(--surface0)', borderRadius: '8px', padding: '12px', background: 'var(--surface1)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--surface0)', paddingBottom: '6px', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {subj && <span className="chip" style={{ fontSize: '8px', padding: '1px 5px', border: `1px solid ${subj.colorHex}55`, color: subj.colorHex, background: `${subj.colorHex}15` }}>{subj.name}</span>}
+                        <strong style={{ fontSize: '12px', color: 'var(--text)' }}>{m.topicName}</strong>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '9px', color: 'var(--overlay0)' }}>{m.date}</span>
+                        <button className="sm-btn" onClick={() => onDeleteMistake(m.id)}>×</button>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11px' }}>
+                      <div>
+                        <span style={{ color: 'var(--red)', fontWeight: '600' }}>✗ Mistake:</span>
+                        <div style={{ padding: '6px', background: 'var(--crust)', borderRadius: '4px', marginTop: '2px', whiteSpace: 'pre-wrap' }}>{m.whatWentWrong}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--green)', fontWeight: '600' }}>✓ Solution / Fix:</span>
+                        <div style={{ padding: '6px', background: 'var(--crust)', borderRadius: '4px', marginTop: '2px', whiteSpace: 'pre-wrap' }}>{m.correctApproach}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -510,6 +1024,7 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
   const activeSubject = subjects.find(s => String(s.id) === String(selectedSubjectId));
 
   // Configuration
+  const [presetMode, setPresetMode] = useState('STANDARD');
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [shortBreakMinutes, setShortBreakMinutes] = useState(5);
   const [longBreakMinutes, setLongBreakMinutes] = useState(15);
@@ -524,6 +1039,21 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
   const [accumulatedCompletedSeconds, setAccumulatedCompletedSeconds] = useState(0);
   const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false);
   const [sessionNotesInput, setSessionNotesInput] = useState('');
+
+  // New Upgrades State
+  const [pausesCount, setPausesCount] = useState(0);
+  const [activeSound, setActiveSound] = useState('none');
+  const [showSimWarning, setShowSimWarning] = useState(false);
+  const [simApproved, setSimApproved] = useState(false);
+  const [sessionConfidence, setSessionConfidence] = useState(3);
+  const [addFlashcardChecked, setAddFlashcardChecked] = useState(false);
+  const [flashcardQuestion, setFlashcardQuestion] = useState('');
+  const [flashcardAnswer, setFlashcardAnswer] = useState('');
+
+  // Audio References
+  const rainAudioRef = useRef(null);
+  const brownAudioRef = useRef(null);
+  const lofiAudioRef = useRef(null);
 
   // Notify parent of isSessionActive state
   useEffect(() => {
@@ -562,6 +1092,66 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
+
+  // Ambient sound play side effects
+  useEffect(() => {
+    rainAudioRef.current?.pause();
+    brownAudioRef.current?.pause();
+    lofiAudioRef.current?.pause();
+
+    if (isTimerRunning) {
+      if (activeSound === 'rain' && rainAudioRef.current) {
+        rainAudioRef.current.play().catch(e => console.log('Rain playback blocked', e));
+      } else if (activeSound === 'brown' && brownAudioRef.current) {
+        brownAudioRef.current.play().catch(e => console.log('Brown noise playback blocked', e));
+      } else if (activeSound === 'lofi' && lofiAudioRef.current) {
+        lofiAudioRef.current.play().catch(e => console.log('Lofi playback blocked', e));
+      }
+    }
+  }, [activeSound, isTimerRunning]);
+
+  // Before unload handler for exam simulation
+  useEffect(() => {
+    if (isTimerRunning && presetMode === 'EXAM_SIM') {
+      const handleBeforeUnload = (e) => {
+        e.preventDefault();
+        e.returnValue = 'Leaving now will fail the exam simulation. Are you sure?';
+        return e.returnValue;
+      };
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }
+  }, [isTimerRunning, presetMode]);
+
+  const handlePresetChange = (preset) => {
+    setPresetMode(preset);
+    setSimApproved(false);
+    if (preset === 'STANDARD') {
+      setFocusMinutes(25);
+      setShortBreakMinutes(5);
+      setLongBreakMinutes(15);
+      setTotalCycles(4);
+      setTimerSecondsLeft(25 * 60);
+    } else if (preset === 'ULTRADIAN') {
+      setFocusMinutes(52);
+      setShortBreakMinutes(17);
+      setLongBreakMinutes(17);
+      setTotalCycles(3);
+      setTimerSecondsLeft(52 * 60);
+    } else if (preset === 'COMPETITIVE') {
+      setFocusMinutes(50);
+      setShortBreakMinutes(10);
+      setLongBreakMinutes(15);
+      setTotalCycles(4);
+      setTimerSecondsLeft(50 * 60);
+    } else if (preset === 'EXAM_SIM') {
+      setFocusMinutes(180);
+      setShortBreakMinutes(0);
+      setLongBreakMinutes(0);
+      setTotalCycles(1);
+      setTimerSecondsLeft(180 * 60);
+    }
+  };
 
   const handlePhaseEnd = () => {
     if (currentPhase === 'FOCUS') {
@@ -603,17 +1193,24 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
 
   const startTimer = () => {
     if (isTimerRunning) return;
+    if (presetMode === 'EXAM_SIM' && !simApproved) {
+      setShowSimWarning(true);
+      return;
+    }
     setIsTimerRunning(true);
     setIsSessionActive(true);
     expectedEndTimeRef.current = Date.now() + (timerSecondsLeft * 1000);
   };
 
   const pauseTimer = () => {
+    if (presetMode === 'EXAM_SIM') return; // Cannot pause in simulation
     setIsTimerRunning(false);
     expectedEndTimeRef.current = null;
+    setPausesCount(p => p + 1);
   };
 
   const skipPhase = () => {
+    if (presetMode === 'EXAM_SIM') return; // Cannot skip in simulation
     handlePhaseEnd();
   };
 
@@ -648,6 +1245,16 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
   }, [isTimerRunning, currentPhase, currentCycle, focusMinutes, shortBreakMinutes, longBreakMinutes, totalCycles]);
 
   const stopTimer = () => {
+    if (presetMode === 'EXAM_SIM') {
+      if (confirm('Stopping now will fail the exam simulation. Are you sure you want to exit?')) {
+        pauseTimer();
+        let elapsed = focusMinutes * 60 - timerSecondsLeft;
+        setAccumulatedCompletedSeconds(elapsed);
+        handleFinishSession(false);
+      }
+      return;
+    }
+    
     pauseTimer();
     let totalCompleted = accumulatedCompletedSeconds;
     if (currentPhase === 'FOCUS') {
@@ -669,6 +1276,13 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
   const saveAndExit = () => {
     const finalDurationMinutes = focusMinutes * totalCycles;
     const completedSeconds = accumulatedCompletedSeconds;
+    
+    // Calculate focus quality score
+    let focusScore = Math.max(0, 100 - (pausesCount * 15));
+    if (presetMode === 'EXAM_SIM' && completedSeconds < (focusMinutes * 60)) {
+      focusScore = 0; // Failed simulation
+    }
+
     const sessionObj = {
       label: sessionName || 'Study Session',
       durationMinutes: finalDurationMinutes,
@@ -679,10 +1293,27 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
       isCompleted: completedSeconds >= (focusMinutes * totalCycles * 60),
       notes: sessionNotesInput.trim() || null,
       tag: selectedTag || null,
-      subjectId: selectedSubjectId || null
+      subjectId: selectedSubjectId || null,
+      confidenceRating: sessionConfidence,
+      focusScore
     };
 
     onSaveSession(sessionObj);
+
+    // Save flashcard if checked
+    if (addFlashcardChecked && flashcardQuestion.trim() && flashcardAnswer.trim() && selectedSubjectId) {
+      DataService.saveFlashcard({
+        subjectId: selectedSubjectId,
+        question: flashcardQuestion.trim(),
+        answer: flashcardAnswer.trim(),
+        easeFactor: 2.5,
+        intervalDays: 0,
+        repetitions: 0,
+        nextReviewDate: new Date().toISOString().split('T')[0],
+        createdAt: Date.now()
+      });
+    }
+
     setIsCompletedModalOpen(false);
     resetTimer();
   };
@@ -695,6 +1326,12 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
     setCurrentCycle(1);
     setAccumulatedCompletedSeconds(0);
     setSessionNotesInput('');
+    setPausesCount(0);
+    setSessionConfidence(3);
+    setAddFlashcardChecked(false);
+    setFlashcardQuestion('');
+    setFlashcardAnswer('');
+    setSimApproved(false);
     expectedEndTimeRef.current = null;
   };
 
@@ -728,6 +1365,9 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
 
   return (
     <>
+      <audio ref={rainAudioRef} src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" loop />
+      <audio ref={brownAudioRef} src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" loop />
+      <audio ref={lofiAudioRef} src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" loop />
       {/* Large Pomodoro Window */}
       <div className={`hypr-window span-2 ${isSessionActive ? 'immersive-active' : ''}`} style={{ minHeight: 0 }}>
         {isSessionActive && (
@@ -774,7 +1414,7 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
         <div className="win-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <div className="pomo-display">
             <div className="pomo-phase">
-              {currentPhase === 'FOCUS' ? 'focus session' : currentPhase === 'SHORT_BREAK' ? 'short break' : 'long break'}
+              {currentPhase === 'FOCUS' ? (presetMode === 'EXAM_SIM' ? 'exam simulation' : 'focus session') : currentPhase === 'SHORT_BREAK' ? 'short break' : 'long break'}
             </div>
             <div className={`pomo-time ${currentPhase === 'FOCUS' ? 'focus' : 'break'}`}>
               {formatClock(timerSecondsLeft)}
@@ -794,13 +1434,30 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
             })}
           </div>
 
+          {/* Ambient Sound selector inside Focus view */}
+          {isSessionActive && (
+            <div className="ambient-selector" style={{ margin: '8px 0 14px 0', display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <span style={{ fontSize: '10px', color: 'var(--overlay0)' }}>Ambient Soundscape:</span>
+              {['none', 'rain', 'brown', 'lofi'].map(snd => (
+                <button 
+                  key={snd} 
+                  className={`chip ${activeSound === snd ? 'active' : ''}`} 
+                  onClick={() => setActiveSound(snd)}
+                  style={{ fontSize: '9px', padding: '2px 8px', textTransform: 'capitalize', cursor: 'pointer' }}
+                >
+                  {snd === 'none' ? 'off' : snd}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="pomo-controls">
             {isTimerRunning ? (
-              <button className="hypr-btn primary" onClick={pauseTimer}>⏸ pause</button>
+              <button className="hypr-btn primary" onClick={pauseTimer} disabled={presetMode === 'EXAM_SIM'}>⏸ pause</button>
             ) : (
               <button className="hypr-btn primary" onClick={startTimer}>▶ start</button>
             )}
-            <button className="hypr-btn" onClick={skipPhase}>⏭ skip</button>
+            <button className="hypr-btn" onClick={skipPhase} disabled={presetMode === 'EXAM_SIM'}>⏭ skip</button>
             <button className="hypr-btn danger" onClick={stopTimer}>⏹ stop</button>
           </div>
 
@@ -813,37 +1470,55 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
               </div>
               <div style={{ width: '100%', maxWidth: '400px' }}>
                 <div className="setting-row">
-                  <span className="setting-label">focus duration</span>
-                  <div className="setting-control">
-                    <button className="sm-btn" onClick={() => setFocusMinutes(p => Math.max(5, p - 5))}>−</button>
-                    <span className="setting-val">{focusMinutes}m</span>
-                    <button className="sm-btn" onClick={() => setFocusMinutes(p => p + 5)}>+</button>
-                  </div>
+                  <span className="setting-label">Preset Mode</span>
+                  <select 
+                    value={presetMode} 
+                    onChange={e => handlePresetChange(e.target.value)}
+                    className="hypr-input" 
+                    style={{ width: '180px', height: '28px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}
+                  >
+                    <option value="STANDARD">Standard (25/5)</option>
+                    <option value="ULTRADIAN">Ultradian (52/17)</option>
+                    <option value="COMPETITIVE">Prep Mode (50/10)</option>
+                    <option value="EXAM_SIM">Exam Simulation (3h)</option>
+                  </select>
                 </div>
-                <div className="setting-row">
-                  <span className="setting-label">short break</span>
-                  <div className="setting-control">
-                    <button className="sm-btn" onClick={() => setShortBreakMinutes(p => Math.max(1, p - 1))}>−</button>
-                    <span className="setting-val">{shortBreakMinutes}m</span>
-                    <button className="sm-btn" onClick={() => setShortBreakMinutes(p => p + 1)}>+</button>
-                  </div>
-                </div>
-                <div className="setting-row">
-                  <span className="setting-label">long break</span>
-                  <div className="setting-control">
-                    <button className="sm-btn" onClick={() => setLongBreakMinutes(p => Math.max(5, p - 5))}>−</button>
-                    <span className="setting-val">{longBreakMinutes}m</span>
-                    <button className="sm-btn" onClick={() => setLongBreakMinutes(p => p + 5)}>+</button>
-                  </div>
-                </div>
-                <div className="setting-row">
-                  <span className="setting-label">target cycles</span>
-                  <div className="setting-control">
-                    <button className="sm-btn" onClick={() => setTotalCycles(p => Math.max(1, p - 1))}>−</button>
-                    <span className="setting-val">{totalCycles}x</span>
-                    <button className="sm-btn" onClick={() => setTotalCycles(p => p + 1)}>+</button>
-                  </div>
-                </div>
+                {presetMode !== 'EXAM_SIM' && (
+                  <>
+                    <div className="setting-row">
+                      <span className="setting-label">focus duration</span>
+                      <div className="setting-control">
+                        <button className="sm-btn" onClick={() => setFocusMinutes(p => Math.max(5, p - 5))}>−</button>
+                        <span className="setting-val">{focusMinutes}m</span>
+                        <button className="sm-btn" onClick={() => setFocusMinutes(p => p + 5)}>+</button>
+                      </div>
+                    </div>
+                    <div className="setting-row">
+                      <span className="setting-label">short break</span>
+                      <div className="setting-control">
+                        <button className="sm-btn" onClick={() => setShortBreakMinutes(p => Math.max(1, p - 1))}>−</button>
+                        <span className="setting-val">{shortBreakMinutes}m</span>
+                        <button className="sm-btn" onClick={() => setShortBreakMinutes(p => p + 1)}>+</button>
+                      </div>
+                    </div>
+                    <div className="setting-row">
+                      <span className="setting-label">long break</span>
+                      <div className="setting-control">
+                        <button className="sm-btn" onClick={() => setLongBreakMinutes(p => Math.max(5, p - 5))}>−</button>
+                        <span className="setting-val">{longBreakMinutes}m</span>
+                        <button className="sm-btn" onClick={() => setLongBreakMinutes(p => p + 5)}>+</button>
+                      </div>
+                    </div>
+                    <div className="setting-row">
+                      <span className="setting-label">target cycles</span>
+                      <div className="setting-control">
+                        <button className="sm-btn" onClick={() => setTotalCycles(p => Math.max(1, p - 1))}>−</button>
+                        <span className="setting-val">{totalCycles}x</span>
+                        <button className="sm-btn" onClick={() => setTotalCycles(p => p + 1)}>+</button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}
@@ -957,20 +1632,91 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
       {/* Completed session notes prompt modal */}
       {isCompletedModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content" style={{ maxWidth: '440px', width: '92%' }}>
             <div className="modal-header">Session Finished! 🔥</div>
-            <p>Write down notes about what you studied during this session:</p>
-            <textarea 
-              className="hypr-input" 
-              rows="4" 
-              placeholder="e.g., Solved Boolean Algebra minimization sheets, solved K-Map exceptions."
-              value={sessionNotesInput}
-              onChange={(e) => setSessionNotesInput(e.target.value)}
-              style={{ resize: 'vertical', minHeight: '80px' }}
-            />
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
+            
+            <div style={{ margin: '12px 0' }}>
+              <label className="form-label" style={{ marginBottom: '6px' }}>How did this session feel? (Confidence Rating)</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <span 
+                    key={star} 
+                    style={{ cursor: 'pointer', fontSize: '20px', color: star <= sessionConfidence ? 'var(--yellow)' : 'var(--surface2)', transition: 'color 0.2s' }}
+                    onClick={() => setSessionConfidence(star)}
+                  >
+                    ★
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Study Journal Notes</label>
+              <textarea 
+                className="hypr-input" 
+                rows="3" 
+                placeholder="e.g., Solved Boolean Algebra minimization sheets, solved K-Map exceptions."
+                value={sessionNotesInput}
+                onChange={(e) => setSessionNotesInput(e.target.value)}
+                style={{ resize: 'vertical', minHeight: '60px' }}
+              />
+            </div>
+
+            {selectedSubjectId && (
+              <div style={{ borderTop: '1px dashed var(--surface0)', paddingTop: '10px', marginTop: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '11px', color: 'var(--text)' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={addFlashcardChecked} 
+                    onChange={e => setAddFlashcardChecked(e.target.checked)} 
+                  />
+                  Create a review flashcard for this subject?
+                </label>
+                
+                {addFlashcardChecked && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px', paddingLeft: '14px', borderLeft: '2px solid var(--accent)' }}>
+                    <div className="form-group">
+                      <label className="form-label">Question</label>
+                      <input className="hypr-input" placeholder="e.g. What are the 3 conditions for K-Map grouping?" value={flashcardQuestion} onChange={e => setFlashcardQuestion(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Answer</label>
+                      <input className="hypr-input" placeholder="e.g. Must be powers of 2, adjacent cells, wrap-around allowed." value={flashcardAnswer} onChange={e => setFlashcardAnswer(e.target.value)} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '14px' }}>
               <button className="hypr-btn" onClick={() => { setIsCompletedModalOpen(false); resetTimer(); }}>Discard</button>
               <button className="hypr-btn primary" onClick={saveAndExit}>Save & Exit</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Simulation Warn Popup */}
+      {showSimWarning && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '380px', width: '90%', textAlign: 'center' }}>
+            <div className="modal-header" style={{ color: 'var(--red)' }}>⚠️ Exam Simulation Lock</div>
+            <p style={{ fontSize: '12px', lineHeight: '1.5', margin: '12px 0' }}>
+              Exam simulation mode mimics real conditions. It locks the screen for <strong>3 hours (180 mins)</strong> without breaks.
+              <br /><br />
+              <strong>Pause and Skip are disabled.</strong> Leaving the page or stopping will record a 0% focus score.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button className="hypr-btn" onClick={() => setShowSimWarning(false)}>Cancel</button>
+              <button className="hypr-btn primary danger" onClick={() => {
+                setSimApproved(true);
+                setShowSimWarning(false);
+                setIsTimerRunning(true);
+                setIsSessionActive(true);
+                expectedEndTimeRef.current = Date.now() + (180 * 60 * 1000);
+              }}>
+                Confirm & Lock
+              </button>
             </div>
           </div>
         </div>
@@ -1341,10 +2087,17 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
 
 function HistoryView({ sessions, subjects, onDeleteSession, showToast }) {
   const [filterSubjectId, setFilterSubjectId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredSessions = filterSubjectId 
-    ? sessions.filter(s => String(s.subjectId) === String(filterSubjectId))
-    : sessions;
+  const filteredSessions = sessions.filter(s => {
+    const matchesSubject = filterSubjectId ? String(s.subjectId) === String(filterSubjectId) : true;
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return matchesSubject;
+    const matchesQuery = (s.label || '').toLowerCase().includes(query) ||
+                         (s.notes || '').toLowerCase().includes(query) ||
+                         (s.tag || '').toLowerCase().includes(query);
+    return matchesSubject && matchesQuery;
+  });
 
   const sorted = [...filteredSessions].sort((a, b) => b.startTime - a.startTime);
   
@@ -1367,7 +2120,19 @@ function HistoryView({ sessions, subjects, onDeleteSession, showToast }) {
     return (
       <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid var(--surface0)', borderRadius: '8px', background: 'var(--surface1)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: 0, flex: 1, marginRight: '12px' }}>
-          <div style={{ fontWeight: '700', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <div style={{ fontWeight: '700', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.label}</div>
+            {s.confidenceRating && (
+              <span style={{ fontSize: '10px', color: 'var(--yellow)' }}>
+                {'★'.repeat(s.confidenceRating)}{'☆'.repeat(5 - s.confidenceRating)}
+              </span>
+            )}
+            {s.focusScore !== undefined && (
+              <span className="chip" style={{ fontSize: '8px', borderColor: 'var(--blue)', color: 'var(--blue)', background: 'rgba(137, 180, 250, 0.05)', padding: '1px 4px', cursor: 'default' }}>
+                focus: {s.focusScore}%
+              </span>
+            )}
+          </div>
           <div style={{ fontSize: '11px', color: 'var(--overlay0)', display: 'flex', gap: '8px', alignItems: 'center' }}>
             <span>{dateLabel} at {timeLabel}</span>
             {s.tag && <span style={{ color: 'var(--accent)' }}>#{s.tag.toLowerCase()}</span>}
@@ -1405,19 +2170,29 @@ function HistoryView({ sessions, subjects, onDeleteSession, showToast }) {
           <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
           history <span className="class-name">— session log</span>
         </div>
-        {subjects.length > 0 && (
-          <select 
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+          <input 
+            type="text" 
             className="hypr-input" 
-            style={{ width: '180px', height: '28px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}
-            value={filterSubjectId}
-            onChange={(e) => setFilterSubjectId(e.target.value)}
-          >
-            <option value="">filter subject (all)</option>
-            {subjects.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        )}
+            style={{ width: '180px', height: '28px', padding: '2px 8px', fontSize: '11px' }}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search notes, labels..."
+          />
+          {subjects.length > 0 && (
+            <select 
+              className="hypr-input" 
+              style={{ width: '150px', height: '28px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer' }}
+              value={filterSubjectId}
+              onChange={(e) => setFilterSubjectId(e.target.value)}
+            >
+              <option value="">filter subject (all)</option>
+              {subjects.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
       <div className="win-body">
         <div className="prompt-line">
@@ -1435,7 +2210,7 @@ function HistoryView({ sessions, subjects, onDeleteSession, showToast }) {
   │  session to  │
   │  see logs    │
   ╰──────────────╯`}</div>
-            <p>no study sessions recorded yet</p>
+            <p>no study study sessions recorded yet</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1474,6 +2249,111 @@ function HistoryView({ sessions, subjects, onDeleteSession, showToast }) {
 
 function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSaveMockTest, onDeleteMockTest, streak, showToast }) {
   const [selectedDate, setSelectedDate] = useState(null);
+
+  // Week-over-week deltas calculation
+  const wowDelta = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Current Week (rolling last 7 days: day 0 to day 6 ago)
+    const curWeekStart = new Date(today);
+    curWeekStart.setDate(today.getDate() - 6);
+    
+    // Previous Week (days 7 to 13 ago)
+    const prevWeekStart = new Date(today);
+    prevWeekStart.setDate(today.getDate() - 13);
+    const prevWeekEnd = new Date(today);
+    prevWeekEnd.setDate(today.getDate() - 7);
+
+    const curWeekSessions = sessions.filter(s => {
+      const d = new Date(s.date);
+      return d >= curWeekStart && d <= today;
+    });
+    
+    const prevWeekSessions = sessions.filter(s => {
+      const d = new Date(s.date);
+      return d >= prevWeekStart && d <= prevWeekEnd;
+    });
+
+    const curSeconds = curWeekSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+    const prevSeconds = prevWeekSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+
+    const curHours = curSeconds / 3600;
+    const prevHours = prevSeconds / 3600;
+
+    const curSubjs = new Set(curWeekSessions.filter(s => s.completedDurationSeconds > 0).map(s => s.subjectId)).size;
+    const prevSubjs = new Set(prevWeekSessions.filter(s => s.completedDurationSeconds > 0).map(s => s.subjectId)).size;
+
+    const deltaPercent = prevHours > 0 ? ((curHours - prevHours) / prevHours) * 100 : 0;
+
+    return {
+      curHours,
+      prevHours,
+      curSubjs,
+      prevSubjs,
+      deltaPercent
+    };
+  }, [sessions]);
+
+  // Weakness Identification
+  const weaknessStats = React.useMemo(() => {
+    const stats = {};
+    subjects.forEach(s => {
+      stats[s.id] = { subject: s, totalSeconds: 0, ratings: [], hardCount: 0 };
+    });
+
+    sessions.forEach(s => {
+      if (s.subjectId && stats[s.subjectId]) {
+        stats[s.subjectId].totalSeconds += s.completedDurationSeconds;
+        if (s.confidenceRating) {
+          stats[s.subjectId].ratings.push(s.confidenceRating);
+          if (s.confidenceRating <= 2) {
+            stats[s.subjectId].hardCount++;
+          }
+        }
+      }
+    });
+
+    const list = Object.values(stats).map(obj => {
+      const avgConfidence = obj.ratings.length > 0 
+        ? obj.ratings.reduce((a, b) => a + b, 0) / obj.ratings.length
+        : null;
+      const hours = obj.totalSeconds / 3600;
+      return {
+        subject: obj.subject,
+        hours,
+        avgConfidence,
+        hardCount: obj.hardCount,
+        ratingsCount: obj.ratings.length
+      };
+    }).filter(item => item.hours > 0 || item.ratingsCount > 0);
+
+    // Sort by: lowest confidence first, then highest hours
+    // (We want to find subjects studied a lot but with low confidence = weak spots)
+    const weakSpots = [...list]
+      .filter(x => x.hours > 0 && x.avgConfidence !== null)
+      .sort((a, b) => {
+        // High hours + low confidence = high weakness
+        const scoreA = a.hours / (a.avgConfidence || 1);
+        const scoreB = b.hours / (b.avgConfidence || 1);
+        return scoreB - scoreA;
+      });
+
+    // Priority recommendations: rated hard but studied little
+    const priorityQueue = [...list]
+      .filter(x => x.hardCount > 0)
+      .sort((a, b) => {
+        // ratio of hard count to hours studied (higher means it was hard many times but studied very little)
+        const ratioA = a.hardCount / (a.hours || 0.1);
+        const ratioB = b.hardCount / (b.hours || 0.1);
+        return ratioB - ratioA;
+      });
+
+    return {
+      weakSpots,
+      priorityQueue
+    };
+  }, [sessions, subjects]);
 
   const weeks = React.useMemo(() => {
     const today = new Date();
@@ -1755,6 +2635,73 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
         onDelete={onDeleteMockTest} 
         showToast={showToast}
       />
+
+      {/* Window 5: Week-over-Week Deltas */}
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            comparison <span className="class-name">— week over week</span>
+          </div>
+        </div>
+        <div className="win-body" style={{ fontSize: '11px', lineHeight: '1.6' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '4px', borderBottom: '1px solid var(--surface0)' }}>
+              <span>This Week (rolling):</span>
+              <strong>{wowDelta.curHours.toFixed(1)}h studied across {wowDelta.curSubjs} subjects</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '4px', borderBottom: '1px solid var(--surface0)' }}>
+              <span>Previous Week:</span>
+              <strong>{wowDelta.prevHours.toFixed(1)}h studied across {wowDelta.prevSubjs} subjects</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+              <span>Performance delta:</span>
+              <strong style={{ 
+                fontSize: '14px', 
+                color: wowDelta.deltaPercent >= 0 ? 'var(--green)' : 'var(--red)' 
+              }}>
+                {wowDelta.deltaPercent >= 0 ? '▲' : '▼'} {Math.abs(wowDelta.deltaPercent).toFixed(1)}% {wowDelta.deltaPercent >= 0 ? 'improvement' : 'decline'}
+              </strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Window 6: Weakness Identification */}
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            weakness_logs <span className="class-name">— spots & recommendations</span>
+          </div>
+        </div>
+        <div className="win-body" style={{ fontSize: '11px', lineHeight: '1.4' }}>
+          {weaknessStats.weakSpots.length === 0 ? (
+            <p style={{ color: 'var(--overlay0)', fontSize: '11px', textAlign: 'center', margin: '24px 0' }}>Log sessions with confidence ratings to analyze weaknesses.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div>
+                <span style={{ fontWeight: '700', color: 'var(--red)', display: 'block', marginBottom: '4px' }}>⚠️ Detected Weak Spots (Studied but Hard):</span>
+                {weaknessStats.weakSpots.slice(0, 2).map(ws => (
+                  <div key={ws.subject.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 6px', background: 'var(--crust)', borderRadius: '4px', marginBottom: '4px' }}>
+                    <span style={{ color: ws.subject.colorHex }}>{ws.subject.name}</span>
+                    <span>{ws.hours.toFixed(1)}h studied · {ws.avgConfidence ? ws.avgConfidence.toFixed(1) : '—'}★ avg</span>
+                  </div>
+                ))}
+              </div>
+              
+              {weaknessStats.priorityQueue.length > 0 && (
+                <div style={{ marginTop: '6px', borderTop: '1px dashed var(--surface0)', paddingTop: '6px' }}>
+                  <span style={{ fontWeight: '700', color: 'var(--accent)', display: 'block', marginBottom: '4px' }}>💡 Priority Queue Recommendation:</span>
+                  <div style={{ padding: '6px', background: 'var(--crust)', borderRadius: '4px', fontStyle: 'italic' }}>
+                    "You rated {weaknessStats.priorityQueue[0].subject.name} as hard {weaknessStats.priorityQueue[0].hardCount} times but only studied it for {weaknessStats.priorityQueue[0].hours.toFixed(1)}h — consider dedicating more focus sessions here."
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Selected day sessions Modal */}
       {selectedDate && (() => {

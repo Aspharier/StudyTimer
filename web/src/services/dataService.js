@@ -18,6 +18,12 @@ let subjects = JSON.parse(localStorage.getItem('focusly_subjects') || '[]');
 let topics = JSON.parse(localStorage.getItem('focusly_topics') || '[]');
 let sessions = JSON.parse(localStorage.getItem('focusly_sessions') || '[]');
 let mockTests = JSON.parse(localStorage.getItem('focusly_mock_tests') || '[]');
+let flashcards = JSON.parse(localStorage.getItem('focusly_flashcards') || '[]');
+let mistakes = JSON.parse(localStorage.getItem('focusly_mistakes') || '[]');
+let dailyTargets = JSON.parse(localStorage.getItem('focusly_daily_targets') || '[]');
+let streakFreezes = JSON.parse(localStorage.getItem('focusly_streak_freezes') || '[]');
+let freezeTokens = parseInt(localStorage.getItem('focusly_freeze_tokens') || '1');
+let longestStreak = parseInt(localStorage.getItem('focusly_longest_streak') || '0');
 
 const listeners = {
   examGoals: [],
@@ -25,14 +31,35 @@ const listeners = {
   topics: [],
   sessions: [],
   mockTests: [],
+  flashcards: [],
+  mistakes: [],
+  dailyTargets: [],
+  streakFreezes: [],
+  freezeTokens: [],
+  longestStreak: [],
   auth: [],
   lastSyncTime: []
 };
 
+const storageKeys = {
+  examGoals: 'focusly_exam_goals',
+  subjects: 'focusly_subjects',
+  topics: 'focusly_topics',
+  sessions: 'focusly_sessions',
+  mockTests: 'focusly_mock_tests',
+  flashcards: 'focusly_flashcards',
+  mistakes: 'focusly_mistakes',
+  dailyTargets: 'focusly_daily_targets',
+  streakFreezes: 'focusly_streak_freezes',
+  freezeTokens: 'focusly_freeze_tokens',
+  longestStreak: 'focusly_longest_streak'
+};
+
 // Notify listeners of changes
 const notify = (key, data) => {
-  localStorage.setItem(`focusly_${key}`, JSON.stringify(data));
-  listeners[key].forEach(cb => cb(data));
+  const storageKey = storageKeys[key] || `focusly_${key}`;
+  localStorage.setItem(storageKey, JSON.stringify(data));
+  listeners[key]?.forEach(cb => cb(data));
 };
 
 const updateLastSyncTime = () => {
@@ -66,7 +93,6 @@ if (auth) {
       const goalsRef = collection(db, 'users', user.uid, 'exam_goals');
       const goalsUnsub = onSnapshot(goalsRef, (snapshot) => {
         const cloudGoals = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        // If we got items from cloud, merge and update local cache
         if (cloudGoals.length > 0) {
           examGoals = cloudGoals;
           notify('examGoals', examGoals);
@@ -101,7 +127,6 @@ if (auth) {
       const sessionsUnsub = onSnapshot(sessionsRef, (snapshot) => {
         const cloudSessions = snapshot.docs.map(d => {
           const data = d.data();
-          // Convert timestamp numbers if needed
           return { id: d.id, ...data };
         });
         if (cloudSessions.length > 0) {
@@ -122,6 +147,69 @@ if (auth) {
         updateLastSyncTime();
       });
       firestoreUnsubs.push(mockTestsUnsub);
+
+      const flashcardsRef = collection(db, 'users', user.uid, 'flashcards');
+      const flashcardsUnsub = onSnapshot(flashcardsRef, (snapshot) => {
+        const cloudCards = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (cloudCards.length > 0) {
+          flashcards = cloudCards;
+          notify('flashcards', flashcards);
+        }
+        updateLastSyncTime();
+      });
+      firestoreUnsubs.push(flashcardsUnsub);
+
+      const mistakesRef = collection(db, 'users', user.uid, 'mistakes');
+      const mistakesUnsub = onSnapshot(mistakesRef, (snapshot) => {
+        const cloudMistakes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (cloudMistakes.length > 0) {
+          mistakes = cloudMistakes;
+          notify('mistakes', mistakes);
+        }
+        updateLastSyncTime();
+      });
+      firestoreUnsubs.push(mistakesUnsub);
+
+      const dailyTargetsRef = collection(db, 'users', user.uid, 'daily_targets');
+      const dailyTargetsUnsub = onSnapshot(dailyTargetsRef, (snapshot) => {
+        const cloudDailyTargets = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (cloudDailyTargets.length > 0) {
+          dailyTargets = cloudDailyTargets;
+          notify('dailyTargets', dailyTargets);
+        }
+        updateLastSyncTime();
+      });
+      firestoreUnsubs.push(dailyTargetsUnsub);
+
+      const streakMetadataRef = doc(db, 'users', user.uid, 'streak_metadata', 'freezes');
+      const streakMetadataUnsub = onSnapshot(streakMetadataRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.streakFreezes) {
+            streakFreezes = data.streakFreezes;
+            notify('streakFreezes', streakFreezes);
+          }
+          if (data.freezeTokens !== undefined) {
+            freezeTokens = data.freezeTokens;
+            notify('freezeTokens', freezeTokens);
+          }
+        }
+        updateLastSyncTime();
+      });
+      firestoreUnsubs.push(streakMetadataUnsub);
+
+      const streakLongestRef = doc(db, 'users', user.uid, 'streak_metadata', 'longest');
+      const streakLongestUnsub = onSnapshot(streakLongestRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.longestStreak !== undefined) {
+            longestStreak = data.longestStreak;
+            notify('longestStreak', longestStreak);
+          }
+        }
+        updateLastSyncTime();
+      });
+      firestoreUnsubs.push(streakLongestUnsub);
     } else {
       // Logged out: clean up Firestore and clear local cache
       clearFirestoreSubscriptions();
@@ -132,6 +220,12 @@ if (auth) {
       localStorage.removeItem('focusly_topics');
       localStorage.removeItem('focusly_sessions');
       localStorage.removeItem('focusly_mock_tests');
+      localStorage.removeItem('focusly_flashcards');
+      localStorage.removeItem('focusly_mistakes');
+      localStorage.removeItem('focusly_daily_targets');
+      localStorage.removeItem('focusly_streak_freezes');
+      localStorage.removeItem('focusly_freeze_tokens');
+      localStorage.removeItem('focusly_longest_streak');
       localStorage.removeItem('focusly_last_sync_time');
 
       // Reset memory cache
@@ -140,12 +234,24 @@ if (auth) {
       topics = [];
       sessions = [];
       mockTests = [];
+      flashcards = [];
+      mistakes = [];
+      dailyTargets = [];
+      streakFreezes = [];
+      freezeTokens = 1;
+      longestStreak = 0;
 
       notify('examGoals', examGoals);
       notify('subjects', subjects);
       notify('topics', topics);
       notify('sessions', sessions);
       notify('mockTests', mockTests);
+      notify('flashcards', flashcards);
+      notify('mistakes', mistakes);
+      notify('dailyTargets', dailyTargets);
+      notify('streakFreezes', streakFreezes);
+      notify('freezeTokens', freezeTokens);
+      notify('longestStreak', longestStreak);
 
       // Notify last sync time listeners
       listeners.lastSyncTime.forEach(cb => cb(null));
@@ -205,7 +311,9 @@ const syncLocalToCloud = async (uid) => {
         isCompleted: se.isCompleted,
         notes: se.notes || null,
         tag: se.tag || null,
-        subjectId: se.subjectId || null
+        subjectId: se.subjectId || null,
+        confidenceRating: se.confidenceRating || null,
+        focusScore: se.focusScore !== undefined ? se.focusScore : null
       });
     });
 
@@ -223,6 +331,24 @@ const syncLocalToCloud = async (uid) => {
         createdAt: m.createdAt || Date.now()
       });
     });
+
+    flashcards.forEach(c => {
+      const ref = doc(db, 'users', uid, 'flashcards', String(c.id));
+      batch.set(ref, c);
+    });
+
+    mistakes.forEach(m => {
+      const ref = doc(db, 'users', uid, 'mistakes', String(m.id));
+      batch.set(ref, m);
+    });
+
+    dailyTargets.forEach(dt => {
+      const ref = doc(db, 'users', uid, 'daily_targets', String(dt.id));
+      batch.set(ref, dt);
+    });
+
+    batch.set(doc(db, 'users', uid, 'streak_metadata', 'freezes'), { streakFreezes, freezeTokens });
+    batch.set(doc(db, 'users', uid, 'streak_metadata', 'longest'), { longestStreak });
 
     await batch.commit();
     console.log("Successfully synced local storage cache to Firestore cloud!");
@@ -374,6 +500,36 @@ export const DataService = {
         await deleteDoc(doc(db, 'users', user.uid, 'topics', String(t.id)));
       }
     }
+
+    // Cascade delete flashcards
+    const cardsToDelete = flashcards.filter(c => String(c.subjectId) === String(id));
+    flashcards = flashcards.filter(c => String(c.subjectId) !== String(id));
+    notify('flashcards', flashcards);
+    if (user && db) {
+      for (const c of cardsToDelete) {
+        await deleteDoc(doc(db, 'users', user.uid, 'flashcards', String(c.id)));
+      }
+    }
+
+    // Cascade delete mistakes
+    const mistakesToDelete = mistakes.filter(m => String(m.subjectId) === String(id));
+    mistakes = mistakes.filter(m => String(m.subjectId) !== String(id));
+    notify('mistakes', mistakes);
+    if (user && db) {
+      for (const m of mistakesToDelete) {
+        await deleteDoc(doc(db, 'users', user.uid, 'mistakes', String(m.id)));
+      }
+    }
+
+    // Cascade delete daily targets
+    const targetsToDelete = dailyTargets.filter(dt => String(dt.subjectId) === String(id));
+    dailyTargets = dailyTargets.filter(dt => String(dt.subjectId) !== String(id));
+    notify('dailyTargets', dailyTargets);
+    if (user && db) {
+      for (const dt of targetsToDelete) {
+        await deleteDoc(doc(db, 'users', user.uid, 'daily_targets', String(dt.id)));
+      }
+    }
   },
 
   // Topics CRUD
@@ -435,7 +591,9 @@ export const DataService = {
         isCompleted: newSession.isCompleted,
         notes: newSession.notes || null,
         tag: newSession.tag || null,
-        subjectId: newSession.subjectId || null
+        subjectId: newSession.subjectId || null,
+        confidenceRating: newSession.confidenceRating || null,
+        focusScore: newSession.focusScore !== undefined ? newSession.focusScore : null
       });
     }
   },
@@ -483,6 +641,144 @@ export const DataService = {
     const user = auth?.currentUser;
     if (user && db) {
       await deleteDoc(doc(db, 'users', user.uid, 'mock_tests', id));
+    }
+  },
+
+  // Flashcards CRUD
+  subscribeToFlashcards: (cb) => {
+    listeners.flashcards.push(cb);
+    cb(flashcards);
+    return () => { listeners.flashcards = listeners.flashcards.filter(x => x !== cb); };
+  },
+  saveFlashcard: async (card) => {
+    const id = card.id || String(Date.now());
+    const newCard = { ...card, id };
+    flashcards = flashcards.filter(x => x.id !== id);
+    flashcards.push(newCard);
+    notify('flashcards', flashcards);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      const ref = doc(db, 'users', user.uid, 'flashcards', id);
+      await setDoc(ref, newCard);
+    }
+  },
+  deleteFlashcard: async (id) => {
+    flashcards = flashcards.filter(x => x.id !== id);
+    notify('flashcards', flashcards);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      await deleteDoc(doc(db, 'users', user.uid, 'flashcards', id));
+    }
+  },
+
+  // Mistakes CRUD
+  subscribeToMistakes: (cb) => {
+    listeners.mistakes.push(cb);
+    cb(mistakes);
+    return () => { listeners.mistakes = listeners.mistakes.filter(x => x !== cb); };
+  },
+  saveMistake: async (mistake) => {
+    const id = mistake.id || String(Date.now());
+    const newMistake = { ...mistake, id };
+    mistakes = mistakes.filter(x => x.id !== id);
+    mistakes.push(newMistake);
+    notify('mistakes', mistakes);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      const ref = doc(db, 'users', user.uid, 'mistakes', id);
+      await setDoc(ref, newMistake);
+    }
+  },
+  deleteMistake: async (id) => {
+    mistakes = mistakes.filter(x => x.id !== id);
+    notify('mistakes', mistakes);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      await deleteDoc(doc(db, 'users', user.uid, 'mistakes', id));
+    }
+  },
+
+  // Daily Targets CRUD
+  subscribeToDailyTargets: (cb) => {
+    listeners.dailyTargets.push(cb);
+    cb(dailyTargets);
+    return () => { listeners.dailyTargets = listeners.dailyTargets.filter(x => x !== cb); };
+  },
+  saveDailyTarget: async (target) => {
+    const id = target.id || String(Date.now());
+    const newTarget = { ...target, id };
+    dailyTargets = dailyTargets.filter(x => x.id !== id);
+    dailyTargets.push(newTarget);
+    notify('dailyTargets', dailyTargets);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      const ref = doc(db, 'users', user.uid, 'daily_targets', id);
+      await setDoc(ref, newTarget);
+    }
+  },
+  deleteDailyTarget: async (id) => {
+    dailyTargets = dailyTargets.filter(x => x.id !== id);
+    notify('dailyTargets', dailyTargets);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      await deleteDoc(doc(db, 'users', user.uid, 'daily_targets', id));
+    }
+  },
+
+  // Streak Freezes CRUD
+  subscribeToStreakFreezes: (cb) => {
+    listeners.streakFreezes.push(cb);
+    cb(streakFreezes);
+    return () => { listeners.streakFreezes = listeners.streakFreezes.filter(x => x !== cb); };
+  },
+  subscribeToFreezeTokens: (cb) => {
+    listeners.freezeTokens.push(cb);
+    cb(freezeTokens);
+    return () => { listeners.freezeTokens = listeners.freezeTokens.filter(x => x !== cb); };
+  },
+  subscribeToLongestStreak: (cb) => {
+    listeners.longestStreak.push(cb);
+    cb(longestStreak);
+    return () => { listeners.longestStreak = listeners.longestStreak.filter(x => x !== cb); };
+  },
+  useStreakFreeze: async (dateStr) => {
+    if (freezeTokens <= 0) return false;
+    if (streakFreezes.includes(dateStr)) return false;
+    
+    streakFreezes.push(dateStr);
+    freezeTokens = freezeTokens - 1;
+    
+    notify('streakFreezes', streakFreezes);
+    notify('freezeTokens', freezeTokens);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      await setDoc(doc(db, 'users', user.uid, 'streak_metadata', 'freezes'), { streakFreezes, freezeTokens });
+    }
+    return true;
+  },
+  awardStreakFreeze: async () => {
+    freezeTokens = freezeTokens + 1;
+    notify('freezeTokens', freezeTokens);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      await setDoc(doc(db, 'users', user.uid, 'streak_metadata', 'freezes'), { streakFreezes, freezeTokens });
+    }
+  },
+  saveLongestStreak: async (val) => {
+    longestStreak = val;
+    notify('longestStreak', longestStreak);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      await setDoc(doc(db, 'users', user.uid, 'streak_metadata', 'longest'), { longestStreak });
     }
   }
 };
