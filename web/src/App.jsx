@@ -487,6 +487,11 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
     showToast('Daily target added!');
   };
 
+  const handleDeleteDailyTarget = (id) => {
+    DataService.deleteDailyTarget(id);
+    showToast('Daily target removed!');
+  };
+
   const totalPlannedMins = todayTargets.reduce((acc, t) => acc + t.targetMinutes, 0);
   const totalAchievedMins = todayTargets.reduce((acc, t) => {
     const tSessions = todaySessions.filter(s => String(s.subjectId) === String(t.subjectId));
@@ -560,23 +565,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
             </div>
           </div>
 
-          {activeGoal && (
-            <div className="reverse-planner" style={{ marginTop: '10px', padding: '8px', background: 'var(--crust)', borderRadius: '6px', border: '1px solid var(--surface0)', fontSize: '10px', lineHeight: '1.4' }}>
-              <div style={{ fontWeight: '700', marginBottom: '2px', color: 'var(--accent)' }}>📅 Reverse Planning Stats</div>
-              <div>
-                You have <strong>{daysRemaining} days</strong> and <strong>{subjects.length} subjects</strong> — that's ~<strong>{(daysRemaining / (subjects.length || 1)).toFixed(1)} days</strong> per subject.
-              </div>
-              {subjects.some(s => sessions.filter(se => String(se.subjectId) === String(s.id)).reduce((acc, se) => acc + se.completedDurationSeconds, 0) === 0) ? (
-                <div style={{ color: 'var(--yellow)', marginTop: '2px' }}>
-                  ⚠️ Warn: You have subjects with 0 study hours logged. Consider studying them.
-                </div>
-              ) : (
-                <div style={{ color: 'var(--green)', marginTop: '2px' }}>
-                  ✓ Great job! All active subjects have study hours registered.
-                </div>
-              )}
-            </div>
-          )}
+
         </div>
       </div>
 
@@ -1042,7 +1031,7 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
 
   // New Upgrades State
   const [pausesCount, setPausesCount] = useState(0);
-  const [activeSound, setActiveSound] = useState('none');
+
   const [showSimWarning, setShowSimWarning] = useState(false);
   const [simApproved, setSimApproved] = useState(false);
   const [sessionConfidence, setSessionConfidence] = useState(3);
@@ -1050,10 +1039,7 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
   const [flashcardQuestion, setFlashcardQuestion] = useState('');
   const [flashcardAnswer, setFlashcardAnswer] = useState('');
 
-  // Audio References
-  const rainAudioRef = useRef(null);
-  const brownAudioRef = useRef(null);
-  const lofiAudioRef = useRef(null);
+
 
   // Notify parent of isSessionActive state
   useEffect(() => {
@@ -1093,22 +1079,7 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
     };
   }, []);
 
-  // Ambient sound play side effects
-  useEffect(() => {
-    rainAudioRef.current?.pause();
-    brownAudioRef.current?.pause();
-    lofiAudioRef.current?.pause();
 
-    if (isTimerRunning) {
-      if (activeSound === 'rain' && rainAudioRef.current) {
-        rainAudioRef.current.play().catch(e => console.log('Rain playback blocked', e));
-      } else if (activeSound === 'brown' && brownAudioRef.current) {
-        brownAudioRef.current.play().catch(e => console.log('Brown noise playback blocked', e));
-      } else if (activeSound === 'lofi' && lofiAudioRef.current) {
-        lofiAudioRef.current.play().catch(e => console.log('Lofi playback blocked', e));
-      }
-    }
-  }, [activeSound, isTimerRunning]);
 
   // Before unload handler for exam simulation
   useEffect(() => {
@@ -1365,9 +1336,6 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
 
   return (
     <>
-      <audio ref={rainAudioRef} src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" loop />
-      <audio ref={brownAudioRef} src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" loop />
-      <audio ref={lofiAudioRef} src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" loop />
       {/* Large Pomodoro Window */}
       <div className={`hypr-window span-2 ${isSessionActive ? 'immersive-active' : ''}`} style={{ minHeight: 0 }}>
         {isSessionActive && (
@@ -1434,22 +1402,7 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
             })}
           </div>
 
-          {/* Ambient Sound selector inside Focus view */}
-          {isSessionActive && (
-            <div className="ambient-selector" style={{ margin: '8px 0 14px 0', display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <span style={{ fontSize: '10px', color: 'var(--overlay0)' }}>Ambient Soundscape:</span>
-              {['none', 'rain', 'brown', 'lofi'].map(snd => (
-                <button 
-                  key={snd} 
-                  className={`chip ${activeSound === snd ? 'active' : ''}`} 
-                  onClick={() => setActiveSound(snd)}
-                  style={{ fontSize: '9px', padding: '2px 8px', textTransform: 'capitalize', cursor: 'pointer' }}
-                >
-                  {snd === 'none' ? 'off' : snd}
-                </button>
-              ))}
-            </div>
-          )}
+
 
           <div className="pomo-controls">
             {isTimerRunning ? (
@@ -1899,32 +1852,7 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
 
                     {isExpanded && (
                       <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid var(--surface0)', paddingTop: '12px' }}>
-                        <div style={{ display: 'flex', gap: '12px', background: 'var(--crust)', padding: '10px', borderRadius: '6px', border: '1px solid var(--surface0)' }} onClick={(e) => e.stopPropagation()}>
-                          <div className="form-group" style={{ flex: 1 }}>
-                            <label className="form-label">target hours</label>
-                            <input 
-                              type="number" 
-                              className="hypr-input" 
-                              style={{ height: '30px', padding: '4px 8px' }}
-                              value={s.targetHours || ''} 
-                              onChange={(e) => DataService.saveSubject({ ...s, targetHours: parseInt(e.target.value) || null })}
-                              placeholder="e.g. 40"
-                            />
-                          </div>
-                          <div className="form-group" style={{ flex: 1 }}>
-                            <label className="form-label">priority</label>
-                            <select 
-                              className="hypr-input" 
-                              style={{ height: '30px', padding: '4px 8px', cursor: 'pointer' }}
-                              value={s.priority || 'MEDIUM'} 
-                              onChange={(e) => DataService.saveSubject({ ...s, priority: e.target.value })}
-                            >
-                              <option value="HIGH">HIGH Priority</option>
-                              <option value="MEDIUM">MEDIUM Priority</option>
-                              <option value="LOW">LOW Priority</option>
-                            </select>
-                          </div>
-                        </div>
+
 
                         {subjTopics.length === 0 ? (
                           <p style={{ color: 'var(--overlay0)', fontSize: '11px', textAlign: 'center', padding: '8px' }}>No topics found. Add one below!</p>
