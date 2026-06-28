@@ -119,21 +119,62 @@ abstract class StudyTimerDatabase : RoomDatabase() {
 
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Link tests to a specific topic (nullable — existing rows unaffected)
-                db.execSQL("ALTER TABLE mock_tests ADD COLUMN topicId INTEGER DEFAULT NULL")
-                // Questions breakdown
-                db.execSQL("ALTER TABLE mock_tests ADD COLUMN totalQuestions INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE mock_tests ADD COLUMN attempted1Mark INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE mock_tests ADD COLUMN attempted2Mark INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE mock_tests ADD COLUMN notAttempted INTEGER NOT NULL DEFAULT 0")
-                // Marks breakdown
-                db.execSQL("ALTER TABLE mock_tests ADD COLUMN correctMarks REAL NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE mock_tests ADD COLUMN penaltyMarks REAL NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE mock_tests ADD COLUMN netMarks REAL NOT NULL DEFAULT 0")
-                // Time tracking
-                db.execSQL("ALTER TABLE mock_tests ADD COLUMN totalTimeMinutes INTEGER NOT NULL DEFAULT 0")
-                db.execSQL("ALTER TABLE mock_tests ADD COLUMN timeTakenMinutes INTEGER NOT NULL DEFAULT 0")
-                // Index on topicId for fast topic-based queries
+                // SQLite doesn't support adding foreign key constraints or modifying column default constraints via ALTER TABLE.
+                // We recreate the mock_tests table with the correct schema, copy the data, drop the old table, and recreate indices.
+                
+                // 1. Rename existing table
+                db.execSQL("ALTER TABLE mock_tests RENAME TO mock_tests_old")
+                
+                // 2. Create the new table matching expected Room schema (no default values on the new columns)
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS mock_tests (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        examGoalId INTEGER NOT NULL,
+                        subjectId INTEGER NOT NULL,
+                        topicId INTEGER,
+                        testName TEXT NOT NULL,
+                        scorePercentage REAL NOT NULL,
+                        totalMarks REAL NOT NULL,
+                        obtainedMarks REAL NOT NULL,
+                        notes TEXT,
+                        date TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        totalQuestions INTEGER NOT NULL,
+                        attempted1Mark INTEGER NOT NULL,
+                        attempted2Mark INTEGER NOT NULL,
+                        notAttempted INTEGER NOT NULL,
+                        correctMarks REAL NOT NULL,
+                        penaltyMarks REAL NOT NULL,
+                        netMarks REAL NOT NULL,
+                        totalTimeMinutes INTEGER NOT NULL,
+                        timeTakenMinutes INTEGER NOT NULL,
+                        FOREIGN KEY(subjectId) REFERENCES subjects(id) ON DELETE CASCADE,
+                        FOREIGN KEY(examGoalId) REFERENCES exam_goals(id) ON DELETE CASCADE,
+                        FOREIGN KEY(topicId) REFERENCES topics(id) ON DELETE SET_NULL
+                    )
+                """.trimIndent())
+                
+                // 3. Copy data from old table to new table, setting defaults for new columns
+                db.execSQL("""
+                    INSERT INTO mock_tests (
+                        id, examGoalId, subjectId, topicId, testName, scorePercentage,
+                        totalMarks, obtainedMarks, notes, date, createdAt,
+                        totalQuestions, attempted1Mark, attempted2Mark, notAttempted,
+                        correctMarks, penaltyMarks, netMarks, totalTimeMinutes, timeTakenMinutes
+                    )
+                    SELECT
+                        id, examGoalId, subjectId, NULL, testName, scorePercentage,
+                        totalMarks, obtainedMarks, notes, date, createdAt,
+                        0, 0, 0, 0, 0.0, 0.0, 0.0, 0, 0
+                    FROM mock_tests_old
+                """.trimIndent())
+                
+                // 4. Drop the old table
+                db.execSQL("DROP TABLE mock_tests_old")
+                
+                // 5. Recreate indices
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_mock_tests_subjectId ON mock_tests(subjectId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_mock_tests_examGoalId ON mock_tests(examGoalId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_mock_tests_topicId ON mock_tests(topicId)")
             }
         }
