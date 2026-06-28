@@ -2557,7 +2557,8 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
       {/* Window 4: Mock Tests performance */}
       <MockTestSection 
         mockTests={mockTests} 
-        subjects={subjects} 
+        subjects={subjects}
+        topics={topics}
         activeGoal={activeGoal} 
         onSave={onSaveMockTest} 
         onDelete={onDeleteMockTest} 
@@ -2690,20 +2691,42 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
   );
 }
 
-function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete, showToast }) {
+function MockTestSection({ mockTests, subjects, topics, activeGoal, onSave, onDelete, showToast }) {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  const [filterSubject, setFilterSubject] = useState(null);
+  const [filterTopic, setFilterTopic] = useState(null);
+
+  // Form state
   const [testName, setTestName] = useState('');
   const [subjectId, setSubjectId] = useState(subjects[0]?.id || '');
+  const [topicId, setTopicId] = useState('');
   const [obtainedMarks, setObtainedMarks] = useState('');
   const [totalMarks, setTotalMarks] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  // Questions
+  const [totalQ, setTotalQ] = useState('');
+  const [att1, setAtt1] = useState('');
+  const [att2, setAtt2] = useState('');
+  const [notAtt, setNotAtt] = useState('');
+  // Marks
+  const [correctM, setCorrectM] = useState('');
+  const [penaltyM, setPenaltyM] = useState('');
+  // Time
+  const [totalTime, setTotalTime] = useState('');
+  const [timeTaken, setTimeTaken] = useState('');
+
+  const netMarks = (parseFloat(correctM) || 0) - (parseFloat(penaltyM) || 0);
 
   useEffect(() => {
-    if (subjects.length > 0 && !subjectId) {
-      setSubjectId(subjects[0].id);
-    }
+    if (subjects.length > 0 && !subjectId) setSubjectId(subjects[0].id);
   }, [subjects]);
+
+  // Reset topic when subject changes
+  useEffect(() => { setTopicId(''); }, [subjectId]);
+
+  const topicsForSubject = topics?.filter(t => String(t.subjectId) === String(subjectId)) || [];
 
   if (!activeGoal) {
     return (
@@ -2711,13 +2734,11 @@ function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete, sh
         <div className="win-titlebar">
           <div className="win-title">
             <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
-            mock_tests <span className="class-name">— performance</span>
+            practice_tests <span className="class-name">— performance</span>
           </div>
         </div>
         <div className="win-body">
-          <div className="empty-state">
-            <p>set active goal to view tests</p>
-          </div>
+          <div className="empty-state"><p>set active goal to view tests</p></div>
         </div>
       </div>
     );
@@ -2727,140 +2748,336 @@ function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete, sh
     .filter(t => String(t.examGoalId) === String(activeGoal.id))
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
+  const filteredTests = goalTests.filter(t => {
+    if (filterTopic) return String(t.topicId) === String(filterTopic);
+    if (filterSubject) return String(t.subjectId) === String(filterSubject);
+    return true;
+  });
+
+  const topicsForFilterSubject = topics?.filter(t => String(t.subjectId) === String(filterSubject)) || [];
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!testName || !obtainedMarks || !totalMarks || !subjectId) return;
-
-    const obtained = parseFloat(obtainedMarks);
-    const total = parseFloat(totalMarks);
+    if (!testName || !subjectId) return;
+    const obtained = parseFloat(obtainedMarks) || 0;
+    const total = parseFloat(totalMarks) || 100;
+    const correct = parseFloat(correctM) || 0;
+    const penalty = parseFloat(penaltyM) || 0;
     const scorePercentage = total > 0 ? (obtained / total) * 100 : 0;
-
     onSave({
       examGoalId: activeGoal.id,
-      subjectId: subjectId,
+      subjectId,
+      topicId: topicId || null,
       testName,
       scorePercentage,
       obtainedMarks: obtained,
       totalMarks: total,
+      correctMarks: correct,
+      penaltyMarks: penalty,
+      netMarks: correct - penalty,
+      totalQuestions: parseInt(totalQ) || 0,
+      attempted1Mark: parseInt(att1) || 0,
+      attempted2Mark: parseInt(att2) || 0,
+      notAttempted: parseInt(notAtt) || 0,
+      totalTimeMinutes: parseInt(totalTime) || 0,
+      timeTakenMinutes: parseInt(timeTaken) || 0,
       notes,
       date,
       createdAt: Date.now()
     });
-
-    setTestName('');
-    setObtainedMarks('');
-    setTotalMarks('');
-    setNotes('');
+    setTestName(''); setObtainedMarks(''); setTotalMarks(''); setNotes('');
+    setTotalQ(''); setAtt1(''); setAtt2(''); setNotAtt('');
+    setCorrectM(''); setPenaltyM(''); setTotalTime(''); setTimeTaken('');
+    setTopicId('');
     setShowAddForm(false);
   };
 
-  const chartData = goalTests.map(t => {
-    const subj = subjects.find(s => String(s.id) === String(t.subjectId));
-    return {
-      date: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-      score: Math.round(t.scorePercentage),
-      name: t.testName,
-      subject: subj?.name || 'Subject'
-    };
-  });
+  const chartData = filteredTests.map(t => ({
+    date: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    score: Math.round(t.scorePercentage),
+    name: t.testName
+  }));
 
   return (
     <div className="hypr-window span-2">
       <div className="win-titlebar">
         <div className="win-title">
           <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
-          mock_tests <span className="class-name">— performance</span>
+          practice_tests <span className="class-name">— performance</span>
         </div>
         {subjects.length > 0 && !showAddForm && (
           <button className="hypr-btn" style={{ padding: '3px 8px', fontSize: '10px' }} onClick={() => setShowAddForm(true)}>
-            + log score
+            + log result
           </button>
         )}
       </div>
       <div className="win-body">
         {showAddForm ? (
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* Section: Test Info */}
+            <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid var(--surface0)', paddingBottom: '4px' }}>📝 Test Details</div>
             <div className="form-group">
-              <label className="form-label">test name</label>
-              <input className="hypr-input" value={testName} onChange={e => setTestName(e.target.value)} required placeholder="e.g. Midterm 1" />
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">obtained</label>
-                <input className="hypr-input" type="number" step="any" value={obtainedMarks} onChange={e => setObtainedMarks(e.target.value)} required placeholder="85" />
-              </div>
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">total</label>
-                <input className="hypr-input" type="number" step="any" value={totalMarks} onChange={e => setTotalMarks(e.target.value)} required placeholder="100" />
-              </div>
+              <label className="form-label">test name *</label>
+              <input className="hypr-input" value={testName} onChange={e => setTestName(e.target.value)} required placeholder="e.g. Number Series Mock #3" />
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label">subject</label>
                 <select className="hypr-input" value={subjectId} onChange={e => setSubjectId(e.target.value)} required>
-                  {subjects.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
+                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
+              {topicsForSubject.length > 0 && (
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label className="form-label">topic (optional)</label>
+                  <select className="hypr-input" value={topicId} onChange={e => setTopicId(e.target.value)}>
+                    <option value="">— none —</option>
+                    {topicsForSubject.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label">date</label>
                 <input className="hypr-input" type="date" value={date} onChange={e => setDate(e.target.value)} required />
               </div>
             </div>
+
+            {/* Section: Questions */}
+            <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid var(--surface0)', paddingBottom: '4px' }}>❓ Questions Breakdown</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">total Qs</label>
+                <input className="hypr-input" type="number" min="0" value={totalQ} onChange={e => setTotalQ(e.target.value)} placeholder="30" />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">1-mark att.</label>
+                <input className="hypr-input" type="number" min="0" value={att1} onChange={e => setAtt1(e.target.value)} placeholder="10" />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">2-mark att.</label>
+                <input className="hypr-input" type="number" min="0" value={att2} onChange={e => setAtt2(e.target.value)} placeholder="8" />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">skipped</label>
+                <input className="hypr-input" type="number" min="0" value={notAtt} onChange={e => setNotAtt(e.target.value)} placeholder="2" />
+              </div>
+            </div>
+
+            {/* Section: Marks */}
+            <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid var(--surface0)', paddingBottom: '4px' }}>🎯 Marks Breakdown</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">total marks</label>
+                <input className="hypr-input" type="number" step="any" value={totalMarks} onChange={e => setTotalMarks(e.target.value)} placeholder="100" />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">obtained</label>
+                <input className="hypr-input" type="number" step="any" value={obtainedMarks} onChange={e => setObtainedMarks(e.target.value)} placeholder="72" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">correct (+)</label>
+                <input className="hypr-input" type="number" step="any" value={correctM} onChange={e => setCorrectM(e.target.value)} placeholder="2.00" />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">penalty (−)</label>
+                <input className="hypr-input" type="number" step="any" value={penaltyM} onChange={e => setPenaltyM(e.target.value)} placeholder="0.50" />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">net (auto)</label>
+                <div className="hypr-input" style={{ color: netMarks >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: '700', cursor: 'default', display: 'flex', alignItems: 'center' }}>
+                  {(correctM || penaltyM) ? netMarks.toFixed(2) : '—'}
+                </div>
+              </div>
+            </div>
+
+            {/* Section: Time */}
+            <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid var(--surface0)', paddingBottom: '4px' }}>⏱ Time (minutes)</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">allowed</label>
+                <input className="hypr-input" type="number" min="0" value={totalTime} onChange={e => setTotalTime(e.target.value)} placeholder="60" />
+              </div>
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">taken</label>
+                <input className="hypr-input" type="number" min="0" value={timeTaken} onChange={e => setTimeTaken(e.target.value)} placeholder="45" />
+              </div>
+            </div>
+
+            {/* Notes */}
             <div className="form-group">
               <label className="form-label">notes (optional)</label>
-              <input className="hypr-input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Weaknesses, etc." />
+              <input className="hypr-input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Weak areas, observations…" />
             </div>
+
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '4px' }}>
               <button type="button" className="hypr-btn" onClick={() => setShowAddForm(false)}>Cancel</button>
-              <button type="submit" className="hypr-btn primary">Save</button>
+              <button type="submit" className="hypr-btn primary">Save Result</button>
             </div>
           </form>
         ) : (
           <>
+            {/* Subject filter chips */}
+            {subjects.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '8px' }}>
+                <button
+                  className="chip"
+                  style={{ cursor: 'pointer', fontSize: '9px', padding: '2px 7px', background: !filterSubject ? 'var(--accent)' : 'transparent', color: !filterSubject ? 'var(--base)' : 'var(--text)', border: '1px solid var(--accent)' }}
+                  onClick={() => { setFilterSubject(null); setFilterTopic(null); }}
+                >All</button>
+                {subjects.map(s => (
+                  <button key={s.id} className="chip"
+                    style={{ cursor: 'pointer', fontSize: '9px', padding: '2px 7px', background: filterSubject === s.id ? `${s.colorHex}33` : 'transparent', color: s.colorHex, border: `1px solid ${s.colorHex}88` }}
+                    onClick={() => { setFilterSubject(filterSubject === s.id ? null : s.id); setFilterTopic(null); }}
+                  >{s.name}</button>
+                ))}
+              </div>
+            )}
+
+            {/* Topic filter chips */}
+            {filterSubject && topicsForFilterSubject.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px', paddingLeft: '6px' }}>
+                <span style={{ fontSize: '9px', color: 'var(--overlay0)', alignSelf: 'center', marginRight: '4px' }}>topic:</span>
+                <button className="chip"
+                  style={{ cursor: 'pointer', fontSize: '9px', padding: '2px 6px', background: !filterTopic ? 'var(--surface1)' : 'transparent', color: 'var(--text)', border: '1px solid var(--surface1)' }}
+                  onClick={() => setFilterTopic(null)}>All</button>
+                {topicsForFilterSubject.map(t => (
+                  <button key={t.id} className="chip"
+                    style={{ cursor: 'pointer', fontSize: '9px', padding: '2px 6px', background: filterTopic === t.id ? 'var(--surface1)' : 'transparent', color: 'var(--subtext0)', border: '1px solid var(--surface0)' }}
+                    onClick={() => setFilterTopic(filterTopic === t.id ? null : t.id)}>{t.name}</button>
+                ))}
+              </div>
+            )}
+
+            {/* Trend chart */}
             {chartData.length > 0 && (
-              <div style={{ height: '110px', width: '100%', marginBottom: '12px' }}>
+              <div style={{ height: '100px', width: '100%', marginBottom: '12px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={{ top: 5, right: 5, left: -30, bottom: 0 }}>
                     <XAxis dataKey="date" stroke="var(--overlay0)" fontSize={9} tickLine={false} />
                     <YAxis stroke="var(--overlay0)" fontSize={9} tickLine={false} domain={[0, 100]} unit="%" />
-                    <Tooltip />
+                    <Tooltip contentStyle={{ background: 'var(--mantle)', border: '1px solid var(--surface0)', borderRadius: '6px', fontSize: '10px' }} />
                     <Line type="monotone" dataKey="score" stroke="var(--accent)" strokeWidth={2} dot={{ fill: 'var(--accent)', r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             )}
 
+            {/* History cards */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {goalTests.slice().reverse().map(t => {
+              {filteredTests.slice().reverse().map(t => {
                 const subj = subjects.find(s => String(s.id) === String(t.subjectId));
+                const topic = topics?.find(tp => String(tp.id) === String(t.topicId));
                 const score = Math.round(t.scorePercentage);
+                const isExpanded = expandedId === t.id;
+                const scoreColor = score >= 75 ? 'var(--green)' : score >= 50 ? 'var(--yellow)' : 'var(--red)';
+                const hasStats = t.totalQuestions > 0 || t.correctMarks > 0 || t.totalTimeMinutes > 0;
+
+                // Mini bar helper
+                const MiniBar = ({ value, max, color, label }) => {
+                  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', flex: 1 }}>
+                      <div style={{ width: '100%', height: '36px', background: 'var(--surface0)', borderRadius: '3px', display: 'flex', alignItems: 'flex-end', overflow: 'hidden' }}>
+                        <div style={{ width: '100%', height: `${pct}%`, background: color, borderRadius: '3px', transition: 'height 0.4s ease', minHeight: pct > 0 ? '2px' : '0' }} />
+                      </div>
+                      <span style={{ fontSize: '8px', color: 'var(--overlay0)' }}>{label}</span>
+                    </div>
+                  );
+                };
+
                 return (
-                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px', background: 'var(--crust)', border: '1px solid var(--surface0)', borderRadius: '6px', fontSize: '11px' }}>
-                    <div style={{ minWidth: 0, flex: 1, marginRight: '8px' }}>
-                      <div style={{ fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.testName}</div>
-                      <div style={{ color: 'var(--overlay0)', fontSize: '10px', marginTop: '2px' }}>
-                        {t.date} · {t.obtainedMarks}/{t.totalMarks}
+                  <div key={t.id} style={{ background: 'var(--crust)', border: '1px solid var(--surface0)', borderRadius: '8px', fontSize: '11px', overflow: 'hidden' }}>
+                    {/* Card header — always visible */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', cursor: hasStats ? 'pointer' : 'default' }}
+                      onClick={() => hasStats && setExpandedId(isExpanded ? null : t.id)}>
+                      <div style={{ minWidth: 0, flex: 1, marginRight: '8px' }}>
+                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '3px' }}>
+                          {subj && <span className="chip" style={{ fontSize: '8px', padding: '1px 5px', border: `1px solid ${subj.colorHex}55`, color: subj.colorHex, background: `${subj.colorHex}15`, cursor: 'default' }}>{subj.name}</span>}
+                          {topic && <span className="chip" style={{ fontSize: '8px', padding: '1px 5px', border: '1px solid var(--surface1)', color: 'var(--subtext0)', background: 'var(--surface0)', cursor: 'default' }}>{topic.name}</span>}
+                          <span style={{ color: 'var(--overlay0)', fontSize: '9px', alignSelf: 'center' }}>{t.date}</span>
+                        </div>
+                        <div style={{ fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.testName}</div>
+                        <div style={{ color: 'var(--overlay0)', fontSize: '10px', marginTop: '2px' }}>{t.obtainedMarks}/{t.totalMarks} marks</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <span style={{ fontWeight: '800', color: scoreColor, fontSize: '13px' }}>{score}%</span>
+                        {hasStats && <span style={{ color: 'var(--overlay0)', fontSize: '10px' }}>{isExpanded ? '▲' : '▼'}</span>}
+                        <button className="sm-btn" style={{ width: '20px', height: '20px', fontSize: '10px' }} onClick={e => { e.stopPropagation(); onDelete(t.id); }}>×</button>
                       </div>
                     </div>
-                    {subj && (
-                      <span className="chip" style={{ fontSize: '8px', padding: '1px 5px', border: `1px solid ${subj.colorHex}55`, color: subj.colorHex, background: `${subj.colorHex}15`, marginRight: '6px', cursor: 'default' }}>
-                        {subj.name}
-                      </span>
+
+                    {/* Expanded stats */}
+                    {isExpanded && hasStats && (
+                      <div style={{ padding: '0 10px 10px', borderTop: '1px solid var(--surface0)' }}>
+                        {/* 3-panel bar charts */}
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                          {/* Questions panel */}
+                          {t.totalQuestions > 0 && (
+                            <div style={{ flex: 1, background: 'var(--base)', borderRadius: '6px', padding: '8px', border: '1px solid var(--surface0)' }}>
+                              <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text)', textAlign: 'center', marginBottom: '6px' }}>Questions</div>
+                              <div style={{ display: 'flex', gap: '4px', height: '50px' }}>
+                                <MiniBar value={t.attempted1Mark || 0} max={t.totalQuestions} color="#7B61FF" label="1M" />
+                                <MiniBar value={t.attempted2Mark || 0} max={t.totalQuestions} color="#9B8DFF" label="2M" />
+                                <MiniBar value={t.notAttempted || 0} max={t.totalQuestions} color="#888" label="Skip" />
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                {[['1-mark', '#7B61FF', t.attempted1Mark], ['2-mark', '#9B8DFF', t.attempted2Mark], ['skipped', '#888', t.notAttempted]].map(([lbl, clr, val]) => (
+                                  <span key={lbl} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '8px', color: 'var(--subtext0)' }}>
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: clr, display: 'inline-block' }} />{lbl}: {val || 0}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Marks panel */}
+                          {(t.correctMarks > 0 || t.penaltyMarks > 0) && (
+                            <div style={{ flex: 1, background: 'var(--base)', borderRadius: '6px', padding: '8px', border: '1px solid var(--surface0)' }}>
+                              <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text)', textAlign: 'center', marginBottom: '6px' }}>Marks</div>
+                              <div style={{ display: 'flex', gap: '4px', height: '50px' }}>
+                                <MiniBar value={t.correctMarks || 0} max={t.totalMarks || 1} color="#22C55E" label="✓" />
+                                <MiniBar value={t.penaltyMarks || 0} max={t.totalMarks || 1} color="#EF4444" label="−" />
+                                <MiniBar value={Math.max(0, t.netMarks || 0)} max={t.totalMarks || 1} color="#4D96FF" label="Net" />
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                {[['Positive', '#22C55E', t.correctMarks], ['Negative', '#EF4444', t.penaltyMarks], ['Net', '#4D96FF', t.netMarks]].map(([lbl, clr, val]) => (
+                                  <span key={lbl} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '8px', color: 'var(--subtext0)' }}>
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: clr, display: 'inline-block' }} />{lbl}: {(val || 0).toFixed(1)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Time panel */}
+                          {t.totalTimeMinutes > 0 && (
+                            <div style={{ flex: 1, background: 'var(--base)', borderRadius: '6px', padding: '8px', border: '1px solid var(--surface0)' }}>
+                              <div style={{ fontSize: '9px', fontWeight: '700', color: 'var(--text)', textAlign: 'center', marginBottom: '6px' }}>Time</div>
+                              <div style={{ display: 'flex', gap: '4px', height: '50px' }}>
+                                <MiniBar value={t.totalTimeMinutes} max={t.totalTimeMinutes} color="#7B61FF" label="Tot" />
+                                <MiniBar value={t.timeTakenMinutes || 0} max={t.totalTimeMinutes} color="#FB923C" label="Taken" />
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                {[['Total', '#7B61FF', t.totalTimeMinutes + 'm'], ['Taken', '#FB923C', (t.timeTakenMinutes || 0) + 'm']].map(([lbl, clr, val]) => (
+                                  <span key={lbl} style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '8px', color: 'var(--subtext0)' }}>
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: clr, display: 'inline-block' }} />{lbl}: {val}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {t.notes && <div style={{ marginTop: '8px', fontSize: '10px', color: 'var(--subtext0)', fontStyle: 'italic' }}>📝 {t.notes}</div>}
+                      </div>
                     )}
-                    <span style={{ fontWeight: '800', color: score >= 75 ? 'var(--green)' : score >= 50 ? 'var(--yellow)' : 'var(--red)', marginRight: '8px' }}>
-                      {score}%
-                    </span>
-                    <button className="sm-btn" style={{ width: '20px', height: '20px', fontSize: '10px' }} onClick={() => onDelete(t.id)}>
-                      ×
-                    </button>
                   </div>
                 );
               })}
 
-              {goalTests.length === 0 && (
-                <p style={{ color: 'var(--overlay0)', textAlign: 'center', fontSize: '11px', margin: '12px 0' }}>No tests recorded yet.</p>
+              {filteredTests.length === 0 && (
+                <p style={{ color: 'var(--overlay0)', textAlign: 'center', fontSize: '11px', margin: '16px 0' }}>No tests recorded yet. Tap "log result" to start tracking.</p>
               )}
             </div>
           </>

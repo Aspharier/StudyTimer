@@ -48,29 +48,62 @@ class MockTestRepository @Inject constructor(
         }
     }
 
+    fun getMockTestsBySubject(subjectId: Long): Flow<List<MockTest>> {
+        return mockTestDao.getMockTestsBySubject(subjectId).map { entities ->
+            entities.map { it.toModel() }
+        }
+    }
+
+    fun getMockTestsByTopic(topicId: Long): Flow<List<MockTest>> {
+        return mockTestDao.getMockTestsByTopic(topicId).map { entities ->
+            entities.map { it.toModel() }
+        }
+    }
+
     private fun MockTest.toEntity() = MockTestEntity(
         id = id,
         examGoalId = examGoalId,
         subjectId = subjectId,
+        topicId = topicId,
         testName = testName,
         scorePercentage = scorePercentage,
         totalMarks = totalMarks,
         obtainedMarks = obtainedMarks,
         notes = notes,
         date = date,
-        createdAt = createdAt
+        createdAt = createdAt,
+        totalQuestions = totalQuestions,
+        attempted1Mark = attempted1Mark,
+        attempted2Mark = attempted2Mark,
+        notAttempted = notAttempted,
+        correctMarks = correctMarks,
+        penaltyMarks = penaltyMarks,
+        netMarks = netMarks,
+        totalTimeMinutes = totalTimeMinutes,
+        timeTakenMinutes = timeTakenMinutes
     )
 
     private fun MockTestEntity.toModel() = MockTest(
         id = id,
         examGoalId = examGoalId,
         subjectId = subjectId,
+        topicId = topicId,
         testName = testName,
         scorePercentage = scorePercentage,
         totalMarks = totalMarks,
         obtainedMarks = obtainedMarks,
         notes = notes,
         date = date,
-        createdAt = createdAt
+        createdAt = createdAt,
+        totalQuestions = totalQuestions,
+        attempted1Mark = attempted1Mark,
+        attempted2Mark = attempted2Mark,
+        notAttempted = notAttempted,
+        correctMarks = correctMarks,
+        penaltyMarks = penaltyMarks,
+        netMarks = netMarks,
+        totalTimeMinutes = totalTimeMinutes,
+        timeTakenMinutes = timeTakenMinutes
     )
 }
+

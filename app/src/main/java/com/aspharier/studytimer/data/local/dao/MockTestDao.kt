@@ -17,10 +17,17 @@ interface MockTestDao {
 
     @Query("SELECT AVG(scorePercentage) FROM mock_tests WHERE subjectId = :subjectId")
     fun getAverageScoreForSubject(subjectId: Long): Flow<Float?>
-    
+
     @Query("SELECT * FROM mock_tests")
     fun getAllMockTests(): Flow<List<MockTestEntity>>
+
+    @Query("SELECT * FROM mock_tests WHERE subjectId = :subjectId ORDER BY date ASC")
+    fun getMockTestsBySubject(subjectId: Long): Flow<List<MockTestEntity>>
+
+    @Query("SELECT * FROM mock_tests WHERE topicId = :topicId ORDER BY date ASC")
+    fun getMockTestsByTopic(topicId: Long): Flow<List<MockTestEntity>>
 
     @Query("DELETE FROM mock_tests WHERE id = :id")
     suspend fun deleteById(id: Long)
 }
+

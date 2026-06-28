@@ -23,7 +23,7 @@ import com.aspharier.studytimer.data.local.entity.MockTestEntity
         TopicEntity::class,
         MockTestEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class StudyTimerDatabase : RoomDatabase() {
@@ -114,6 +114,27 @@ abstract class StudyTimerDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE subjects ADD COLUMN targetHours INTEGER DEFAULT NULL")
                 db.execSQL("ALTER TABLE subjects ADD COLUMN priority TEXT NOT NULL DEFAULT 'MEDIUM'")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Link tests to a specific topic (nullable — existing rows unaffected)
+                db.execSQL("ALTER TABLE mock_tests ADD COLUMN topicId INTEGER DEFAULT NULL")
+                // Questions breakdown
+                db.execSQL("ALTER TABLE mock_tests ADD COLUMN totalQuestions INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE mock_tests ADD COLUMN attempted1Mark INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE mock_tests ADD COLUMN attempted2Mark INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE mock_tests ADD COLUMN notAttempted INTEGER NOT NULL DEFAULT 0")
+                // Marks breakdown
+                db.execSQL("ALTER TABLE mock_tests ADD COLUMN correctMarks REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE mock_tests ADD COLUMN penaltyMarks REAL NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE mock_tests ADD COLUMN netMarks REAL NOT NULL DEFAULT 0")
+                // Time tracking
+                db.execSQL("ALTER TABLE mock_tests ADD COLUMN totalTimeMinutes INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE mock_tests ADD COLUMN timeTakenMinutes INTEGER NOT NULL DEFAULT 0")
+                // Index on topicId for fast topic-based queries
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_mock_tests_topicId ON mock_tests(topicId)")
             }
         }
     }

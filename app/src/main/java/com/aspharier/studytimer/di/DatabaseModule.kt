@@ -31,7 +31,8 @@ object DatabaseModule {
                 StudyTimerDatabase.MIGRATION_1_2,
                 StudyTimerDatabase.MIGRATION_2_3,
                 StudyTimerDatabase.MIGRATION_3_4,
-                StudyTimerDatabase.MIGRATION_4_5
+                StudyTimerDatabase.MIGRATION_4_5,
+                StudyTimerDatabase.MIGRATION_5_6
             )
             .build()
     }
