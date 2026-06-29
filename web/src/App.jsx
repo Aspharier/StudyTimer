@@ -375,8 +375,14 @@ export default function App() {
 // ----------------------------------------------------
 
 function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, onFocusNow, currentStreak, todayHours, showToast, theme, flashcards, dailyTargets, freezeTokens, streakFreezes, longestStreak, weeklyStreakDays }) {
+  const safeSessions = sessions || [];
+  const safeSubjects = subjects || [];
+  const safeTopics = topics || [];
+  const safeFlashcards = flashcards || [];
+  const safeDailyTargets = dailyTargets || [];
+
   const todayStr = new Date().toISOString().split('T')[0];
-  const todaySessions = sessions.filter(s => s.date === todayStr);
+  const todaySessions = safeSessions.filter(s => s.date === todayStr);
   const dailyTargetMinutes = activeGoal ? activeGoal.dailyTargetMinutes : 360;
 
   // --- MOTIVATION ENGINE OVERHAUL CALCULATIONS ---
@@ -399,12 +405,12 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
   lastSunday.setDate(thisSunday.getDate() - 7);
   lastSunday.setHours(23,59,59,999);
 
-  const thisWeekSessions = sessions.filter(s => {
+  const thisWeekSessions = safeSessions.filter(s => {
     const d = new Date(s.date);
     return d >= thisMonday && d <= thisSunday;
   });
   
-  const lastWeekSessions = sessions.filter(s => {
+  const lastWeekSessions = safeSessions.filter(s => {
     const d = new Date(s.date);
     return d >= lastMonday && d <= lastSunday;
   });
@@ -414,12 +420,12 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
   last7DaysLimit.setDate(today.getDate() - 6);
   last7DaysLimit.setHours(0,0,0,0);
   
-  const last7DaysSessions = sessions.filter(s => {
+  const last7DaysSessions = safeSessions.filter(s => {
     const d = new Date(s.date);
     return d >= last7DaysLimit && d <= today;
   });
   
-  const last7DaysTotalSeconds = last7DaysSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+  const last7DaysTotalSeconds = last7DaysSessions.reduce((acc, s) => acc + (s.completedDurationSeconds || 0), 0);
   const rollingAverageMinutes = Math.round(last7DaysTotalSeconds / 7.0 / 60.0);
   
   const stretchTargetMinutes = Math.round(rollingAverageMinutes * 1.15);
@@ -427,8 +433,8 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
   const isAdaptiveAboveBase = adaptiveTargetMinutes > dailyTargetMinutes;
 
   // 2. Calculate Momentum
-  const thisWeekTotalSeconds = thisWeekSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
-  const lastWeekTotalSeconds = lastWeekSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+  const thisWeekTotalSeconds = thisWeekSessions.reduce((acc, s) => acc + (s.completedDurationSeconds || 0), 0);
+  const lastWeekTotalSeconds = lastWeekSessions.reduce((acc, s) => acc + (s.completedDurationSeconds || 0), 0);
   
   const thisWeekHours = thisWeekTotalSeconds / 3600.0;
   const lastWeekHours = lastWeekTotalSeconds / 3600.0;
@@ -455,22 +461,22 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
 
   // 3. Generate & Evaluate Weekly Challenges
   const dailyTotals = {};
-  sessions.forEach(s => {
-    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + s.completedDurationSeconds;
+  safeSessions.forEach(s => {
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + (s.completedDurationSeconds || 0);
   });
   const personalBestDailySeconds = Object.values(dailyTotals).reduce((max, val) => Math.max(max, val), 0);
 
-  const activeDaysLastWeek = new Set(lastWeekSessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date)).size;
+  const activeDaysLastWeek = new Set(lastWeekSessions.filter(s => (s.completedDurationSeconds || 0) > 0).map(s => s.date)).size;
   const consistencyTarget = activeDaysLastWeek >= 4 ? 5 : 4;
   const timeStretchTargetSeconds = Math.max(Math.round(lastWeekTotalSeconds * 1.1), 10 * 3600);
   const personalBestTargetSeconds = Math.max(personalBestDailySeconds, 4 * 3600);
 
-  const consistencyCurrent = new Set(thisWeekSessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date)).size;
+  const consistencyCurrent = new Set(thisWeekSessions.filter(s => (s.completedDurationSeconds || 0) > 0).map(s => s.date)).size;
   const timeStretchCurrent = thisWeekTotalSeconds;
   
   const dailyTotalsThisWeek = {};
   thisWeekSessions.forEach(s => {
-    dailyTotalsThisWeek[s.date] = (dailyTotalsThisWeek[s.date] || 0) + s.completedDurationSeconds;
+    dailyTotalsThisWeek[s.date] = (dailyTotalsThisWeek[s.date] || 0) + (s.completedDurationSeconds || 0);
   });
   const personalBestCurrent = Object.values(dailyTotalsThisWeek).reduce((max, val) => Math.max(max, val), 0);
 
@@ -528,14 +534,14 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
   const [revealAnswer, setRevealAnswer] = useState(false);
 
   // Daily target planner state
-  const [dailySubjectId, setDailySubjectId] = useState(subjects[0]?.id || '');
+  const [dailySubjectId, setDailySubjectId] = useState(safeSubjects[0]?.id || '');
   const [dailyTargetMins, setDailyTargetMins] = useState(60);
 
   useEffect(() => {
-    if (subjects.length > 0 && !dailySubjectId) {
-      setDailySubjectId(subjects[0].id);
+    if (safeSubjects.length > 0 && !dailySubjectId) {
+      setDailySubjectId(safeSubjects[0].id);
     }
-  }, [subjects]);
+  }, [safeSubjects]);
 
   const getDaysRemaining = () => {
     if (!activeGoal) return null;
@@ -545,18 +551,18 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
 
   const daysRemaining = getDaysRemaining();
 
-  const subjectsWithRates = subjects.map(s => {
-    const sTopics = topics.filter(t => String(t.subjectId) === String(s.id));
+  const subjectsWithRates = safeSubjects.map(s => {
+    const sTopics = safeTopics.filter(t => String(t.subjectId) === String(s.id));
     const completed = sTopics.filter(t => t.status === 'COMPLETED').length;
     const rate = sTopics.length > 0 ? completed / sTopics.length : 0;
     return { ...s, total: sTopics.length, completed, rate };
   }).sort((a, b) => b.rate - a.rate);
 
-  const recentSessionsList = sessions.slice(0, 4);
+  const recentSessionsList = safeSessions.slice(0, 4);
 
   // Calculate due cards count
   const todayISO = new Date().toISOString().split('T')[0];
-  const dueCards = flashcards.filter(c => !c.nextReviewDate || c.nextReviewDate <= todayISO);
+  const dueCards = safeFlashcards.filter(c => !c.nextReviewDate || c.nextReviewDate <= todayISO);
 
   // Handle flashcard grading using SM-2
   const handleGradeCard = (card, q) => {
@@ -895,7 +901,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {recentSessionsList.map(s => {
-                const subj = subjects.find(sub => String(sub.id) === String(s.subjectId));
+                const subj = safeSubjects.find(sub => String(sub.id) === String(s.subjectId));
                 return (
                   <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', paddingBottom: '6px', borderBottom: '1px solid var(--surface0)' }}>
                     <div style={{ minWidth: 0, flex: 1, marginRight: '8px' }}>
@@ -948,7 +954,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {todayTargets.map(t => {
-                    const subj = subjects.find(s => String(s.id) === String(t.subjectId));
+                    const subj = safeSubjects.find(s => String(s.id) === String(t.subjectId));
                     const matchingSessions = todaySessions.filter(s => String(s.subjectId) === String(t.subjectId));
                     const completedMins = Math.round(matchingSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0) / 60);
                     const isDone = completedMins >= t.targetMinutes;
@@ -1069,7 +1075,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
       {/* Active Recall reviewer Modal overlay */}
       {isReviewModalOpen && dueCards.length > 0 && (() => {
         const card = dueCards[currentReviewCardIndex];
-        const subj = subjects.find(s => String(s.id) === String(card.subjectId));
+        const subj = safeSubjects.find(s => String(s.id) === String(card.subjectId));
         return (
           <div className="modal-overlay">
             <div className="modal-content" style={{ maxWidth: '480px', width: '92%' }}>
