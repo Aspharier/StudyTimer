@@ -150,7 +150,7 @@ abstract class StudyTimerDatabase : RoomDatabase() {
                         timeTakenMinutes INTEGER NOT NULL,
                         FOREIGN KEY(subjectId) REFERENCES subjects(id) ON DELETE CASCADE,
                         FOREIGN KEY(examGoalId) REFERENCES exam_goals(id) ON DELETE CASCADE,
-                        FOREIGN KEY(topicId) REFERENCES topics(id) ON DELETE SET_NULL
+                        FOREIGN KEY(topicId) REFERENCES topics(id) ON DELETE SET NULL
                     )
                 """.trimIndent())
                 

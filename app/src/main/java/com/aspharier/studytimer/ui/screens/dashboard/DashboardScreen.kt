@@ -14,6 +14,13 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -294,61 +301,122 @@ fun DashboardScreen(
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    val dailyTargetSeconds = uiState.dailyTargetMinutes * 60L
+                    val dailyTargetSeconds = uiState.adaptiveTargetMinutes * 60L
                     val studiedSeconds = uiState.todayStudiedSeconds
-                    val progressPercent = if (dailyTargetSeconds > 0) {
-                        (studiedSeconds.toFloat() / dailyTargetSeconds).coerceIn(0f, 1f)
+                    val totalProgress = if (dailyTargetSeconds > 0) {
+                        studiedSeconds.toFloat() / dailyTargetSeconds
                     } else 0f
 
-                    val animatedProgress by animateFloatAsState(
-                        targetValue = progressPercent,
+                    val innerProgress = totalProgress.coerceAtMost(1f)
+                    val outerProgress = if (totalProgress > 1f) (totalProgress - 1f).coerceAtMost(1f) else 0f
+
+                    val innerAnimatedProgress by animateFloatAsState(
+                        targetValue = innerProgress,
                         animationSpec = tween(durationMillis = 1000),
-                        label = "progress"
+                        label = "inner_progress"
+                    )
+                    val outerAnimatedProgress by animateFloatAsState(
+                        targetValue = outerProgress,
+                        animationSpec = tween(durationMillis = 1000),
+                        label = "outer_progress"
                     )
 
                     val dashEffect = remember { PathEffect.dashPathEffect(floatArrayOf(15f, 10f), 0f) }
                     val ringColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    val progressColor = MaterialTheme.colorScheme.primary
+                    val innerColor = MaterialTheme.colorScheme.primary
+                    val outerColor = Color(0xFFF59E0B) // Amber gold
 
                     Canvas(modifier = Modifier.fillMaxSize()) {
+                        val canvasWidth = size.width
+                        val canvasHeight = size.height
+
+                        // Inner ring track (inset by 24dp)
                         drawArc(
                             color = ringColor,
                             startAngle = -90f,
                             sweepAngle = 360f,
                             useCenter = false,
-                            style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect)
+                            style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect),
+                            topLeft = androidx.compose.ui.geometry.Offset(24.dp.toPx(), 24.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(canvasWidth - 48.dp.toPx(), canvasHeight - 48.dp.toPx())
                         )
+
+                        // Inner ring progress
                         drawArc(
-                            color = progressColor,
+                            color = innerColor,
                             startAngle = -90f,
-                            sweepAngle = 360f * animatedProgress,
+                            sweepAngle = 360f * innerAnimatedProgress,
                             useCenter = false,
-                            style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect)
+                            style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect),
+                            topLeft = androidx.compose.ui.geometry.Offset(24.dp.toPx(), 24.dp.toPx()),
+                            size = androidx.compose.ui.geometry.Size(canvasWidth - 48.dp.toPx(), canvasHeight - 48.dp.toPx())
                         )
+
+                        // Outer ring (if we have overflow, inset by 4dp)
+                        if (totalProgress > 1f) {
+                            // Outer ring track
+                            drawArc(
+                                color = ringColor,
+                                startAngle = -90f,
+                                sweepAngle = 360f,
+                                useCenter = false,
+                                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect),
+                                topLeft = androidx.compose.ui.geometry.Offset(4.dp.toPx(), 4.dp.toPx()),
+                                size = androidx.compose.ui.geometry.Size(canvasWidth - 8.dp.toPx(), canvasHeight - 8.dp.toPx())
+                            )
+
+                            // Outer ring progress
+                            drawArc(
+                                color = outerColor,
+                                startAngle = -90f,
+                                sweepAngle = 360f * outerAnimatedProgress,
+                                useCenter = false,
+                                style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect),
+                                topLeft = androidx.compose.ui.geometry.Offset(4.dp.toPx(), 4.dp.toPx()),
+                                size = androidx.compose.ui.geometry.Size(canvasWidth - 8.dp.toPx(), canvasHeight - 8.dp.toPx())
+                            )
+                        }
                     }
 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         val hours = (studiedSeconds / 3600.0)
-                        val targetHours = (uiState.dailyTargetMinutes / 60.0)
+                        val targetHours = (uiState.adaptiveTargetMinutes / 60.0)
+                        val multiplier = if (targetHours > 0) hours / targetHours else 1.0
+
                         Text(
                             text = String.format("%.1fh", hours),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
-                        Text(
-                            text = String.format("of %.1fh target", targetHours),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+                        if (multiplier >= 1.0) {
+                            Text(
+                                text = String.format("%.1fx goal", multiplier),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD97706)
+                            )
+                        } else {
+                            Text(
+                                text = if (uiState.isAdaptiveAboveBase) {
+                                    String.format("of %.1fh adaptive", targetHours)
+                                } else {
+                                    String.format("of %.1fh target", targetHours)
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (uiState.isAdaptiveAboveBase) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 
-                // Streak Badge & Quick Info
+                // Streak Badge & Momentum Column
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    // Streak Card
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -359,7 +427,7 @@ fun DashboardScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -367,12 +435,12 @@ fun DashboardScreen(
                                 imageVector = Icons.Default.LocalFireDepartment,
                                 contentDescription = "Streak",
                                 tint = if (uiState.currentStreak > 0) Color(0xFFF97316) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                             Column {
                                 Text(
                                     text = "${uiState.currentStreak} Day Streak",
-                                    style = MaterialTheme.typography.titleMedium,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -381,6 +449,90 @@ fun DashboardScreen(
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                        }
+                    }
+
+                    // Momentum Card
+                    val momentum = uiState.momentum
+                    if (momentum != null) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val icon: androidx.compose.ui.graphics.vector.ImageVector
+                                val iconColor: androidx.compose.ui.graphics.Color
+                                val statusText: String
+                                val descriptionText: String
+
+                                 when (momentum.level) {
+                                    com.aspharier.studytimer.domain.model.MomentumLevel.SURGING -> {
+                                        icon = Icons.AutoMirrored.Filled.TrendingUp
+                                        iconColor = Color(0xFF22C55E)
+                                        statusText = "Surging!"
+                                        descriptionText = String.format("+%.0f%% vs last wk", momentum.changePercent)
+                                    }
+                                    com.aspharier.studytimer.domain.model.MomentumLevel.RISING -> {
+                                        icon = Icons.AutoMirrored.Filled.TrendingUp
+                                        iconColor = Color(0xFF10B981)
+                                        statusText = "Rising"
+                                        descriptionText = String.format("+%.0f%% vs last wk", momentum.changePercent)
+                                    }
+                                    com.aspharier.studytimer.domain.model.MomentumLevel.STEADY -> {
+                                        icon = Icons.AutoMirrored.Filled.TrendingFlat
+                                        iconColor = Color(0xFF3B82F6)
+                                        statusText = "Steady"
+                                        descriptionText = "Holding the line"
+                                    }
+                                    com.aspharier.studytimer.domain.model.MomentumLevel.SLIPPING -> {
+                                        icon = Icons.AutoMirrored.Filled.TrendingDown
+                                        iconColor = Color(0xFFF59E0B)
+                                        statusText = "Slipping"
+                                        descriptionText = String.format("%.0f%% vs last wk", momentum.changePercent)
+                                    }
+                                    com.aspharier.studytimer.domain.model.MomentumLevel.FALLING -> {
+                                        icon = Icons.AutoMirrored.Filled.TrendingDown
+                                        iconColor = Color(0xFFEF4444)
+                                        statusText = "Falling"
+                                        descriptionText = String.format("%.0f%% vs last wk", momentum.changePercent)
+                                    }
+                                    com.aspharier.studytimer.domain.model.MomentumLevel.BUILDING_BASELINE -> {
+                                        icon = Icons.Default.HourglassEmpty
+                                        iconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        statusText = "Baseline"
+                                        descriptionText = "Building baseline"
+                                    }
+                                }
+
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = "Momentum",
+                                    tint = iconColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = statusText,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = descriptionText,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -396,15 +548,149 @@ fun DashboardScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
                         ),
-                        contentPadding = PaddingValues(vertical = 14.dp)
+                        contentPadding = PaddingValues(vertical = 12.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.PlayArrow,
                             contentDescription = null,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Start Focusing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Start Focusing", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // Weekly Challenges Card Section
+        if (uiState.weeklyChallenges.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Weekly Challenges",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            // Remaining days in week
+                            val today = LocalDate.now()
+                            val nextMonday = today.with(java.time.DayOfWeek.SUNDAY).plusDays(1)
+                            val daysLeft = ChronoUnit.DAYS.between(today, nextMonday)
+                            Text(
+                                text = "${daysLeft}d left",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        uiState.weeklyChallenges.forEach { challenge ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+                                        shape = RoundedCornerShape(16.dp)
+                                    )
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Challenge Icon Box
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(
+                                            color = if (challenge.isCompleted) Color(0xFF22C55E).copy(alpha = 0.15f)
+                                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                            shape = CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    val icon = when (challenge.icon) {
+                                        com.aspharier.studytimer.domain.model.ChallengeIcon.CONSISTENCY -> Icons.Default.CalendarToday
+                                        com.aspharier.studytimer.domain.model.ChallengeIcon.TIME_STRETCH -> Icons.Default.Timer
+                                        com.aspharier.studytimer.domain.model.ChallengeIcon.PERSONAL_BEST -> Icons.Default.Star
+                                    }
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = null,
+                                        tint = if (challenge.isCompleted) Color(0xFF22C55E) else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = challenge.title,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (challenge.isCompleted) {
+                                            Text(
+                                                text = "Completed!",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF22C55E)
+                                            )
+                                        } else {
+                                            val progressText = when (challenge.icon) {
+                                                com.aspharier.studytimer.domain.model.ChallengeIcon.CONSISTENCY -> "${challenge.currentValue}/${challenge.targetValue} days"
+                                                com.aspharier.studytimer.domain.model.ChallengeIcon.TIME_STRETCH -> "${(challenge.currentValue / 3600.0).roundToInt()}h/${(challenge.targetValue / 3600.0).roundToInt()}h"
+                                                com.aspharier.studytimer.domain.model.ChallengeIcon.PERSONAL_BEST -> "${String.format("%.1f", challenge.currentValue / 3600.0)}h/${String.format("%.1f", challenge.targetValue / 3600.0)}h"
+                                            }
+                                            Text(
+                                                text = progressText,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = challenge.description,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    LinearProgressIndicator(
+                                        progress = { challenge.progressPercent },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(CircleShape),
+                                        color = if (challenge.isCompleted) Color(0xFF22C55E) else MaterialTheme.colorScheme.primary,
+                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

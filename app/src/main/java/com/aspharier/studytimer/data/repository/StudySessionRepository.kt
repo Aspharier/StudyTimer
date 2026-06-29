@@ -79,4 +79,16 @@ class StudySessionRepository @Inject constructor(
             entities.map { it.toModel() }
         }
     }
+
+    fun getTotalSecondsForDateRange(startDate: String, endDate: String): Flow<Long> {
+        return studySessionDao.getTotalSecondsForDateRange(startDate, endDate)
+    }
+
+    fun getDailyTotalsForDateRange(startDate: String, endDate: String): Flow<List<com.aspharier.studytimer.data.local.entity.DailyTotal>> {
+        return studySessionDao.getDailyTotalsForDateRange(startDate, endDate)
+    }
+
+    fun getPersonalBestDailySeconds(): Flow<Long> {
+        return studySessionDao.getPersonalBestDailySeconds()
+    }
 }
