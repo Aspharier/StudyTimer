@@ -769,7 +769,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
                   />
                 </>
               )}
-              <text className="ring-text" x="50" y={totalProgress >= 1 ? "46" : "47"} fontSize="14" fontWeight="700" fill="var(--text)" style={{ textAnchor: 'middle' }}>{todayHours.toFixed(1)}h</text>
+              <text className="ring-text" x="50" y={totalProgress >= 1 ? "46" : "47"} fontSize="14" fontWeight="700" fill="var(--text)" style={{ textAnchor: 'middle' }}>{todayHours}h</text>
               {totalProgress >= 1 ? (
                 <text className="ring-text" x="50" y="59" fontSize="7" fontWeight="700" fill="var(--yellow)" style={{ textAnchor: 'middle' }}>{totalProgress.toFixed(1)}x goal</text>
               ) : (
