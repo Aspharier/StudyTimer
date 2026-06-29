@@ -378,7 +378,149 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
   const todayStr = new Date().toISOString().split('T')[0];
   const todaySessions = sessions.filter(s => s.date === todayStr);
   const dailyTargetMinutes = activeGoal ? activeGoal.dailyTargetMinutes : 360;
-  const progressPercent = Math.min((todayHours * 3600) / (dailyTargetMinutes * 60), 1);
+
+  // --- MOTIVATION ENGINE OVERHAUL CALCULATIONS ---
+  const today = new Date();
+  const currentDay = today.getDay(); // 0: Sunday, 1: Monday...
+  const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+  const thisMonday = new Date(today);
+  thisMonday.setDate(today.getDate() + distanceToMonday);
+  thisMonday.setHours(0,0,0,0);
+  
+  const thisSunday = new Date(thisMonday);
+  thisSunday.setDate(thisMonday.getDate() + 6);
+  thisSunday.setHours(23,59,59,999);
+  
+  const lastMonday = new Date(thisMonday);
+  lastMonday.setDate(thisMonday.getDate() - 7);
+  lastMonday.setHours(0,0,0,0);
+  
+  const lastSunday = new Date(thisSunday);
+  lastSunday.setDate(thisSunday.getDate() - 7);
+  lastSunday.setHours(23,59,59,999);
+
+  const thisWeekSessions = sessions.filter(s => {
+    const d = new Date(s.date);
+    return d >= thisMonday && d <= thisSunday;
+  });
+  
+  const lastWeekSessions = sessions.filter(s => {
+    const d = new Date(s.date);
+    return d >= lastMonday && d <= lastSunday;
+  });
+
+  // 1. Calculate Adaptive Daily Target (Last 7 calendar days rolling average + 15% stretch)
+  const last7DaysLimit = new Date(today);
+  last7DaysLimit.setDate(today.getDate() - 6);
+  last7DaysLimit.setHours(0,0,0,0);
+  
+  const last7DaysSessions = sessions.filter(s => {
+    const d = new Date(s.date);
+    return d >= last7DaysLimit && d <= today;
+  });
+  
+  const last7DaysTotalSeconds = last7DaysSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+  const rollingAverageMinutes = Math.round(last7DaysTotalSeconds / 7.0 / 60.0);
+  
+  const stretchTargetMinutes = Math.round(rollingAverageMinutes * 1.15);
+  const adaptiveTargetMinutes = Math.min(720, Math.max(dailyTargetMinutes, stretchTargetMinutes));
+  const isAdaptiveAboveBase = adaptiveTargetMinutes > dailyTargetMinutes;
+
+  // 2. Calculate Momentum
+  const thisWeekTotalSeconds = thisWeekSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+  const lastWeekTotalSeconds = lastWeekSessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
+  
+  const thisWeekHours = thisWeekTotalSeconds / 3600.0;
+  const lastWeekHours = lastWeekTotalSeconds / 3600.0;
+  
+  let momentumLevel = 'BUILDING_BASELINE';
+  let changePercent = 0;
+  
+  if (lastWeekTotalSeconds > 0) {
+    changePercent = ((thisWeekTotalSeconds - lastWeekTotalSeconds) / lastWeekTotalSeconds) * 100.0;
+    if (changePercent > 20) {
+      momentumLevel = 'SURGING';
+    } else if (changePercent >= 5) {
+      momentumLevel = 'RISING';
+    } else if (changePercent >= -5) {
+      momentumLevel = 'STEADY';
+    } else if (changePercent >= -20) {
+      momentumLevel = 'SLIPPING';
+    } else {
+      momentumLevel = 'FALLING';
+    }
+  }
+
+  const momentumText = momentumLevel === 'BUILDING_BASELINE' ? 'building baseline...' : `${momentumLevel.toLowerCase()} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(0)}%)`;
+
+  // 3. Generate & Evaluate Weekly Challenges
+  const dailyTotals = {};
+  sessions.forEach(s => {
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + s.completedDurationSeconds;
+  });
+  const personalBestDailySeconds = Object.values(dailyTotals).reduce((max, val) => Math.max(max, val), 0);
+
+  const activeDaysLastWeek = new Set(lastWeekSessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date)).size;
+  const consistencyTarget = activeDaysLastWeek >= 4 ? 5 : 4;
+  const timeStretchTargetSeconds = Math.max(Math.round(lastWeekTotalSeconds * 1.1), 10 * 3600);
+  const personalBestTargetSeconds = Math.max(personalBestDailySeconds, 4 * 3600);
+
+  const consistencyCurrent = new Set(thisWeekSessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date)).size;
+  const timeStretchCurrent = thisWeekTotalSeconds;
+  
+  const dailyTotalsThisWeek = {};
+  thisWeekSessions.forEach(s => {
+    dailyTotalsThisWeek[s.date] = (dailyTotalsThisWeek[s.date] || 0) + s.completedDurationSeconds;
+  });
+  const personalBestCurrent = Object.values(dailyTotalsThisWeek).reduce((max, val) => Math.max(max, val), 0);
+
+  const challenges = [
+    {
+      id: 'consistency',
+      title: 'Consistency Habit',
+      description: `Study on at least ${consistencyTarget} separate days this week`,
+      targetValue: consistencyTarget,
+      currentValue: consistencyCurrent,
+      isCompleted: consistencyCurrent >= consistencyTarget,
+      progressPercent: Math.min(consistencyCurrent / consistencyTarget, 1),
+      icon: 'consistency'
+    },
+    {
+      id: 'time_stretch',
+      title: 'Weekly Time Stretch',
+      description: `Accumulate ${Math.round(timeStretchTargetSeconds / 3600.0)} hours of study time this week`,
+      targetValue: timeStretchTargetSeconds,
+      currentValue: timeStretchCurrent,
+      isCompleted: timeStretchCurrent >= timeStretchTargetSeconds,
+      progressPercent: Math.min(timeStretchCurrent / timeStretchTargetSeconds, 1),
+      icon: 'time_stretch'
+    },
+    {
+      id: 'personal_best',
+      title: 'Exceed Daily Peak',
+      description: `Study more than ${(personalBestTargetSeconds / 3600.0).toFixed(1)} hours in a single day`,
+      targetValue: personalBestTargetSeconds,
+      currentValue: personalBestCurrent,
+      isCompleted: personalBestCurrent >= personalBestTargetSeconds,
+      progressPercent: Math.min(personalBestCurrent / personalBestTargetSeconds, 1),
+      icon: 'personal_best'
+    }
+  ];
+
+  // Remaining days in week
+  const nextMonday = new Date(thisSunday);
+  nextMonday.setDate(thisSunday.getDate() + 1);
+  const daysLeft = Math.max(0, Math.ceil((nextMonday - today) / (1000 * 60 * 60 * 24)));
+
+  // Progress Percent for the progress ring
+  const dailyTargetSeconds = adaptiveTargetMinutes * 60;
+  const studiedSeconds = todayHours * 3600;
+  const totalProgress = dailyTargetSeconds > 0 ? studiedSeconds / dailyTargetSeconds : 0;
+  
+  const innerPercent = Math.min(totalProgress, 1);
+  const outerPercent = totalProgress > 1 ? Math.min(totalProgress - 1, 1) : 0;
+  const progressPercent = innerPercent;
+  // --------------------------------------------------
 
   // Active Recall deck reviewer state
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -540,28 +682,42 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
               <div><span className="key">streak</span><span className="sep">: </span><span className="val">{currentStreak} days</span></div>
               <div><span className="key">today</span><span className="sep">: </span><span className="val">{todayHours}h</span></div>
               <div><span className="key">goal</span><span className="sep">: </span><span className="val">{(dailyTargetMinutes / 60).toFixed(1)}h</span></div>
-              <div><span className="key">sessions</span><span className="sep">: </span><span className="val">{todaySessions.length}</span></div>
+              <div><span className="key">momentum</span><span className="sep">: </span><span className="val">{momentumText}</span></div>
               <div><span className="key">theme</span><span className="sep">: </span><span className="val">{theme}</span></div>
               <div><span className="key">shell</span><span className="sep">: </span><span className="val">pomodoro-sh 1.0</span></div>
             </div>
           </div>
-          <div className="stat-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
+          <div className="stat-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
             <div className="stat-card">
               <div className="stat-label">exam goal</div>
-              <div className="stat-value accent" style={{ fontSize: activeGoal ? '14px' : '20px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {activeGoal ? `${daysRemaining} days` : '—'}
+              <div className="stat-value accent" style={{ fontSize: activeGoal ? '12px' : '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {activeGoal ? `${daysRemaining}d` : '—'}
               </div>
-              <div className="stat-sub" style={{ fontSize: '9px' }}>{activeGoal ? activeGoal.name : 'no goal set'}</div>
+              <div className="stat-sub" style={{ fontSize: '8px' }}>{activeGoal ? activeGoal.name : 'no goal set'}</div>
             </div>
             <div className="stat-card">
               <div className="stat-label">streak</div>
-              <div className="stat-value peach">{currentStreak}</div>
-              <div className="stat-sub">days</div>
+              <div className="stat-value peach" style={{ fontSize: '16px' }}>{currentStreak}</div>
+              <div className="stat-sub" style={{ fontSize: '8px' }}>days</div>
             </div>
             <div className="stat-card" onClick={() => dueCards.length > 0 && setIsReviewModalOpen(true)} style={{ cursor: dueCards.length > 0 ? 'pointer' : 'default' }}>
-              <div className="stat-label">recall cards</div>
-              <div className={`stat-value ${dueCards.length > 0 ? 'red' : 'green'}`}>{dueCards.length}</div>
-              <div className="stat-sub">due review</div>
+              <div className="stat-label">recall</div>
+              <div className={`stat-value ${dueCards.length > 0 ? 'red' : 'green'}`} style={{ fontSize: '16px' }}>{dueCards.length}</div>
+              <div className="stat-sub" style={{ fontSize: '8px' }}>due review</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">momentum</div>
+              <div className={`stat-value ${
+                momentumLevel === 'SURGING' || momentumLevel === 'RISING' ? 'green' :
+                momentumLevel === 'STEADY' ? 'blue' :
+                momentumLevel === 'SLIPPING' ? 'yellow' :
+                momentumLevel === 'FALLING' ? 'red' : 'overlay0'
+              }`} style={{ textTransform: 'lowercase', fontSize: '11px', fontWeight: '800', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {momentumLevel === 'BUILDING_BASELINE' ? 'baseline' : momentumLevel.toLowerCase()}
+              </div>
+              <div className="stat-sub" style={{ fontSize: '8px' }}>
+                {momentumLevel === 'BUILDING_BASELINE' ? '—' : `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(0)}%`}
+              </div>
             </div>
           </div>
 
@@ -579,21 +735,58 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
         </div>
         <div className="win-body">
           <div className="ring-container">
-            <svg className="ring-svg" viewBox="0 0 100 100">
-              <circle className="ring-bg" cx="50" cy="50" r="42"/>
-              <circle className="ring-fg" cx="50" cy="50" r="42"
+            <svg className="ring-svg" viewBox="0 0 100 100" style={{ transform: 'scale(1.05)' }}>
+              {/* Inner ring */}
+              <circle className="ring-bg" cx="50" cy="50" r="38" style={{ strokeWidth: '6' }}/>
+              <circle className="ring-fg" cx="50" cy="50" r="38"
                 transform="rotate(-90 50 50)"
-                style={{ strokeDashoffset: 283 - 283 * progressPercent }}
+                style={{
+                  strokeWidth: '6',
+                  strokeDashoffset: 238.76 - 238.76 * innerPercent,
+                  transition: 'stroke-dashoffset 0.8s ease-in-out'
+                }}
               />
-              <text className="ring-text" x="50" y="46" fontSize="18" fontWeight="700">{todayHours}h</text>
-              <text className="ring-text" x="50" y="61" fontSize="9" fill="var(--overlay0)">of {(dailyTargetMinutes / 60).toFixed(1)}h</text>
+              {/* Outer ring (overflow) */}
+              {totalProgress > 1 && (
+                <>
+                  <circle cx="50" cy="50" r="44" style={{ stroke: 'var(--surface1)', fill: 'none', strokeWidth: '4', strokeDasharray: '4, 2' }} />
+                  <circle cx="50" cy="50" r="44"
+                    transform="rotate(-90 50 50)"
+                    style={{
+                      stroke: 'var(--yellow)',
+                      fill: 'none',
+                      strokeWidth: '4',
+                      strokeDasharray: '4, 2',
+                      strokeDashoffset: 276.46 - 276.46 * outerPercent,
+                      transition: 'stroke-dashoffset 0.8s ease-in-out'
+                    }}
+                  />
+                </>
+              )}
+              <text className="ring-text" x="50" y={totalProgress >= 1 ? "46" : "47"} fontSize="14" fontWeight="700" fill="var(--text)" style={{ textAnchor: 'middle' }}>{todayHours.toFixed(1)}h</text>
+              {totalProgress >= 1 ? (
+                <text className="ring-text" x="50" y="59" fontSize="7" fontWeight="700" fill="var(--yellow)" style={{ textAnchor: 'middle' }}>{totalProgress.toFixed(1)}x goal</text>
+              ) : (
+                <text className="ring-text" x="50" y="59" fontSize="6.5" fill="var(--overlay0)" style={{ textAnchor: 'middle' }}>
+                  of {(adaptiveTargetMinutes / 60).toFixed(1)}h{isAdaptiveAboveBase ? '*' : ''}
+                </text>
+              )}
             </svg>
             <div className="ring-info">
               <h3>today's progress</h3>
               {todayHours > 0 ? (
-                <p>Keep up the great work!<br/>You have logged {todayHours} hours today.<br/><br/><span style={{ color: 'var(--green)' }}>❯</span> stay consistent!</p>
+                <p>
+                  Keep up the great work!<br/>
+                  You have logged {todayHours} hours today.<br/>
+                  {isAdaptiveAboveBase && <span style={{ fontSize: '9px', color: 'var(--accent)', display: 'block', marginTop: '4px', lineHeight: '1.2' }}>* target auto-adapted from {(dailyTargetMinutes/60).toFixed(1)}h to {(adaptiveTargetMinutes/60).toFixed(1)}h.</span>}
+                  <br/><span style={{ color: 'var(--green)' }}>❯</span> stay consistent!
+                </p>
               ) : (
-                <p>Start a focus session<br/>to track your progress.<br/><br/><span style={{ color: 'var(--green)' }}>❯</span> switch to workspace 2<br/>&nbsp;&nbsp;to begin studying.</p>
+                <p>
+                  Start a focus session<br/>to track your progress.<br/>
+                  {isAdaptiveAboveBase && <span style={{ fontSize: '9px', color: 'var(--accent)', display: 'block', marginTop: '4px', lineHeight: '1.2' }}>* target auto-adapted to {(adaptiveTargetMinutes/60).toFixed(1)}h.</span>}
+                  <br/><span style={{ color: 'var(--green)' }}>❯</span> switch to workspace 2<br/>&nbsp;&nbsp;to begin studying.
+                </p>
               )}
             </div>
           </div>
@@ -813,6 +1006,63 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
           <p style={{ fontSize: '10px', color: 'var(--overlay0)', marginTop: '8px', lineHeight: '1.4' }}>
             * earn 1 streak freeze token automatically for every 7 days studied. freezes protect your streak when you miss a day.
           </p>
+        </div>
+      </div>
+
+      {/* Window 8: Weekly Challenges (spans 2 cols) */}
+      <div className="hypr-window span-2">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            weekly_challenges <span className="class-name">— quests ({daysLeft}d left)</span>
+          </div>
+        </div>
+        <div className="win-body">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {challenges.map(c => (
+              <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: c.isCompleted ? 'rgba(166, 227, 161, 0.05)' : 'var(--crust)', border: c.isCompleted ? '1px solid var(--green)' : '1px solid var(--surface0)', borderRadius: '6px', fontSize: '11px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: c.isCompleted ? 'var(--green)' : 'var(--accent)', fontWeight: '700' }}>
+                      {c.isCompleted ? '✓ [COMPLETED]' : '☐ [QUEST]'}
+                    </span>
+                    <span style={{ fontWeight: '700' }}>{c.title}</span>
+                  </div>
+                  <span style={{ color: 'var(--overlay0)', fontWeight: '600' }}>
+                    {c.isCompleted ? 'Done!' : c.icon === 'consistency' ? `${c.currentValue}/${c.targetValue} days` : `${(c.currentValue/3600).toFixed(1)}h/${(c.targetValue/3600).toFixed(1)}h`}
+                  </span>
+                </div>
+                <div style={{ color: 'var(--overlay0)', fontSize: '10px', marginTop: '2px' }}>{c.description}</div>
+                <div className="progress-bar-bg" style={{ height: '4px', borderRadius: '2px', marginTop: '6px' }}>
+                  <div className="progress-bar-fill" style={{ width: `${c.progressPercent * 100}%`, backgroundColor: c.isCompleted ? 'var(--green)' : 'var(--accent)', borderRadius: '2px' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Window 9: Fortune / Motivation (spans 1 col) */}
+      <div className="hypr-window">
+        <div className="win-titlebar">
+          <div className="win-title">
+            <div className="win-dots"><div className="win-dot close"></div><div className="win-dot min"></div><div className="win-dot max"></div></div>
+            fortune <span className="class-name">— quote</span>
+          </div>
+        </div>
+        <div className="win-body" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '120px', textAlign: 'center', fontStyle: 'italic', padding: '16px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--text)', lineHeight: '1.6', margin: 0 }}>
+            {momentumLevel === 'SURGING' || momentumLevel === 'RISING' ? (
+              "\"The secret of getting ahead is getting started. Your momentum is high, ride the wave!\""
+            ) : momentumLevel === 'STEADY' ? (
+              "\"Consistency is the key to success. You are holding the line, keep moving forward!\""
+            ) : (
+              "\"It does not matter how slowly you go as long as you do not stop. Time to ramp up!\""
+            )}
+          </p>
+          <div style={{ fontSize: '10px', color: 'var(--accent)', marginTop: '12px', fontWeight: '700' }}>
+            ❯ focusly --status
+          </div>
         </div>
       </div>
 
