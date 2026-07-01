@@ -748,6 +748,7 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
                 transform="rotate(-90 50 50)"
                 style={{
                   strokeWidth: '6',
+                  strokeDasharray: '238.76',
                   strokeDashoffset: 238.76 - 238.76 * innerPercent,
                   transition: 'stroke-dashoffset 0.8s ease-in-out'
                 }}
@@ -755,14 +756,14 @@ function DashboardView({ activeGoal, sessions, subjects, topics, setActiveTab, o
               {/* Outer ring (overflow) */}
               {totalProgress > 1 && (
                 <>
-                  <circle cx="50" cy="50" r="44" style={{ stroke: 'var(--surface1)', fill: 'none', strokeWidth: '4', strokeDasharray: '4, 2' }} />
+                  <circle cx="50" cy="50" r="44" style={{ stroke: 'var(--surface1)', fill: 'none', strokeWidth: '4' }} />
                   <circle cx="50" cy="50" r="44"
                     transform="rotate(-90 50 50)"
                     style={{
                       stroke: 'var(--yellow)',
                       fill: 'none',
                       strokeWidth: '4',
-                      strokeDasharray: '4, 2',
+                      strokeDasharray: '276.46',
                       strokeDashoffset: 276.46 - 276.46 * outerPercent,
                       transition: 'stroke-dashoffset 0.8s ease-in-out'
                     }}
