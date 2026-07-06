@@ -1667,8 +1667,12 @@ function TimerView({ subjects, sessions, onSaveSession, prefilledSubjectId, pref
             ) : (
               <button className="hypr-btn primary" onClick={startTimer}>▶ start</button>
             )}
-            <button className="hypr-btn" onClick={skipPhase} disabled={presetMode === 'EXAM_SIM'}>⏭ skip</button>
-            <button className="hypr-btn danger" onClick={stopTimer}>⏹ stop</button>
+            {isSessionActive && (
+              <>
+                <button className="hypr-btn" onClick={skipPhase} disabled={presetMode === 'EXAM_SIM'}>⏭ skip</button>
+                <button className="hypr-btn danger" onClick={stopTimer}>⏹ stop</button>
+              </>
+            )}
           </div>
 
           {!isSessionActive && (
