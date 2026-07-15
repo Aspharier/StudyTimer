@@ -91,6 +91,8 @@ body.theme-midnight {
   --accent-color:   #cba6f7;
   --accent-glow:    rgba(203, 166, 247, 0.28);
   --accent-dim:     rgba(203, 166, 247, 0.12);
+  --overlay2:       rgba(205, 214, 244, 0.6);
+  --overlay1:       rgba(205, 214, 244, 0.4);
 }
 
 body.theme-ocean {
@@ -106,6 +108,8 @@ body.theme-ocean {
   --accent-color:   #89b4fa;
   --accent-glow:    rgba(137, 180, 250, 0.28);
   --accent-dim:     rgba(137, 180, 250, 0.12);
+  --overlay2:       rgba(198, 208, 245, 0.6);
+  --overlay1:       rgba(198, 208, 245, 0.4);
 }
 
 body.theme-forest {
@@ -121,6 +125,8 @@ body.theme-forest {
   --accent-color:   #a6e3a1;
   --accent-glow:    rgba(166, 227, 161, 0.25);
   --accent-dim:     rgba(166, 227, 161, 0.10);
+  --overlay2:       rgba(198, 208, 181, 0.6);
+  --overlay1:       rgba(198, 208, 181, 0.4);
 }
 
 body.theme-paper {
@@ -138,6 +144,8 @@ body.theme-paper {
   --accent-color:   #b45309;
   --accent-glow:    rgba(180, 83, 9, 0.18);
   --accent-dim:     rgba(180, 83, 9, 0.08);
+  --overlay2:       rgba(30, 25, 18, 0.6);
+  --overlay1:       rgba(30, 25, 18, 0.4);
 }
 
 body.theme-sakura {
@@ -155,6 +163,8 @@ body.theme-sakura {
   --accent-color:   #e11d48;
   --accent-glow:    rgba(225, 29, 72, 0.18);
   --accent-dim:     rgba(225, 29, 72, 0.08);
+  --overlay2:       rgba(36, 17, 21, 0.6);
+  --overlay1:       rgba(36, 17, 21, 0.4);
 }
 
 body.theme-aurora {
@@ -170,6 +180,8 @@ body.theme-aurora {
   --accent-color:   #a78bfa;
   --accent-glow:    rgba(167, 139, 250, 0.3);
   --accent-dim:     rgba(167, 139, 250, 0.12);
+  --overlay2:       rgba(228, 226, 255, 0.6);
+  --overlay1:       rgba(228, 226, 255, 0.4);
 }
 
 body.theme-ember {
@@ -185,6 +197,8 @@ body.theme-ember {
   --accent-color:   #f97316;
   --accent-glow:    rgba(249, 115, 22, 0.28);
   --accent-dim:     rgba(249, 115, 22, 0.12);
+  --overlay2:       rgba(245, 224, 200, 0.6);
+  --overlay1:       rgba(245, 224, 200, 0.4);
 }
 
 body.theme-lavender {
@@ -202,6 +216,8 @@ body.theme-lavender {
   --accent-color:   #7c3aed;
   --accent-glow:    rgba(124, 58, 237, 0.18);
   --accent-dim:     rgba(124, 58, 237, 0.08);
+  --overlay2:       rgba(29, 21, 39, 0.6);
+  --overlay1:       rgba(29, 21, 39, 0.4);
 }
 
 body.theme-mint {
@@ -219,6 +235,8 @@ body.theme-mint {
   --accent-color:   #0f766e;
   --accent-glow:    rgba(15, 118, 110, 0.18);
   --accent-dim:     rgba(15, 118, 110, 0.08);
+  --overlay2:       rgba(16, 33, 30, 0.6);
+  --overlay1:       rgba(16, 33, 30, 0.4);
 }
 
 /* === BASE RULES === */
