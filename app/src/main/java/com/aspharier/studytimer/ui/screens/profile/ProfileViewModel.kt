@@ -96,12 +96,7 @@ class ProfileViewModel @Inject constructor(
                     syncStatus.value = "Synced successfully! ✨"
                 },
                 onFailure = { err ->
-                    val msg = err.localizedMessage ?: "Unknown error"
-                    if (msg.contains("PERMISSION_DENIED") || msg.contains("permissions")) {
-                        syncStatus.value = "Sync failed: Authentication expired. Please sign out & sign in with Google again."
-                    } else {
-                        syncStatus.value = "Sync failed: $msg"
-                    }
+                    syncStatus.value = "Sync failed: ${err.message ?: err.localizedMessage}"
                 }
             )
         }
