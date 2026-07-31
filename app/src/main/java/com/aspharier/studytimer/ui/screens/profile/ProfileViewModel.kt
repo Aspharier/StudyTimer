@@ -76,18 +76,32 @@ class ProfileViewModel @Inject constructor(
     val lastSyncTime: StateFlow<String?> = _lastSyncTime
 
     fun syncData() {
-        val user = currentUser.value ?: return
+        val user = auth.currentUser
+        if (user == null) {
+            syncStatus.value = "Please sign in with Google first to enable cloud sync!"
+            return
+        }
         viewModelScope.launch {
             syncStatus.value = "Syncing..."
+            try {
+                user.getIdToken(true).await()
+            } catch (_: Exception) {
+            }
+
             syncManager.sync().fold(
                 onSuccess = {
                     val currentTime = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
                     preferences.edit().putString("last_sync_time", currentTime).apply()
                     _lastSyncTime.value = currentTime
-                    syncStatus.value = "Synced successfully!"
+                    syncStatus.value = "Synced successfully! ✨"
                 },
-                onFailure = {
-                    syncStatus.value = "Sync failed: ${it.localizedMessage}"
+                onFailure = { err ->
+                    val msg = err.localizedMessage ?: "Unknown error"
+                    if (msg.contains("PERMISSION_DENIED") || msg.contains("permissions")) {
+                        syncStatus.value = "Sync failed: Authentication expired. Please sign out & sign in with Google again."
+                    } else {
+                        syncStatus.value = "Sync failed: $msg"
+                    }
                 }
             )
         }

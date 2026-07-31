@@ -315,7 +315,7 @@ class SyncManager @Inject constructor(
                 "dailyTargetMinutes" to goal.dailyTargetMinutes,
                 "createdAt" to goal.createdAt,
                 "isActive" to goal.isActive
-            )
+            ).filterValues { it != null }
             userDocRef.collection("exam_goals").document(goal.id.toString()).set(data).await()
         }
 
@@ -329,7 +329,7 @@ class SyncManager @Inject constructor(
                 "sortOrder" to subj.sortOrder,
                 "targetHours" to subj.targetHours,
                 "priority" to subj.priority
-            )
+            ).filterValues { it != null }
             userDocRef.collection("subjects").document(subj.id.toString()).set(data).await()
         }
 
@@ -350,7 +350,7 @@ class SyncManager @Inject constructor(
                     "status" to topic.status.name,
                     "sortOrder" to topic.sortOrder,
                     "subTopics" to subTopicsList
-                )
+                ).filterValues { it != null }
                 userDocRef.collection("topics").document(topic.id.toString()).set(data).await()
             }
         }
@@ -370,7 +370,7 @@ class SyncManager @Inject constructor(
                 "notes" to session.notes,
                 "tag" to session.tag,
                 "subjectId" to session.subjectId
-            )
+            ).filterValues { it != null }
             userDocRef.collection("sessions").document(session.id.toString()).set(data).await()
             syncedIds.add(session.id)
         }
@@ -390,7 +390,7 @@ class SyncManager @Inject constructor(
                 "notes" to test.notes,
                 "date" to test.date,
                 "createdAt" to test.createdAt
-            )
+            ).filterValues { it != null }
             userDocRef.collection("mock_tests").document(test.id.toString()).set(data).await()
             syncedMockIds.add(test.id)
         }
