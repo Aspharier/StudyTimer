@@ -143,7 +143,7 @@ export default function App() {
           <header className="app-header">
             <div className="logo">
               <span className="logo-icon">✿</span>
-              focusly
+              <span className="logo-text">focusly</span>
             </div>
             <div className="clock-pill">{clockTime}</div>
           </header>
@@ -1184,33 +1184,6 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
     return { curH, prevH, delta };
   }, [sessions]);
 
-  const weaknessStats = React.useMemo(() => {
-    const stats = {};
-    subjects.forEach(s => { stats[s.id] = { subject: s, totalSeconds: 0, ratings: [], hardCount: 0 }; });
-    sessions.forEach(s => {
-      if (s.subjectId && stats[s.subjectId]) {
-        stats[s.subjectId].totalSeconds += s.completedDurationSeconds;
-        if (s.confidenceRating) {
-          stats[s.subjectId].ratings.push(s.confidenceRating);
-          if (s.confidenceRating <= 2) stats[s.subjectId].hardCount++;
-        }
-      }
-    });
-    const list = Object.values(stats).map(o => ({
-      subject: o.subject,
-      hours: o.totalSeconds / 3600,
-      avgConfidence: o.ratings.length > 0 ? o.ratings.reduce((a,b) => a+b,0) / o.ratings.length : null,
-      hardCount: o.hardCount,
-      ratingsCount: o.ratings.length
-    })).filter(i => i.hours > 0 || i.ratingsCount > 0);
-
-    const weakSpots = [...list].filter(x => x.hours > 0 && x.avgConfidence !== null)
-      .sort((a,b) => (b.hours/(b.avgConfidence||1)) - (a.hours/(a.avgConfidence||1)));
-    const priorityQueue = [...list].filter(x => x.hardCount > 0)
-      .sort((a,b) => (b.hardCount/(b.hours||.1)) - (a.hardCount/(a.hours||.1)));
-    return { weakSpots, priorityQueue };
-  }, [sessions, subjects]);
-
   const weeks = React.useMemo(() => {
     const today = new Date(); today.setHours(0,0,0,0);
     const start = new Date(today); start.setDate(today.getDate() - 364);
@@ -1376,31 +1349,6 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
 
       {/* Mock tests */}
       <MockTestSection mockTests={mockTests} subjects={subjects} topics={topics} activeGoal={activeGoal} onSave={onSaveMockTest} onDelete={onDeleteMockTest} showToast={showToast} />
-
-      {/* Weakness */}
-      <div className="card">
-        <div className="card-title">⚠️ weak spots</div>
-        {weaknessStats.weakSpots.length === 0
-          ? <p style={{ color: 'var(--ink-soft)', fontSize: 13 }}>log sessions with confidence ratings to unlock weakness analysis ✿</p>
-          : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <p style={{ fontWeight: 600, color: 'var(--red)', fontSize: 13 }}>studied often but rated hard:</p>
-              {weaknessStats.weakSpots.slice(0,3).map(ws => (
-                <div key={ws.subject.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 14px', background: '#fff', border: '2px solid var(--line)', borderRadius: 14, fontSize: 13 }}>
-                  <span style={{ color: ws.subject.colorHex, fontWeight: 700 }}>{ws.subject.name}</span>
-                  <span style={{ color: 'var(--ink-soft)' }}>{ws.hours.toFixed(1)}h · {ws.avgConfidence?.toFixed(1)}★ avg</span>
-                </div>
-              ))}
-              {weaknessStats.priorityQueue.length > 0 && (
-                <div style={{ padding: '10px 14px', background: 'var(--lilac-2)', border: '2px solid var(--lilac-deep)', borderRadius: 14, fontSize: 13, marginTop: 4 }}>
-                  <span style={{ fontWeight: 700, color: 'var(--lilac-deep)' }}>💡 priority: </span>
-                  {weaknessStats.priorityQueue[0].subject.name} was rated hard {weaknessStats.priorityQueue[0].hardCount}× — dedicate more sessions here!
-                </div>
-              )}
-            </div>
-          )
-        }
-      </div>
 
       {/* Day drill-down modal */}
       {selectedDate && (() => {
