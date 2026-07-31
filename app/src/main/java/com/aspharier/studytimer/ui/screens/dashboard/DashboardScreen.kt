@@ -240,8 +240,8 @@ fun DashboardScreen(
                 // Circular Progress Ring Box
                 Box(
                     modifier = Modifier
-                        .size(160.dp)
-                        .weight(1f),
+                        .size(150.dp)
+                        .aspectRatio(1f),
                     contentAlignment = Alignment.Center
                 ) {
                     val dailyTargetSeconds = uiState.adaptiveTargetMinutes * 60L
@@ -270,18 +270,21 @@ fun DashboardScreen(
                     val outerColor = Color(0xFFF59E0B) // Amber gold
 
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        val canvasWidth = size.width
-                        val canvasHeight = size.height
+                        val side = minOf(size.width, size.height)
+                        val insetInner = 20.dp.toPx()
+                        val sizeInner = side - (insetInner * 2)
+                        val offsetInnerX = (size.width - side) / 2 + insetInner
+                        val offsetInnerY = (size.height - side) / 2 + insetInner
 
-                        // Inner ring track (inset by 24dp)
+                        // Inner ring track
                         drawArc(
                             color = ringColor,
                             startAngle = -90f,
                             sweepAngle = 360f,
                             useCenter = false,
                             style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect),
-                            topLeft = androidx.compose.ui.geometry.Offset(24.dp.toPx(), 24.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(canvasWidth - 48.dp.toPx(), canvasHeight - 48.dp.toPx())
+                            topLeft = androidx.compose.ui.geometry.Offset(offsetInnerX, offsetInnerY),
+                            size = androidx.compose.ui.geometry.Size(sizeInner, sizeInner)
                         )
 
                         // Inner ring progress
@@ -291,12 +294,17 @@ fun DashboardScreen(
                             sweepAngle = 360f * innerAnimatedProgress,
                             useCenter = false,
                             style = Stroke(width = 8.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect),
-                            topLeft = androidx.compose.ui.geometry.Offset(24.dp.toPx(), 24.dp.toPx()),
-                            size = androidx.compose.ui.geometry.Size(canvasWidth - 48.dp.toPx(), canvasHeight - 48.dp.toPx())
+                            topLeft = androidx.compose.ui.geometry.Offset(offsetInnerX, offsetInnerY),
+                            size = androidx.compose.ui.geometry.Size(sizeInner, sizeInner)
                         )
 
-                        // Outer ring (if we have overflow, inset by 4dp)
+                        // Outer ring (if we have overflow)
                         if (totalProgress > 1f) {
+                            val insetOuter = 4.dp.toPx()
+                            val sizeOuter = side - (insetOuter * 2)
+                            val offsetOuterX = (size.width - side) / 2 + insetOuter
+                            val offsetOuterY = (size.height - side) / 2 + insetOuter
+
                             // Outer ring track
                             drawArc(
                                 color = ringColor,
@@ -304,8 +312,8 @@ fun DashboardScreen(
                                 sweepAngle = 360f,
                                 useCenter = false,
                                 style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect),
-                                topLeft = androidx.compose.ui.geometry.Offset(4.dp.toPx(), 4.dp.toPx()),
-                                size = androidx.compose.ui.geometry.Size(canvasWidth - 8.dp.toPx(), canvasHeight - 8.dp.toPx())
+                                topLeft = androidx.compose.ui.geometry.Offset(offsetOuterX, offsetOuterY),
+                                size = androidx.compose.ui.geometry.Size(sizeOuter, sizeOuter)
                             )
 
                             // Outer ring progress
@@ -315,8 +323,8 @@ fun DashboardScreen(
                                 sweepAngle = 360f * outerAnimatedProgress,
                                 useCenter = false,
                                 style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round, pathEffect = dashEffect),
-                                topLeft = androidx.compose.ui.geometry.Offset(4.dp.toPx(), 4.dp.toPx()),
-                                size = androidx.compose.ui.geometry.Size(canvasWidth - 8.dp.toPx(), canvasHeight - 8.dp.toPx())
+                                topLeft = androidx.compose.ui.geometry.Offset(offsetOuterX, offsetOuterY),
+                                size = androidx.compose.ui.geometry.Size(sizeOuter, sizeOuter)
                             )
                         }
                     }
