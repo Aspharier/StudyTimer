@@ -2,22 +2,38 @@ package com.aspharier.studytimer.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Background = Color(0xFF000000)
-val Surface = Color(0xFF0A0A0A)
-val SurfaceVariant = Color(0xFF141414)
-val Primary = Color(0xFFE8E8E8)
-val Secondary = Color(0xFF888888)
-val Tertiary = Color(0xFF4A4A4A)
-val Accent = Color(0xFF00D9A5)
-val AccentDim = Color(0x2600D9A5)
+// Neo-Y2K Kawaii Palette
+val NeoPink = Color(0xFFFFB6D9)
+val NeoPinkLight = Color(0xFFFFD6EC)
+val NeoPinkDeep = Color(0xFFFF7AB6)
+val NeoLilac = Color(0xFFC8B6FF)
+val NeoLilacLight = Color(0xFFE0D4FF)
+val NeoLilacDeep = Color(0xFFA67AFF)
+val NeoMint = Color(0xFFB8F3D6)
+val NeoMintDeep = Color(0xFF6EE7B7)
+val NeoSun = Color(0xFFFFE27A)
+val NeoSunDeep = Color(0xFFFFC53D)
+val NeoCream = Color(0xFFFFF4FB)
+val NeoInk = Color(0xFF4A2D5E)
+val NeoInkSoft = Color(0xFF7A5C8F)
+val NeoLine = Color(0xFFF0C8E2)
 
-val OnBackground = Color(0xFFE8E8E8)
-val OnSurface = Color(0xFFE8E8E8)
-val OnSurfaceVariant = Color(0xFFA1A1AA) // slightly lighter gray for better readability
-val OnPrimary = Color(0xFF000000)
-val OnSecondary = Color(0xFF000000)
-val OnTertiary = Color(0xFFE8E8E8)
-val OnAccent = Color(0xFF000000)
+val Background = NeoCream
+val Surface = Color.White
+val SurfaceVariant = NeoPinkLight
+val Primary = NeoPinkDeep
+val Secondary = NeoLilacDeep
+val Tertiary = NeoMintDeep
+val Accent = NeoPinkDeep
+val AccentDim = Color(0x26FF7AB6)
 
-val Error = Color(0xFFFF6B6B)
-val OnError = Color(0xFF000000)
+val OnBackground = NeoInk
+val OnSurface = NeoInk
+val OnSurfaceVariant = NeoInkSoft
+val OnPrimary = Color.White
+val OnSecondary = Color.White
+val OnTertiary = NeoInk
+val OnAccent = Color.White
+
+val Error = Color(0xFFFF6B9D)
+val OnError = Color.White

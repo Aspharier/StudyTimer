@@ -78,7 +78,7 @@ fun DashboardScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Focusly",
+                    text = "✿ focusly",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
@@ -399,19 +399,15 @@ fun DashboardScreen(
                             )
                         } else {
                             Text(
-                                text = if (uiState.isAdaptiveAboveBase) {
-                                    String.format("of %.1fh adaptive", targetHours)
-                                } else {
-                                    String.format("of %.1fh target", targetHours)
-                                },
+                                text = String.format("of %.1fh target", targetHours),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (uiState.isAdaptiveAboveBase) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
 
-                // Streak Badge & Momentum Column
+                // Streak Badge & Quick Action Column
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -453,90 +449,6 @@ fun DashboardScreen(
                         }
                     }
 
-                    // Momentum Card
-                    val momentum = uiState.momentum
-                    if (momentum != null) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                val icon: androidx.compose.ui.graphics.vector.ImageVector
-                                val iconColor: androidx.compose.ui.graphics.Color
-                                val statusText: String
-                                val descriptionText: String
-
-                                 when (momentum.level) {
-                                    com.aspharier.studytimer.domain.model.MomentumLevel.SURGING -> {
-                                        icon = Icons.AutoMirrored.Filled.TrendingUp
-                                        iconColor = Color(0xFF22C55E)
-                                        statusText = "Surging!"
-                                        descriptionText = String.format("+%.0f%% vs last wk", momentum.changePercent)
-                                    }
-                                    com.aspharier.studytimer.domain.model.MomentumLevel.RISING -> {
-                                        icon = Icons.AutoMirrored.Filled.TrendingUp
-                                        iconColor = Color(0xFF10B981)
-                                        statusText = "Rising"
-                                        descriptionText = String.format("+%.0f%% vs last wk", momentum.changePercent)
-                                    }
-                                    com.aspharier.studytimer.domain.model.MomentumLevel.STEADY -> {
-                                        icon = Icons.AutoMirrored.Filled.TrendingFlat
-                                        iconColor = Color(0xFF3B82F6)
-                                        statusText = "Steady"
-                                        descriptionText = "Holding the line"
-                                    }
-                                    com.aspharier.studytimer.domain.model.MomentumLevel.SLIPPING -> {
-                                        icon = Icons.AutoMirrored.Filled.TrendingDown
-                                        iconColor = Color(0xFFF59E0B)
-                                        statusText = "Slipping"
-                                        descriptionText = String.format("%.0f%% vs last wk", momentum.changePercent)
-                                    }
-                                    com.aspharier.studytimer.domain.model.MomentumLevel.FALLING -> {
-                                        icon = Icons.AutoMirrored.Filled.TrendingDown
-                                        iconColor = Color(0xFFEF4444)
-                                        statusText = "Falling"
-                                        descriptionText = String.format("%.0f%% vs last wk", momentum.changePercent)
-                                    }
-                                    com.aspharier.studytimer.domain.model.MomentumLevel.BUILDING_BASELINE -> {
-                                        icon = Icons.Default.HourglassEmpty
-                                        iconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        statusText = "Baseline"
-                                        descriptionText = "Building baseline"
-                                    }
-                                }
-
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = "Momentum",
-                                    tint = iconColor,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Column {
-                                    Text(
-                                        text = statusText,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = descriptionText,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-
                     // Start Session CTA
                     Button(
                         onClick = {
@@ -557,140 +469,6 @@ fun DashboardScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Start Focusing", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        // Weekly Challenges Card Section
-        if (uiState.weeklyChallenges.isNotEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Weekly Challenges",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-
-                            // Remaining days in week
-                            val today = LocalDate.now()
-                            val nextMonday = today.with(java.time.DayOfWeek.SUNDAY).plusDays(1)
-                            val daysLeft = ChronoUnit.DAYS.between(today, nextMonday)
-                            Text(
-                                text = "${daysLeft}d left",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
-                        uiState.weeklyChallenges.forEach { challenge ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-                                        shape = RoundedCornerShape(16.dp)
-                                    )
-                                    .padding(14.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Challenge Icon Box
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(
-                                            color = if (challenge.isCompleted) Color(0xFF22C55E).copy(alpha = 0.15f)
-                                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                            shape = CircleShape
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    val icon = when (challenge.icon) {
-                                        com.aspharier.studytimer.domain.model.ChallengeIcon.CONSISTENCY -> Icons.Default.CalendarToday
-                                        com.aspharier.studytimer.domain.model.ChallengeIcon.TIME_STRETCH -> Icons.Default.Timer
-                                        com.aspharier.studytimer.domain.model.ChallengeIcon.PERSONAL_BEST -> Icons.Default.Star
-                                    }
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = null,
-                                        tint = if (challenge.isCompleted) Color(0xFF22C55E) else MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = challenge.title,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        if (challenge.isCompleted) {
-                                            Text(
-                                                text = "Completed!",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF22C55E)
-                                            )
-                                        } else {
-                                            val progressText = when (challenge.icon) {
-                                                com.aspharier.studytimer.domain.model.ChallengeIcon.CONSISTENCY -> "${challenge.currentValue}/${challenge.targetValue} days"
-                                                com.aspharier.studytimer.domain.model.ChallengeIcon.TIME_STRETCH -> "${(challenge.currentValue / 3600.0).roundToInt()}h/${(challenge.targetValue / 3600.0).roundToInt()}h"
-                                                com.aspharier.studytimer.domain.model.ChallengeIcon.PERSONAL_BEST -> "${String.format("%.1f", challenge.currentValue / 3600.0)}h/${String.format("%.1f", challenge.targetValue / 3600.0)}h"
-                                            }
-                                            Text(
-                                                text = progressText,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = challenge.description,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    LinearProgressIndicator(
-                                        progress = { challenge.progressPercent },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(6.dp)
-                                            .clip(CircleShape),
-                                        color = if (challenge.isCompleted) Color(0xFF22C55E) else MaterialTheme.colorScheme.primary,
-                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                }
-                            }
-                        }
                     }
                 }
             }

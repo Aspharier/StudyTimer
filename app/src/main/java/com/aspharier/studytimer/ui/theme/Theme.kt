@@ -28,7 +28,7 @@ enum class AppTheme(
     Mint("Mint", Color(0xFF0F766E))
 }
 
-private val MidnightColorScheme = darkColorScheme(
+private val MidnightColorScheme = lightColorScheme(
     primary = Primary,
     onPrimary = OnPrimary,
     secondary = Secondary,

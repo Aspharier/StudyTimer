@@ -11,8 +11,9 @@
 
 ---
 
-**StudyTimer** is a minimal and productivity-focused **study timer application** built with **Kotlin** and **Jetpack Compose**.  
-It helps students stay focused during study sessions using a simple and distraction-free timer experience.
+# ✿ focusly — neo-y2k study timer
+
+> A pastel, kawaii-styled study companion available as both a **Web App (React + Vite)** and an **Android Mobile App (Jetpack Compose + Kotlin)**. Track your study sessions, manage your syllabus, analyse your progress — all wrapped in a neo-y2k aesthetic with chunky borders, hard offset shadows, and floating stickers.
 
 Think of it as your **digital study companion** for better focus, discipline, and productivity.
 
