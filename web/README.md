@@ -61,12 +61,6 @@
 - **Export backup** — download all data as a JSON file
 - **Clear cache** — wipe local data
 
-### ✍️ Mistake Log
-- Log mistakes by subject, topic, what went wrong, and the correct approach
-- Full-text search across all entries
-- Colour-coded cards (red for mistake, green for fix)
-- Delete individual entries
-
 ---
 
 ## 🗑️ Removed Features

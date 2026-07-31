@@ -17,7 +17,6 @@ export default function App() {
   const [topics, setTopics] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [mockTests, setMockTests] = useState([]);
-  const [mistakes, setMistakes] = useState([]);
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const [isSessionActiveGlobally, setIsSessionActiveGlobally] = useState(false);
 
@@ -43,12 +42,11 @@ export default function App() {
     const unsubTopics    = DataService.subscribeToTopics(setTopics);
     const unsubSessions  = DataService.subscribeToSessions(setSessions);
     const unsubMockTests = DataService.subscribeToMockTests(setMockTests);
-    const unsubMistakes  = DataService.subscribeToMistakes(setMistakes);
     const unsubLastSync  = DataService.subscribeToLastSyncTime(setLastSyncTime);
 
     return () => {
       unsubAuth(); unsubGoals(); unsubSubjects(); unsubTopics();
-      unsubSessions(); unsubMockTests(); unsubMistakes(); unsubLastSync();
+      unsubSessions(); unsubMockTests(); unsubLastSync();
     };
   }, []);
 
@@ -76,7 +74,6 @@ export default function App() {
       else if (key === '3') setActiveTab('syllabus');
       else if (key === '4') setActiveTab('analytics');
       else if (key === '5') setActiveTab('account');
-      else if (key === '6') setActiveTab('mistakes');
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -119,7 +116,6 @@ export default function App() {
     { id: 'syllabus',  label: '📚 syllabus'},
     { id: 'analytics', label: '📊 analytics'},
     { id: 'account',   label: '☁️ account' },
-    { id: 'mistakes',  label: '✍️ mistakes' },
   ];
 
   return (
@@ -1170,6 +1166,13 @@ function HistoryView({ sessions, subjects, onDeleteSession, showToast }) {
 
 function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSaveMockTest, onDeleteMockTest, streak, showToast }) {
   const [selectedDate, setSelectedDate] = useState(null);
+  const heatmapWrapperRef = useRef(null);
+
+  useEffect(() => {
+    if (heatmapWrapperRef.current) {
+      heatmapWrapperRef.current.scrollLeft = heatmapWrapperRef.current.scrollWidth;
+    }
+  }, [sessions]);
 
   const wowDelta = React.useMemo(() => {
     const today = new Date(); today.setHours(0,0,0,0);
@@ -1314,7 +1317,7 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, onSa
       {/* Activity heatmap */}
       <div className="card">
         <div className="card-title">🗓 activity heatmap</div>
-        <div className="github-heatmap-wrapper">
+        <div className="github-heatmap-wrapper" ref={heatmapWrapperRef}>
           <div className="github-heatmap-inner">
             <div className="github-heatmap-months">
               {monthLabels.map((lbl,i) => <div key={i} className="github-heatmap-month-label" style={{ gridColumn: `${lbl.colIndex + 2} / span 4` }}>{lbl.text}</div>)}
@@ -1703,101 +1706,6 @@ function AccountView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, 
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ====================================================
-// MISTAKES VIEW
-// ====================================================
-
-function MistakesView({ subjects, mistakes, onSaveMistake, onDeleteMistake, showToast }) {
-  const [subjectId, setSubjectId] = useState(subjects[0]?.id || '');
-  const [topicName, setTopicName] = useState('');
-  const [whatWentWrong, setWhatWentWrong] = useState('');
-  const [correctApproach, setCorrectApproach] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => { if (subjects.length > 0 && !subjectId) setSubjectId(subjects[0].id); }, [subjects]);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!subjectId || !topicName.trim() || !whatWentWrong.trim() || !correctApproach.trim()) return;
-    onSaveMistake({ subjectId, topicName: topicName.trim(), whatWentWrong: whatWentWrong.trim(), correctApproach: correctApproach.trim(), date: new Date().toISOString().split('T')[0], createdAt: Date.now() });
-    setTopicName(''); setWhatWentWrong(''); setCorrectApproach('');
-  };
-
-  const filtered = mistakes.filter(m => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    const subj = subjects.find(s => String(s.id) === String(m.subjectId));
-    return (m.topicName||'').toLowerCase().includes(q) || (m.whatWentWrong||'').toLowerCase().includes(q) || (m.correctApproach||'').toLowerCase().includes(q) || (subj?.name||'').toLowerCase().includes(q);
-  });
-
-  return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
-        <div className="card-title" style={{ marginBottom: 0 }}>✍️ mistake log</div>
-        <input className="input-sm" style={{ width: 200 }} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="search mistakes…" />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 22 }}>
-        {/* Form */}
-        <div style={{ borderRight: '1.5px dashed var(--line)', paddingRight: 20 }}>
-          <div className="card-title" style={{ fontSize: 16, marginBottom: 14 }}>log new mistake ✍️</div>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div className="form-group">
-              <label className="form-label">subject</label>
-              <select className="input-sm" style={{ borderRadius: 999 }} value={subjectId} onChange={e => setSubjectId(e.target.value)} required>
-                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">topic / context</label>
-              <input className="input-sm" style={{ borderRadius: 999 }} placeholder="e.g. Optics — Snell's Law" value={topicName} onChange={e => setTopicName(e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">what went wrong?</label>
-              <textarea className="input-rect" rows="3" placeholder="describe the error…" value={whatWentWrong} onChange={e => setWhatWentWrong(e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">correct approach</label>
-              <textarea className="input-rect" rows="3" placeholder="what is the right way?" value={correctApproach} onChange={e => setCorrectApproach(e.target.value)} required />
-            </div>
-            <button type="submit" className="btn btn-primary w-full" style={{ justifyContent: 'center', marginTop: 4 }}>save log ✨</button>
-          </form>
-        </div>
-
-        {/* List */}
-        <div style={{ overflowY: 'auto', maxHeight: 580 }}>
-          {filtered.length === 0
-            ? <div className="empty">no mistakes logged yet ✿<br />keep learning!</div>
-            : filtered.map(m => {
-                const subj = subjects.find(s => String(s.id) === String(m.subjectId));
-                return (
-                  <div key={m.id} className="mistake-card">
-                    <div className="mistake-header">
-                      <div>
-                        {subj && <span className="chip" style={{ border: `1.5px solid ${subj.colorHex}`, color: subj.colorHex, background: `${subj.colorHex}20`, fontSize: 11, marginBottom: 4, display: 'inline-flex' }}>{subj.name}</span>}
-                        <div className="mistake-label">{m.topicName}</div>
-                        <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 1 }}>{m.date}</div>
-                      </div>
-                      <button className="del-btn" onClick={() => onDeleteMistake(m.id)}>✕</button>
-                    </div>
-                    <div className="mistake-block mistake-wrong">
-                      <strong style={{ color: 'var(--red)', display: 'block', marginBottom: 3 }}>✗ mistake</strong>
-                      {m.whatWentWrong}
-                    </div>
-                    <div className="mistake-block mistake-fix">
-                      <strong style={{ color: '#059669', display: 'block', marginBottom: 3 }}>✓ fix / solution</strong>
-                      {m.correctApproach}
-                    </div>
-                  </div>
-                );
-              })
-          }
-        </div>
-      </div>
     </div>
   );
 }
