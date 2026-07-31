@@ -74,10 +74,9 @@ export default function App() {
       if (key === '1') setActiveTab('dashboard');
       else if (key === '2') setActiveTab('timer');
       else if (key === '3') setActiveTab('syllabus');
-      else if (key === '4') setActiveTab('history');
-      else if (key === '5') setActiveTab('analytics');
-      else if (key === '6') setActiveTab('account');
-      else if (key === '7') setActiveTab('mistakes');
+      else if (key === '4') setActiveTab('analytics');
+      else if (key === '5') setActiveTab('account');
+      else if (key === '6') setActiveTab('mistakes');
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -118,7 +117,6 @@ export default function App() {
     { id: 'dashboard', label: '🏠 home'    },
     { id: 'timer',     label: '⏱ timer'   },
     { id: 'syllabus',  label: '📚 syllabus'},
-    { id: 'history',   label: '📋 history' },
     { id: 'analytics', label: '📊 analytics'},
     { id: 'account',   label: '☁️ account' },
     { id: 'mistakes',  label: '✍️ mistakes' },
@@ -205,18 +203,6 @@ export default function App() {
               topics={topics}
               showToast={showToast}
               setActiveTab={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'history' && (
-            <HistoryView
-              sessions={sessions}
-              subjects={subjects}
-              onDeleteSession={(id) => {
-                DataService.deleteSession(id);
-                showToast('session deleted');
-              }}
-              showToast={showToast}
             />
           )}
 

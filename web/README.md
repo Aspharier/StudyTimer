@@ -46,18 +46,11 @@
 - Cycle topic status: `not started → in progress → completed → needs revision`
 - Progress bar per subject showing % completion
 
-### 📋 Session History
-- Full searchable log of all sessions
-- Filter by subject
-- Grouped by Today / Yesterday / Earlier
-- Displays duration, tag, subject chip, confidence stars, and journal notes
-- Delete individual sessions
-
 ### 📊 Analytics
 - **Bar chart** — study hours for the last 7 days
 - **Donut chart** — time split across subjects
 - **Week-over-week delta** — compare this week vs last week with a % delta
-- **Activity heatmap** — GitHub-style 365-day contribution graph (click any day for details)
+- **Activity heatmap** — GitHub-style 365-day contribution graph (click any day for details & session log)
 - **Practice test tracker** — log mock test scores with marks breakdown, filter by subject/topic, score trend line chart
 - **Weak spot detection** — identifies subjects studied often but rated hard, with a priority recommendation
 
