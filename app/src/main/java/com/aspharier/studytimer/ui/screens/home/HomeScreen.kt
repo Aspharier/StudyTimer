@@ -66,15 +66,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.aspharier.studytimer.domain.model.StudySession
-import com.aspharier.studytimer.ui.theme.AppTheme
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun HomeScreen(
-    selectedTheme: AppTheme,
-    onThemeSelected: (AppTheme) -> Unit,
     onProfileClick: () -> Unit,
     onStartTimer: (sessionId: Long, label: String, focusMinutes: Int, shortBreakMinutes: Int, longBreakMinutes: Int, cycles: Int, subjectId: Long?, tag: String?, notes: String?) -> Unit,
     onNavigateBack: () -> Unit = {},
@@ -109,7 +106,6 @@ fun HomeScreen(
     var shortBreakMinutes by rememberSaveable { mutableIntStateOf(5) }
     var longBreakMinutes by rememberSaveable { mutableIntStateOf(15) }
     var cycles by rememberSaveable { mutableIntStateOf(4) }
-    var isThemeDropdownExpanded by remember { mutableStateOf(false) }
     var isSubjectDropdownExpanded by remember { mutableStateOf(false) }
     var isNotesExpanded by remember { mutableStateOf(false) }
     var sessionToDelete by remember { mutableStateOf<StudySession?>(null) }
@@ -181,7 +177,7 @@ fun HomeScreen(
                         )
                     }
                     Text(
-                        text = "Focusly",
+                        text = "✿ focusly",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground

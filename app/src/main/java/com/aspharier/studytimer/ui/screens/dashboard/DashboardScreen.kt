@@ -44,13 +44,8 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
 
-import androidx.compose.material.icons.filled.Palette
-import com.aspharier.studytimer.ui.theme.AppTheme
-
 @Composable
 fun DashboardScreen(
-    selectedTheme: AppTheme,
-    onThemeSelected: (AppTheme) -> Unit,
     onProfileClick: () -> Unit,
     onStartSession: (Long?, String?) -> Unit,
     onSetExamGoal: () -> Unit,
@@ -84,73 +79,21 @@ fun DashboardScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                IconButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onProfileClick()
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    var isThemeDropdownExpanded by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(
-                            onClick = { isThemeDropdownExpanded = true },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Palette,
-                                contentDescription = "Theme",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = isThemeDropdownExpanded,
-                            onDismissRequest = { isThemeDropdownExpanded = false },
-                            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            AppTheme.entries.forEach { theme ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = theme.title,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            fontWeight = if (theme == selectedTheme) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    },
-                                    onClick = {
-                                        onThemeSelected(theme)
-                                        isThemeDropdownExpanded = false
-                                    },
-                                    leadingIcon = {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(24.dp)
-                                                .clip(CircleShape)
-                                                .background(theme.previewColor)
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    IconButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onProfileClick()
-                        },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Profile",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Profile",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

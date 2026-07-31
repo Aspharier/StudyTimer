@@ -27,14 +27,11 @@ import com.aspharier.studytimer.ui.screens.onboarding.OnboardingScreen
 import com.aspharier.studytimer.ui.screens.profile.ProfileScreen
 import com.aspharier.studytimer.ui.screens.syllabus.SyllabusScreen
 import com.aspharier.studytimer.ui.screens.timer.TimerScreen
-import com.aspharier.studytimer.ui.theme.AppTheme
 
 @Composable
 fun StudyTimerNavHost(
     navController: NavHostController = rememberNavController(),
-    startDestination: String = Screen.Onboarding.route,
-    selectedTheme: AppTheme = AppTheme.Midnight,
-    onThemeSelected: (AppTheme) -> Unit = {}
+    startDestination: String = Screen.Onboarding.route
 ) {
     var prefilledSubjectId by remember { mutableStateOf<Long?>(null) }
     var prefilledSessionName by remember { mutableStateOf<String?>(null) }
@@ -87,8 +84,6 @@ fun StudyTimerNavHost(
 
                 composable(Screen.Dashboard.route) {
                     DashboardScreen(
-                        selectedTheme = selectedTheme,
-                        onThemeSelected = onThemeSelected,
                         onProfileClick = {
                             navController.navigate(Screen.Profile.route)
                         },
@@ -112,8 +107,6 @@ fun StudyTimerNavHost(
                 composable(Screen.Home.route) {
                     val context = androidx.compose.ui.platform.LocalContext.current
                     HomeScreen(
-                        selectedTheme = selectedTheme,
-                        onThemeSelected = onThemeSelected,
                         onProfileClick = {
                             navController.navigate(Screen.Profile.route)
                         },
