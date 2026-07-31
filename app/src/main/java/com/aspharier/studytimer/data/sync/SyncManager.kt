@@ -120,8 +120,9 @@ class SyncManager @Inject constructor(
 
     private suspend fun downloadCloudToLocal(uid: String) {
         // 1. Download Exam Goals
-        runCatching {
+        try {
             val goalsSnapshot = firestore.collection("users").document(uid).collection("exam_goals").get().await()
+            android.util.Log.d("SyncManager", "Downloaded ${goalsSnapshot.size()} exam goals from cloud")
             for (doc in goalsSnapshot.documents) {
                 val id = doc.id.toLongOrNull() ?: kotlin.math.abs(doc.id.hashCode().toLong())
                 val name = doc.getString("name") ?: continue
@@ -133,11 +134,15 @@ class SyncManager @Inject constructor(
                 val goal = ExamGoal(id = id, name = name, examDate = examDate, dailyTargetMinutes = dailyTargetMinutes, createdAt = createdAt, isActive = isActive)
                 examGoalRepository.insertExamGoal(goal)
             }
+        } catch (e: Exception) {
+            android.util.Log.e("SyncManager", "Failed to download exam goals", e)
+            throw e
         }
 
         // 2. Download Subjects
-        runCatching {
+        try {
             val subjectsSnapshot = firestore.collection("users").document(uid).collection("subjects").get().await()
+            android.util.Log.d("SyncManager", "Downloaded ${subjectsSnapshot.size()} subjects from cloud")
             for (doc in subjectsSnapshot.documents) {
                 val id = doc.id.toLongOrNull() ?: kotlin.math.abs(doc.id.hashCode().toLong())
                 val name = doc.getString("name") ?: continue
@@ -172,11 +177,15 @@ class SyncManager @Inject constructor(
                 )
                 syllabusRepository.insertSubject(subject)
             }
+        } catch (e: Exception) {
+            android.util.Log.e("SyncManager", "Failed to download subjects", e)
+            throw e
         }
 
         // 3. Download Topics
-        runCatching {
+        try {
             val topicsSnapshot = firestore.collection("users").document(uid).collection("topics").get().await()
+            android.util.Log.d("SyncManager", "Downloaded ${topicsSnapshot.size()} topics from cloud")
             for (doc in topicsSnapshot.documents) {
                 val id = doc.id.toLongOrNull() ?: kotlin.math.abs(doc.id.hashCode().toLong())
                 val name = doc.getString("name") ?: continue
@@ -211,11 +220,15 @@ class SyncManager @Inject constructor(
                 val topic = Topic(id = id, name = name, subjectId = subjectId, status = status, sortOrder = sortOrder, subTopics = subTopics)
                 syllabusRepository.insertTopic(topic)
             }
+        } catch (e: Exception) {
+            android.util.Log.e("SyncManager", "Failed to download topics", e)
+            throw e
         }
 
         // 4. Download Sessions
-        runCatching {
+        try {
             val sessionsSnapshot = firestore.collection("users").document(uid).collection("sessions").get().await()
+            android.util.Log.d("SyncManager", "Downloaded ${sessionsSnapshot.size()} sessions from cloud")
             val downloadedSessionIds = mutableSetOf<Long>()
             val syncedIds = getSyncedSessionIds()
 
@@ -258,11 +271,15 @@ class SyncManager @Inject constructor(
                 }
             }
             saveSyncedSessionIds(syncedIds)
+        } catch (e: Exception) {
+            android.util.Log.e("SyncManager", "Failed to download sessions", e)
+            throw e
         }
 
         // 5. Download Mock Tests
-        runCatching {
+        try {
             val mockTestsSnapshot = firestore.collection("users").document(uid).collection("mock_tests").get().await()
+            android.util.Log.d("SyncManager", "Downloaded ${mockTestsSnapshot.size()} mock tests from cloud")
             val downloadedMockTestIds = mutableSetOf<Long>()
             val syncedMockIds = getSyncedMockTestIds()
 
@@ -312,6 +329,9 @@ class SyncManager @Inject constructor(
                 }
             }
             saveSyncedMockTestIds(syncedMockIds)
+        } catch (e: Exception) {
+            android.util.Log.e("SyncManager", "Failed to download mock tests", e)
+            throw e
         }
     }
 
@@ -319,7 +339,7 @@ class SyncManager @Inject constructor(
         val userDocRef = firestore.collection("users").document(uid)
 
         // Upload Exam Goals
-        runCatching {
+        try {
             val goals = examGoalRepository.getAllExamGoals().first()
             for (goal in goals) {
                 val data = mapOf(
@@ -331,10 +351,13 @@ class SyncManager @Inject constructor(
                 ).filterValues { it != null }
                 userDocRef.collection("exam_goals").document(goal.id.toString()).set(data).await()
             }
+        } catch (e: Exception) {
+            android.util.Log.e("SyncManager", "Failed to upload exam goals", e)
+            throw e
         }
 
         // Upload Subjects
-        runCatching {
+        try {
             val subjects = syllabusRepository.getAllSubjects().first()
             for (subj in subjects) {
                 val data = mapOf(
@@ -347,10 +370,13 @@ class SyncManager @Inject constructor(
                 ).filterValues { it != null }
                 userDocRef.collection("subjects").document(subj.id.toString()).set(data).await()
             }
+        } catch (e: Exception) {
+            android.util.Log.e("SyncManager", "Failed to upload subjects", e)
+            throw e
         }
 
         // Upload Topics
-        runCatching {
+        try {
             val subjects = syllabusRepository.getAllSubjects().first()
             for (subj in subjects) {
                 val topics = syllabusRepository.getTopicsBySubject(subj.id).first()
@@ -372,10 +398,13 @@ class SyncManager @Inject constructor(
                     userDocRef.collection("topics").document(topic.id.toString()).set(data).await()
                 }
             }
+        } catch (e: Exception) {
+            android.util.Log.e("SyncManager", "Failed to upload topics", e)
+            throw e
         }
 
         // Upload Sessions
-        runCatching {
+        try {
             val sessions = sessionRepository.getAllSessions().first()
             val syncedIds = getSyncedSessionIds()
             for (session in sessions) {
@@ -395,10 +424,13 @@ class SyncManager @Inject constructor(
                 syncedIds.add(session.id)
             }
             saveSyncedSessionIds(syncedIds)
+        } catch (e: Exception) {
+            android.util.Log.e("SyncManager", "Failed to upload sessions", e)
+            throw e
         }
 
         // Upload Mock Tests
-        runCatching {
+        try {
             val mockTests = mockTestRepository.getAllMockTests().first()
             val syncedMockIds = getSyncedMockTestIds()
             for (test in mockTests) {
@@ -417,6 +449,9 @@ class SyncManager @Inject constructor(
                 syncedMockIds.add(test.id)
             }
             saveSyncedMockTestIds(syncedMockIds)
+        } catch (e: Exception) {
+            android.util.Log.e("SyncManager", "Failed to upload mock tests", e)
+            throw e
         }
     }
 

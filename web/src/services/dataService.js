@@ -264,94 +264,137 @@ if (auth) {
 const syncLocalToCloud = async (uid) => {
   if (!db) return;
   try {
-    // Quick check if cloud already has data. If it does, we don't force local push
-    const goalsRef = collection(db, 'users', uid, 'exam_goals');
-    const qSnapshot = await getDocs(goalsRef);
-    if (!qSnapshot.empty) return; // Cloud already has data, pull from cloud instead
-
     const batch = writeBatch(db);
-    
-    examGoals.forEach(g => {
-      const ref = doc(db, 'users', uid, 'exam_goals', String(g.id));
-      batch.set(ref, { name: g.name, examDate: g.examDate, dailyTargetMinutes: g.dailyTargetMinutes, isActive: g.isActive, createdAt: g.createdAt });
-    });
+    let addedAny = false;
 
-    subjects.forEach(s => {
-      const ref = doc(db, 'users', uid, 'subjects', String(s.id));
-      batch.set(ref, { 
-        name: s.name, 
-        examGoalId: s.examGoalId, 
-        colorHex: s.colorHex, 
-        sortOrder: s.sortOrder,
-        targetHours: s.targetHours || null,
-        priority: s.priority || null
+    // 1. Exam Goals
+    const goalsRef = collection(db, 'users', uid, 'exam_goals');
+    const goalsSnapshot = await getDocs(goalsRef);
+    if (goalsSnapshot.empty && examGoals.length > 0) {
+      examGoals.forEach(g => {
+        const ref = doc(db, 'users', uid, 'exam_goals', String(g.id));
+        batch.set(ref, { name: g.name, examDate: g.examDate, dailyTargetMinutes: g.dailyTargetMinutes, isActive: g.isActive, createdAt: g.createdAt });
+        addedAny = true;
       });
-    });
+    }
 
-    topics.forEach(t => {
-      const ref = doc(db, 'users', uid, 'topics', String(t.id));
-      batch.set(ref, { 
-        name: t.name, 
-        subjectId: t.subjectId, 
-        status: t.status, 
-        sortOrder: t.sortOrder,
-        subTopics: t.subTopics || []
+    // 2. Subjects
+    const subjectsRef = collection(db, 'users', uid, 'subjects');
+    const subjectsSnapshot = await getDocs(subjectsRef);
+    if (subjectsSnapshot.empty && subjects.length > 0) {
+      subjects.forEach(s => {
+        const ref = doc(db, 'users', uid, 'subjects', String(s.id));
+        batch.set(ref, { 
+          name: s.name, 
+          examGoalId: s.examGoalId, 
+          colorHex: s.colorHex, 
+          sortOrder: s.sortOrder,
+          targetHours: s.targetHours || null,
+          priority: s.priority || null
+        });
+        addedAny = true;
       });
-    });
+    }
 
-    sessions.forEach(se => {
-      const ref = doc(db, 'users', uid, 'sessions', String(se.id));
-      batch.set(ref, { 
-        label: se.label, 
-        durationMinutes: se.durationMinutes, 
-        completedDurationSeconds: se.completedDurationSeconds, 
-        date: se.date, 
-        startTime: se.startTime, 
-        endTime: se.endTime, 
-        isCompleted: se.isCompleted,
-        notes: se.notes || null,
-        tag: se.tag || null,
-        subjectId: se.subjectId || null,
-        confidenceRating: se.confidenceRating || null,
-        focusScore: se.focusScore !== undefined ? se.focusScore : null
+    // 3. Topics
+    const topicsRef = collection(db, 'users', uid, 'topics');
+    const topicsSnapshot = await getDocs(topicsRef);
+    if (topicsSnapshot.empty && topics.length > 0) {
+      topics.forEach(t => {
+        const ref = doc(db, 'users', uid, 'topics', String(t.id));
+        batch.set(ref, { 
+          name: t.name, 
+          subjectId: t.subjectId, 
+          status: t.status, 
+          sortOrder: t.sortOrder,
+          subTopics: t.subTopics || []
+        });
+        addedAny = true;
       });
-    });
+    }
 
-    mockTests.forEach(m => {
-      const ref = doc(db, 'users', uid, 'mock_tests', String(m.id));
-      batch.set(ref, {
-        examGoalId: m.examGoalId,
-        subjectId: m.subjectId,
-        testName: m.testName,
-        scorePercentage: m.scorePercentage,
-        totalMarks: m.totalMarks,
-        obtainedMarks: m.obtainedMarks,
-        notes: m.notes || null,
-        date: m.date,
-        createdAt: m.createdAt || Date.now()
+    // 4. Sessions
+    const sessionsRef = collection(db, 'users', uid, 'sessions');
+    const sessionsSnapshot = await getDocs(sessionsRef);
+    if (sessionsSnapshot.empty && sessions.length > 0) {
+      sessions.forEach(se => {
+        const ref = doc(db, 'users', uid, 'sessions', String(se.id));
+        batch.set(ref, { 
+          label: se.label, 
+          durationMinutes: se.durationMinutes, 
+          completedDurationSeconds: se.completedDurationSeconds, 
+          date: se.date, 
+          startTime: se.startTime, 
+          endTime: se.endTime, 
+          isCompleted: se.isCompleted,
+          notes: se.notes || null,
+          tag: se.tag || null,
+          subjectId: se.subjectId || null,
+          confidenceRating: se.confidenceRating || null,
+          focusScore: se.focusScore !== undefined ? se.focusScore : null
+        });
+        addedAny = true;
       });
-    });
+    }
 
-    flashcards.forEach(c => {
-      const ref = doc(db, 'users', uid, 'flashcards', String(c.id));
-      batch.set(ref, c);
-    });
+    // 5. Mock Tests
+    const mockTestsRef = collection(db, 'users', uid, 'mock_tests');
+    const mockTestsSnapshot = await getDocs(mockTestsRef);
+    if (mockTestsSnapshot.empty && mockTests.length > 0) {
+      mockTests.forEach(m => {
+        const ref = doc(db, 'users', uid, 'mock_tests', String(m.id));
+        batch.set(ref, {
+          examGoalId: m.examGoalId,
+          subjectId: m.subjectId,
+          testName: m.testName,
+          scorePercentage: m.scorePercentage,
+          totalMarks: m.totalMarks,
+          obtainedMarks: m.obtainedMarks,
+          notes: m.notes || null,
+          date: m.date,
+          createdAt: m.createdAt || Date.now()
+        });
+        addedAny = true;
+      });
+    }
 
-    mistakes.forEach(m => {
-      const ref = doc(db, 'users', uid, 'mistakes', String(m.id));
-      batch.set(ref, m);
-    });
+    // 6. Flashcards
+    const flashcardsRef = collection(db, 'users', uid, 'flashcards');
+    const flashcardsSnapshot = await getDocs(flashcardsRef);
+    if (flashcardsSnapshot.empty && flashcards.length > 0) {
+      flashcards.forEach(c => {
+        const ref = doc(db, 'users', uid, 'flashcards', String(c.id));
+        batch.set(ref, c);
+        addedAny = true;
+      });
+    }
 
-    dailyTargets.forEach(dt => {
-      const ref = doc(db, 'users', uid, 'daily_targets', String(dt.id));
-      batch.set(ref, dt);
-    });
+    // 7. Mistakes
+    const mistakesRef = collection(db, 'users', uid, 'mistakes');
+    const mistakesSnapshot = await getDocs(mistakesRef);
+    if (mistakesSnapshot.empty && mistakes.length > 0) {
+      mistakes.forEach(m => {
+        const ref = doc(db, 'users', uid, 'mistakes', String(m.id));
+        batch.set(ref, m);
+        addedAny = true;
+      });
+    }
 
-    batch.set(doc(db, 'users', uid, 'streak_metadata', 'freezes'), { streakFreezes, freezeTokens });
-    batch.set(doc(db, 'users', uid, 'streak_metadata', 'longest'), { longestStreak });
+    // 8. Daily Targets
+    const dailyTargetsRef = collection(db, 'users', uid, 'daily_targets');
+    const dailyTargetsSnapshot = await getDocs(dailyTargetsRef);
+    if (dailyTargetsSnapshot.empty && dailyTargets.length > 0) {
+      dailyTargets.forEach(dt => {
+        const ref = doc(db, 'users', uid, 'daily_targets', String(dt.id));
+        batch.set(ref, dt);
+        addedAny = true;
+      });
+    }
 
-    await batch.commit();
-    console.log("Successfully synced local storage cache to Firestore cloud!");
+    if (addedAny) {
+      await batch.commit();
+      console.log("Successfully synced local storage cache to Firestore cloud!");
+    }
   } catch (err) {
     console.error("Local to Cloud sync failed: ", err);
   }
