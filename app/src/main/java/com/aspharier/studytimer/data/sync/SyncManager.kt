@@ -119,14 +119,11 @@ class SyncManager @Inject constructor(
     }
 
     private suspend fun downloadCloudToLocal(uid: String) {
-        val validGoalIds = mutableSetOf<Long>()
-        val validSubjectIds = mutableSetOf<Long>()
-
-        // Download Exam Goals
+        // 1. Download Exam Goals
         runCatching {
             val goalsSnapshot = firestore.collection("users").document(uid).collection("exam_goals").get().await()
             for (doc in goalsSnapshot.documents) {
-                val id = doc.id.toLongOrNull() ?: continue
+                val id = doc.id.toLongOrNull() ?: kotlin.math.abs(doc.id.hashCode().toLong())
                 val name = doc.getString("name") ?: continue
                 val examDate = doc.getString("examDate") ?: continue
                 val dailyTargetMinutes = doc.getIntSafely("dailyTargetMinutes") ?: 360
@@ -135,22 +132,28 @@ class SyncManager @Inject constructor(
 
                 val goal = ExamGoal(id = id, name = name, examDate = examDate, dailyTargetMinutes = dailyTargetMinutes, createdAt = createdAt, isActive = isActive)
                 examGoalRepository.insertExamGoal(goal)
-                validGoalIds.add(id)
             }
         }
 
-        // Download Subjects
+        // 2. Download Subjects
         runCatching {
             val subjectsSnapshot = firestore.collection("users").document(uid).collection("subjects").get().await()
             for (doc in subjectsSnapshot.documents) {
-                val id = doc.id.toLongOrNull() ?: continue
+                val id = doc.id.toLongOrNull() ?: kotlin.math.abs(doc.id.hashCode().toLong())
                 val name = doc.getString("name") ?: continue
-                val examGoalId = doc.getLongSafely("examGoalId") ?: continue
-                
-                if (!validGoalIds.contains(examGoalId)) {
-                    if (examGoalRepository.getExamGoalById(examGoalId) == null) {
-                        continue
-                    }
+                val examGoalId = doc.getLongSafely("examGoalId") ?: 1L
+
+                // Auto-create parent Exam Goal in Room if missing to satisfy Foreign Key
+                if (examGoalRepository.getExamGoalById(examGoalId) == null) {
+                    val defaultGoal = ExamGoal(
+                        id = examGoalId,
+                        name = "Main Goal",
+                        examDate = java.time.LocalDate.now().plusMonths(3).toString(),
+                        dailyTargetMinutes = 360,
+                        createdAt = System.currentTimeMillis(),
+                        isActive = true
+                    )
+                    examGoalRepository.insertExamGoal(defaultGoal)
                 }
 
                 val colorHex = doc.getString("colorHex") ?: "#4D96FF"
@@ -168,27 +171,31 @@ class SyncManager @Inject constructor(
                     priority = priority
                 )
                 syllabusRepository.insertSubject(subject)
-                validSubjectIds.add(id)
             }
         }
 
-        // Download Topics
+        // 3. Download Topics
         runCatching {
             val topicsSnapshot = firestore.collection("users").document(uid).collection("topics").get().await()
             for (doc in topicsSnapshot.documents) {
-                val id = doc.id.toLongOrNull() ?: continue
+                val id = doc.id.toLongOrNull() ?: kotlin.math.abs(doc.id.hashCode().toLong())
                 val name = doc.getString("name") ?: continue
-                val subjectId = doc.getLongSafely("subjectId") ?: continue
-                
-                if (!validSubjectIds.contains(subjectId)) {
-                    if (syllabusRepository.getSubjectById(subjectId) == null) {
-                        continue
+                val subjectId = doc.getLongSafely("subjectId") ?: 1L
+
+                // Auto-create parent Subject in Room if missing to satisfy Foreign Key
+                if (syllabusRepository.getSubjectById(subjectId) == null) {
+                    val existingGoals = examGoalRepository.getAllExamGoals().first()
+                    val goalId = existingGoals.firstOrNull()?.id ?: 1L
+                    if (existingGoals.isEmpty()) {
+                        examGoalRepository.insertExamGoal(ExamGoal(id = goalId, name = "Main Goal", examDate = java.time.LocalDate.now().plusMonths(3).toString(), dailyTargetMinutes = 360, createdAt = System.currentTimeMillis(), isActive = true))
                     }
+                    val parentSubject = Subject(id = subjectId, name = "General Subject", examGoalId = goalId, colorHex = "#4D96FF", sortOrder = 0)
+                    syllabusRepository.insertSubject(parentSubject)
                 }
 
                 val statusStr = doc.getString("status") ?: "NOT_STARTED"
                 val sortOrder = doc.getIntSafely("sortOrder") ?: 0
-                
+
                 @Suppress("UNCHECKED_CAST")
                 val subTopicsDataList = doc.get("subTopics") as? List<Map<String, Any>>
                 val subTopics = subTopicsDataList?.mapNotNull { subMap ->
@@ -206,14 +213,14 @@ class SyncManager @Inject constructor(
             }
         }
 
-        // Download Sessions
+        // 4. Download Sessions
         runCatching {
             val sessionsSnapshot = firestore.collection("users").document(uid).collection("sessions").get().await()
             val downloadedSessionIds = mutableSetOf<Long>()
             val syncedIds = getSyncedSessionIds()
 
             for (doc in sessionsSnapshot.documents) {
-                val id = doc.id.toLongOrNull() ?: continue
+                val id = doc.id.toLongOrNull() ?: kotlin.math.abs(doc.id.hashCode().toLong())
                 val label = doc.getString("label") ?: "Study Session"
                 val durationMinutes = doc.getIntSafely("durationMinutes") ?: 25
                 val completedDurationSeconds = doc.getLongSafely("completedDurationSeconds") ?: 0L
@@ -253,26 +260,23 @@ class SyncManager @Inject constructor(
             saveSyncedSessionIds(syncedIds)
         }
 
-        // Download Mock Tests
+        // 5. Download Mock Tests
         runCatching {
             val mockTestsSnapshot = firestore.collection("users").document(uid).collection("mock_tests").get().await()
             val downloadedMockTestIds = mutableSetOf<Long>()
             val syncedMockIds = getSyncedMockTestIds()
 
             for (doc in mockTestsSnapshot.documents) {
-                val id = doc.id.toLongOrNull() ?: continue
-                val examGoalId = doc.getLongSafely("examGoalId") ?: continue
-                val subjectId = doc.getLongSafely("subjectId") ?: continue
+                val id = doc.id.toLongOrNull() ?: kotlin.math.abs(doc.id.hashCode().toLong())
+                val examGoalId = doc.getLongSafely("examGoalId") ?: 1L
+                val subjectId = doc.getLongSafely("subjectId") ?: 1L
 
-                if (!validGoalIds.contains(examGoalId)) {
-                    if (examGoalRepository.getExamGoalById(examGoalId) == null) {
-                        continue
-                    }
+                // Auto-create parents if missing
+                if (examGoalRepository.getExamGoalById(examGoalId) == null) {
+                    examGoalRepository.insertExamGoal(ExamGoal(id = examGoalId, name = "Main Goal", examDate = java.time.LocalDate.now().plusMonths(3).toString(), dailyTargetMinutes = 360, createdAt = System.currentTimeMillis(), isActive = true))
                 }
-                if (!validSubjectIds.contains(subjectId)) {
-                    if (syllabusRepository.getSubjectById(subjectId) == null) {
-                        continue
-                    }
+                if (syllabusRepository.getSubjectById(subjectId) == null) {
+                    syllabusRepository.insertSubject(Subject(id = subjectId, name = "General Subject", examGoalId = examGoalId, colorHex = "#4D96FF", sortOrder = 0))
                 }
 
                 val testName = doc.getString("testName") ?: continue
