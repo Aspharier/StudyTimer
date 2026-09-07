@@ -21,6 +21,7 @@ let mockTests = JSON.parse(localStorage.getItem('focusly_mock_tests') || '[]');
 let flashcards = JSON.parse(localStorage.getItem('focusly_flashcards') || '[]');
 let mistakes = JSON.parse(localStorage.getItem('focusly_mistakes') || '[]');
 let dailyTargets = JSON.parse(localStorage.getItem('focusly_daily_targets') || '[]');
+let dailyPlans = JSON.parse(localStorage.getItem('focusly_daily_plans') || '[]');
 let streakFreezes = JSON.parse(localStorage.getItem('focusly_streak_freezes') || '[]');
 let freezeTokens = parseInt(localStorage.getItem('focusly_freeze_tokens') || '1');
 let longestStreak = parseInt(localStorage.getItem('focusly_longest_streak') || '0');
@@ -34,6 +35,7 @@ const listeners = {
   flashcards: [],
   mistakes: [],
   dailyTargets: [],
+  dailyPlans: [],
   streakFreezes: [],
   freezeTokens: [],
   longestStreak: [],
@@ -50,6 +52,7 @@ const storageKeys = {
   flashcards: 'focusly_flashcards',
   mistakes: 'focusly_mistakes',
   dailyTargets: 'focusly_daily_targets',
+  dailyPlans: 'focusly_daily_plans',
   streakFreezes: 'focusly_streak_freezes',
   freezeTokens: 'focusly_freeze_tokens',
   longestStreak: 'focusly_longest_streak'
@@ -181,6 +184,17 @@ if (auth) {
       });
       firestoreUnsubs.push(dailyTargetsUnsub);
 
+      const dailyPlansRef = collection(db, 'users', user.uid, 'daily_plans');
+      const dailyPlansUnsub = onSnapshot(dailyPlansRef, (snapshot) => {
+        const cloudDailyPlans = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (cloudDailyPlans.length > 0) {
+          dailyPlans = cloudDailyPlans;
+          notify('dailyPlans', dailyPlans);
+        }
+        updateLastSyncTime();
+      });
+      firestoreUnsubs.push(dailyPlansUnsub);
+
       const streakMetadataRef = doc(db, 'users', user.uid, 'streak_metadata', 'freezes');
       const streakMetadataUnsub = onSnapshot(streakMetadataRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -223,6 +237,7 @@ if (auth) {
       localStorage.removeItem('focusly_flashcards');
       localStorage.removeItem('focusly_mistakes');
       localStorage.removeItem('focusly_daily_targets');
+      localStorage.removeItem('focusly_daily_plans');
       localStorage.removeItem('focusly_streak_freezes');
       localStorage.removeItem('focusly_freeze_tokens');
       localStorage.removeItem('focusly_longest_streak');
@@ -237,6 +252,7 @@ if (auth) {
       flashcards = [];
       mistakes = [];
       dailyTargets = [];
+      dailyPlans = [];
       streakFreezes = [];
       freezeTokens = 1;
       longestStreak = 0;
@@ -249,6 +265,7 @@ if (auth) {
       notify('flashcards', flashcards);
       notify('mistakes', mistakes);
       notify('dailyTargets', dailyTargets);
+      notify('dailyPlans', dailyPlans);
       notify('streakFreezes', streakFreezes);
       notify('freezeTokens', freezeTokens);
       notify('longestStreak', longestStreak);
@@ -387,6 +404,17 @@ const syncLocalToCloud = async (uid) => {
       dailyTargets.forEach(dt => {
         const ref = doc(db, 'users', uid, 'daily_targets', String(dt.id));
         batch.set(ref, dt);
+        addedAny = true;
+      });
+    }
+
+    // 9. Daily Plans
+    const dailyPlansRef = collection(db, 'users', uid, 'daily_plans');
+    const dailyPlansSnapshot = await getDocs(dailyPlansRef);
+    if (dailyPlansSnapshot.empty && dailyPlans.length > 0) {
+      dailyPlans.forEach(dp => {
+        const ref = doc(db, 'users', uid, 'daily_plans', String(dp.id));
+        batch.set(ref, dp);
         addedAny = true;
       });
     }
@@ -822,6 +850,45 @@ export const DataService = {
     const user = auth?.currentUser;
     if (user && db) {
       await setDoc(doc(db, 'users', user.uid, 'streak_metadata', 'longest'), { longestStreak });
+    }
+  },
+
+  // Daily Plans CRUD
+  subscribeToDailyPlans: (cb) => {
+    listeners.dailyPlans.push(cb);
+    cb(dailyPlans);
+    return () => { listeners.dailyPlans = listeners.dailyPlans.filter(x => x !== cb); };
+  },
+
+  saveDailyPlan: async (plan) => {
+    const id = plan.id || plan.date; // Use date as ID for easy lookup
+    const newPlan = { ...plan, id };
+    
+    dailyPlans = dailyPlans.filter(x => x.id !== id);
+    dailyPlans.push(newPlan);
+    notify('dailyPlans', dailyPlans);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      const ref = doc(db, 'users', user.uid, 'daily_plans', id);
+      await setDoc(ref, {
+        date: newPlan.date,
+        items: newPlan.items || [],
+        reflection: newPlan.reflection || null,
+        rating: newPlan.rating || null,
+        createdAt: newPlan.createdAt || Date.now(),
+        updatedAt: Date.now()
+      });
+    }
+  },
+
+  deleteDailyPlan: async (id) => {
+    dailyPlans = dailyPlans.filter(x => x.id !== id);
+    notify('dailyPlans', dailyPlans);
+    
+    const user = auth?.currentUser;
+    if (user && db) {
+      await deleteDoc(doc(db, 'users', user.uid, 'daily_plans', id));
     }
   }
 };
