@@ -1,67 +1,148 @@
-<p align="center">
-  <img width="150" height="150" alt="Pin on sad pfp _" src="https://github.com/user-attachments/assets/c58fdeb4-7af9-4547-a920-4f0b17bf2995" />
-</p>
-
-<h1 align="center">Focusly</h1>
-
-
-<p align="center">
-  A clean & focused Study Timer app built for students using Kotlin & Jetpack Compose
-</p>
-
----
-
 # ✿ focusly — neo-y2k study timer
 
-> A pastel, kawaii-styled study companion available as both a **Web App (React + Vite)** and an **Android Mobile App (Jetpack Compose + Kotlin)**. Track your study sessions, manage your syllabus, analyse your progress — all wrapped in a neo-y2k aesthetic with chunky borders, hard offset shadows, and floating stickers.
-
-Think of it as your **digital study companion** for better focus, discipline, and productivity.
+> A pastel, kawaii-styled study companion built with React + Vite. Track your study sessions, manage your syllabus, analyse your progress, and log mistakes — all wrapped in a neo-y2k aesthetic with chunky borders, hard offset shadows, and floating stickers.
 
 ---
 
-## App Screenshots
+## ✨ Design System — Neo-Y2K Kawaii
 
-| Screen 1 | Screen 2 | Screen 3 |
-|-----------|-----------|-----------|
-| ![StudyTimer1](https://github.com/user-attachments/assets/632c0b81-941e-4821-b484-252a4f532b06) | ![StudyTimer2](https://github.com/user-attachments/assets/27535820-7564-4d55-bbbc-2f912cf9fe3e) | ![StudyTimer3](https://github.com/user-attachments/assets/6d35117c-f2bc-4c43-a7b1-2d11379f53ba) |
-| ![StudyTimer4](https://github.com/user-attachments/assets/2fc53010-ab32-4e4a-96da-380e57843947) | ![StudyTimer5](https://github.com/user-attachments/assets/5dfb070d-01ba-48bb-85c2-5b62992bca05) | ![StudyTimer6](https://github.com/user-attachments/assets/3c2c0736-aada-4504-b6ea-f8a79f7fadda) |
-
----
-
-## Features
-
-- Minimal and distraction-free study timer
-- Focus session tracking
-- Clean and modern UI
-- Smooth and lightweight performance
-- Productivity-focused experience
-- Built with Jetpack Compose
-- Simple and responsive design
+| Element | Detail |
+|---|---|
+| **Fonts** | Fredoka (UI) + Caveat (headers) via Google Fonts |
+| **Background** | Pastel radial-gradient blobs — pink / lilac / mint / sunny |
+| **Borders** | 2.5px solid `#4a2d5e` (ink) |
+| **Shadows** | Hard offset `5px 5px 0 var(--ink)` — no blur |
+| **Buttons** | Rounded pill buttons with hover lift effect |
+| **Cards** | Bubble cards with `28px` radius + blur backdrop |
+| **Stickers** | 8 floating emoji stickers drifting in the background (✿ ⭐ 🎀 ✨ ☁️ 🌸 🍬 🌷) |
+| **Clock** | Live top-bar clock in a chunky pill |
 
 ---
 
-## Tech Stack
+## 🚀 Features
 
-- **Kotlin**
-- **Jetpack Compose**
-- **Material 3**
-- **Coroutines**
-- **MVVM Architecture**
+### 🏠 Dashboard
+- **Today's snapshot** — streak, hours studied, exam countdown, session count
+- **Progress ring** — visual ring showing how close you are to your daily target
+- **Quick start** — one-click buttons to jump to any section
+- **Syllabus overview** — see all subject completion rates at a glance
+- **Recent sessions** — last 5 sessions with subject colour chips
+
+### ⏱ Pomodoro Timer
+- **4 preset modes** — Standard (25/5), Ultradian (52/17), Prep Mode (50/10), Exam Simulation (3h lock)
+- **Cycle pips** — visual pip track showing focus cycles completed
+- **Custom durations** — adjust focus, short break, long break, and cycle count
+- **Session metadata** — pick a subject, session name, and tag (New Topic / Revision / Practice / Mock Test)
+- **Auto-advance breaks** — break timer starts automatically after a focus cycle ends
+- **Confidence rating** — rate each session 1–5 stars on completion
+- **Session notes** — journal entry saved with each session
+- **Focus score** — automatic score deducted per pause (penalises distraction)
+- **Exam Sim lock** — 3-hour locked mode that mimics real exam conditions
+
+### 📚 Syllabus Tracker
+- Add subjects with a custom colour
+- Add topics under each subject
+- Add sub-topics under each topic
+- Cycle topic status: `not started → in progress → completed → needs revision`
+- Progress bar per subject showing % completion
+
+### 📊 Analytics
+- **Bar chart** — study hours for the last 7 days
+- **Donut chart** — time split across subjects
+- **Week-over-week delta** — compare this week vs last week with a % delta
+- **Activity heatmap** — GitHub-style 365-day contribution graph (click any day for details & session log)
+- **Practice test tracker** — log mock test scores with marks breakdown, filter by subject/topic, score trend line chart
+- **Weak spot detection** — identifies subjects studied often but rated hard, with a priority recommendation
+
+### ☁️ Account & Settings
+- **Google sign-in** via Firebase — syncs all data to Firestore across devices
+- **Offline / local mode** — works fully offline using localStorage when not signed in
+- **Exam goal manager** — set exam name, date, and daily target (hours/day)
+- **Export backup** — download all data as a JSON file
+- **Clear cache** — wipe local data
 
 ---
 
-## Getting Started
+## 🛠 Tech Stack
 
-### Prerequisites
-
-- Android Studio (Stable)
-- Android SDK 24+
-- Kotlin 2.x
-- Gradle (bundled with Android Studio)
+| Layer | Tool |
+|---|---|
+| Framework | React 19 |
+| Build | Vite |
+| Styling | Vanilla CSS (custom neo-y2k design system) |
+| Charts | Recharts |
+| Auth | Firebase Authentication (Google) |
+| Database | Firebase Firestore (cloud) / localStorage (offline) |
+| Fonts | Google Fonts — Fredoka, Caveat |
 
 ---
 
-### Clone the Repository
+## ⚡ Getting Started
 
 ```bash
-git clone https://github.com/Aspharier/StudyTimer.git
+# Install dependencies
+npm install
+
+# Set up Firebase (optional — for cloud sync)
+cp .env.example .env
+# Fill in your Firebase project credentials in .env
+
+# Start dev server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+> **Without Firebase credentials**, the app runs fully offline using `localStorage`. All features work except cross-device sync.
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `1` | Dashboard |
+| `2` | Timer |
+| `3` | Syllabus |
+| `4` | History |
+| `5` | Analytics |
+| `6` | Account |
+| `7` | Mistake Log |
+
+> Shortcuts are disabled while a timer session is active.
+
+---
+
+## 📁 Project Structure
+
+```
+├── src/
+│   ├── App.jsx          # All views and components
+│   ├── index.css        # Neo-y2k design system (tokens, layout, components)
+│   ├── main.jsx         # React entry point
+│   ├── firebase.js      # Firebase config + auth helpers
+│   └── services/
+│       └── dataService.js  # Firestore / localStorage data layer
+├── public/
+├── index.html
+├── package.json
+└── vite.config.js
+```
+
+---
+
+## 🎨 Color Palette
+
+```css
+--pink:        #ffb6d9   /* bubble pink */
+--lilac:       #c8b6ff   /* soft purple */
+--mint:        #b8f3d6   /* mint green */
+--sun:         #ffe27a   /* sunny yellow */
+--ink:         #4a2d5e   /* dark ink (borders & text) */
+--cream:       #fff4fb   /* off-white background */
+```
+
+---
+
+*made with 🌸 by Aspharier*
