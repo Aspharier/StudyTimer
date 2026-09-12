@@ -57,7 +57,7 @@ export default function App() {
     };
   }, []);
 
-  // Clock tick
+  // Clock tick which is working right now 
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
