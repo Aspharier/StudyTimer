@@ -430,7 +430,7 @@ function CommandCenterView({ daysRemaining, todayHours, currentStreak, studyStre
       </div>
 
       {/* ── Hours Progress Ring + Quick Log ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div className="grid-2col">
         <div className="card" style={{ marginBottom: 0 }}>
           <div className="card-title">⏱ Hours Progress</div>
           <div className="ring-container" style={{ flexDirection: 'column' }}>
@@ -837,7 +837,7 @@ function DailyPlanView({ dailyPlans, subjects, topics, sessions, activeGoal, sho
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div className="grid-2col" style={{ gap: 12, marginBottom: 14 }}>
               <div className="form-group">
                 <label className="form-label">Subject</label>
                 <select className="input" value={itemSubjectId} onChange={e => setItemSubjectId(e.target.value)}>
@@ -967,7 +967,7 @@ function SessionLoggerModal({ subjects, onSave, onClose }) {
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">⏱ Log Study Session</div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div className="grid-2col" style={{ gap: 12, marginBottom: 14 }}>
           <div className="form-group">
             <label className="form-label">Subject</label>
             <select className="input" value={subjectId} onChange={e => setSubjectId(e.target.value)}>
@@ -1124,7 +1124,7 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                         const statusLabel = t.status.toLowerCase().replace('_', ' ');
                         return (
                           <div key={t.id} style={{ padding: '10px 14px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 8 }} onClick={e => e.stopPropagation()}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                               <span style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</span>
                               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                 <span className="chip" style={{ background: sc.bg, color: sc.color, border: `1.5px solid ${sc.color}`, cursor: 'pointer', fontSize: 11 }}
@@ -1136,7 +1136,7 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                             {(t.subTopics || []).map(sub => {
                               const ssc = statusChipStyle(sub.status);
                               return (
-                                <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 8px 5px 20px', borderLeft: `2px solid ${s.colorHex}`, marginLeft: 8, marginTop: 6 }}>
+                                <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4, padding: '5px 8px 5px 20px', borderLeft: `2px solid ${s.colorHex}`, marginLeft: 8, marginTop: 6 }}>
                                   <span style={{ fontSize: 13 }}>{sub.name}</span>
                                   <div style={{ display: 'flex', gap: 5 }}>
                                     <span className="chip" style={{ background: ssc.bg, color: ssc.color, border: `1.5px solid ${ssc.color}`, cursor: 'pointer', fontSize: 10, padding: '2px 8px' }}
@@ -1358,7 +1358,7 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, dail
   return (
     <>
       {/* GATE Readiness + Consistency Score */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div className="grid-2col">
         <div className="card" style={{ marginBottom: 0 }}>
           <div className="card-title">🎯 GATE Readiness</div>
           <div style={{ textAlign: 'center', margin: '8px 0' }}>
@@ -1455,7 +1455,7 @@ function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, dail
       )}
 
       {/* Distribution + Consistency */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+      <div className="grid-2col">
         <div className="card" style={{ marginBottom: 0 }}>
           <div className="card-title">🍩 Subject Split</div>
           {pieData.length > 0 ? (
@@ -1652,7 +1652,7 @@ function MockTestSection({ mockTests, subjects, topics, activeGoal, onSave, onDe
             <label className="form-label">Test Name *</label>
             <input className="input" value={testName} onChange={e => setTestName(e.target.value)} required placeholder="e.g. PYQ Set — OS 2020-2024" />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div className="grid-3col" style={{ gap: 10, marginBottom: 12 }}>
             <div className="form-group">
               <label className="form-label">Subject</label>
               <select className="input-sm" value={subjectId} onChange={e => setSubjectId(e.target.value)} required>
@@ -1673,11 +1673,11 @@ function MockTestSection({ mockTests, subjects, topics, activeGoal, onSave, onDe
               <input className="input-sm" type="date" value={date} onChange={e => setDate(e.target.value)} required />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="grid-2col" style={{ gap: 10, marginBottom: 12 }}>
             <div className="form-group"><label className="form-label">Obtained Marks</label><input className="input-sm" type="number" step="any" value={obtainedMarks} onChange={e => setObtainedMarks(e.target.value)} placeholder="72" /></div>
             <div className="form-group"><label className="form-label">Total Marks</label><input className="input-sm" type="number" step="any" value={totalMarks} onChange={e => setTotalMarks(e.target.value)} placeholder="100" /></div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div className="grid-3col" style={{ gap: 10, marginBottom: 12 }}>
             <div className="form-group"><label className="form-label">Correct (+)</label><input className="input-sm" type="number" step="any" value={correctM} onChange={e => setCorrectM(e.target.value)} /></div>
             <div className="form-group"><label className="form-label">Penalty (−)</label><input className="input-sm" type="number" step="any" value={penaltyM} onChange={e => setPenaltyM(e.target.value)} /></div>
             <div className="form-group"><label className="form-label">Net (auto)</label><div className="input-sm" style={{ color: netMarks >= 0 ? 'var(--accent-emerald)' : 'var(--accent-red)', fontWeight: 700, display: 'flex', alignItems: 'center', cursor: 'default' }}>{(correctM || penaltyM) ? netMarks.toFixed(2) : '—'}</div></div>
