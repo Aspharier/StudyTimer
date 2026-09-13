@@ -1,155 +1,1188 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, LineChart, Line } from 'recharts';
+import { useState, useEffect, useMemo } from 'react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { DataService } from './services/dataService';
 import { signInWithPopup, googleProvider, auth, signOut } from './firebase';
 
-// ── Constants ──
-const GATE_EXAM_DATE = '2027-02-06';
-const GATE_TARGET_RANK = 10;
 const PLAN_ITEM_TYPES = ['LECTURE', 'PRACTICE', 'TEST', 'REVISION', 'MOCK_TEST'];
 const TYPE_ICONS = { LECTURE: '📖', PRACTICE: '✏️', TEST: '📝', REVISION: '🔄', MOCK_TEST: '🏆' };
 const TYPE_LABELS = { LECTURE: 'Lecture', PRACTICE: 'Practice', TEST: 'Test', REVISION: 'Revision', MOCK_TEST: 'Mock Test' };
 
-// ── Helpers ──
-const todayISO = () => new Date().toISOString().split('T')[0];
-const tomorrowISO = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; };
+const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const getDaysRemaining = (targetDate) => {
   const diff = new Date(targetDate) - new Date();
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 };
+
 const pad = (n) => String(n).padStart(2, '0');
 
-export default function App() {
-  const [activeTab, setActiveTab] = useState('command');
-  const [user, setUser] = useState(null);
+// Generate a random ID
+const generateId = () => Math.random().toString(36).substring(2, 9);
 
-  // Database States
+function SignInView({ onLogin }) {
+  return (
+    <div className="sign-in-container">
+      <div className="sign-in-card">
+        <div className="sign-in-logo">focusly</div>
+        <p className="sign-in-subtitle">Your focused exam preparation companion</p>
+        <button className="btn btn-primary btn-google w-full" onClick={onLogin}>
+          Sign in with Google
+        </button>
+        <p className="sign-in-note">Sign in to sync your data across all devices</p>
+      </div>
+    </div>
+  );
+}
+
+function DashboardView({ daysRemaining, dailyPlans, subjects, topics, activeGoal, mockTests, setActiveTab, showToast }) {
+  const todayStr = todayISO();
+  const todayPlan = dailyPlans.find(p => p.date === todayStr);
+  const todayItems = todayPlan?.items || [];
+  const completedItems = todayItems.filter(i => i.completed);
+  const planProgress = todayItems.length > 0 ? completedItems.length / todayItems.length : 0;
+
+  const goalProgressPct = useMemo(() => {
+    if (!activeGoal) return 0;
+    const start = new Date(activeGoal.createdAt || activeGoal.examDate);
+    const end = new Date(activeGoal.examDate);
+    const totalDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+    const elapsed = totalDays - (daysRemaining || 0);
+    return Math.min(100, Math.max(0, (elapsed / totalDays) * 100));
+  }, [activeGoal, daysRemaining]);
+
+  const currentStreak = useMemo(() => {
+    let streak = 0;
+    let d = new Date();
+    while (true) {
+      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const p = dailyPlans.find(plan => plan.date === dStr);
+      if (!p || p.items.length === 0) break;
+      const comp = p.items.filter(i => i.completed).length;
+      if (comp / p.items.length >= 0.8) {
+        streak++;
+        d.setDate(d.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }, [dailyPlans]);
+
+  const last7Days = useMemo(() => {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const p = dailyPlans.find(plan => plan.date === dStr);
+      let completion = 0;
+      let completedCount = 0;
+      let totalCount = 0;
+      if (p && p.items.length > 0) {
+        totalCount = p.items.length;
+        completedCount = p.items.filter(item => item.completed).length;
+        completion = completedCount / totalCount;
+      }
+      days.push({ date: dStr, label: d.toLocaleDateString('en-US', { weekday: 'short' }), completion, completedCount, totalCount, hasPlan: !!p && p.items.length > 0 });
+    }
+    return days;
+  }, [dailyPlans]);
+
+  const avgCompletion = useMemo(() => {
+    const plansCount = last7Days.filter(d => d.hasPlan).length;
+    if (plansCount === 0) return 0;
+    return last7Days.reduce((sum, d) => sum + d.completion, 0) / plansCount;
+  }, [last7Days]);
+
+  const syllabusProgress = useMemo(() => {
+    if (topics.length === 0) return 0;
+    return topics.filter(t => t.status === 'COMPLETED').length / topics.length;
+  }, [topics]);
+
+  const readinessInfo = useMemo(() => {
+    const goalTests = activeGoal ? mockTests.filter(t => String(t.examGoalId) === String(activeGoal.id)) : [];
+    const avgMockScore = goalTests.length > 0 ? goalTests.reduce((a, t) => a + t.scorePercentage, 0) / goalTests.length : 0;
+    
+    // Consistency score logic
+    const last30Plans = dailyPlans.filter(p => {
+      const pDate = new Date(p.date);
+      const diff = new Date() - pDate;
+      return diff <= 30 * 24 * 60 * 60 * 1000 && diff >= 0;
+    });
+    const creationRate = last30Plans.length / 30;
+    const avgComp30 = last30Plans.length > 0 ? last30Plans.reduce((a, p) => {
+      const c = p.items.filter(i => i.completed).length;
+      return a + (p.items.length > 0 ? c / p.items.length : 0);
+    }, 0) / last30Plans.length : 0;
+    const streakBonus = Math.min(currentStreak / 30, 1);
+    
+    const consistencyScore = (creationRate * 40) + (avgComp30 * 40) + (streakBonus * 20);
+    const readiness = (syllabusProgress * 30) + ((avgMockScore / 100) * 40) + ((consistencyScore / 100) * 30);
+    
+    let levelText = 'Not Ready';
+    if (readiness >= 80) levelText = 'Ready';
+    else if (readiness >= 60) levelText = 'Almost There';
+    else if (readiness >= 35) levelText = 'Getting There';
+
+    return { readiness: Math.round(readiness), levelText, syllabusProgress: Math.round(syllabusProgress * 100), avgMockScore: Math.round(avgMockScore), consistencyScore: Math.round(consistencyScore) };
+  }, [activeGoal, mockTests, dailyPlans, syllabusProgress, currentStreak]);
+
+  const trendData = useMemo(() => {
+    const data = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const p = dailyPlans.find(plan => plan.date === dStr);
+      if (p && p.items.length > 0) {
+        const comp = p.items.filter(item => item.completed).length / p.items.length * 100;
+        data.push({ date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), completion: comp });
+      }
+    }
+    return data;
+  }, [dailyPlans]);
+
+  const toggleTask = (taskId) => {
+    if (!todayPlan) return;
+    const updatedPlan = { ...todayPlan, items: todayPlan.items.map(i => i.id === taskId ? { ...i, completed: !i.completed } : i) };
+    DataService.saveDailyPlan(updatedPlan).catch(() => showToast("Error saving task"));
+  };
+
+  return (
+    <>
+      {activeGoal ? (
+        <div className="countdown-hero card">
+          <div style={{ textAlign: 'center' }}>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>{activeGoal.name}</h2>
+            <div style={{ fontSize: '4rem', fontWeight: 'bold', color: 'var(--primary)', lineHeight: 1 }}>{daysRemaining}</div>
+            <div style={{ fontSize: '1rem', color: 'var(--text-light)', letterSpacing: '2px' }}>DAYS REMAINING</div>
+            <div style={{ marginTop: '8px', color: 'var(--text-light)' }}>
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+            <div className="progress-bar-bg" style={{ marginTop: '16px', maxWidth: '300px', margin: '16px auto 0' }}>
+              <div className="progress-bar-fill" style={{ width: `${goalProgressPct}%` }}></div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
+          <h2>No Active Exam Goal</h2>
+          <p style={{ color: 'var(--text-light)', marginBottom: '1rem' }}>Set a goal in Settings to start tracking your progress.</p>
+          <button className="btn btn-primary" onClick={() => setActiveTab('settings')}>Go to Settings</button>
+        </div>
+      )}
+
+      <div className="stat-grid">
+        <div className="stat-card">
+          <div className="stat-label">🔥 Plan Streak</div>
+          <div className="stat-value">{currentStreak}</div>
+          <div className="stat-sub">Days (≥80%)</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">📊 Avg Completion</div>
+          <div className="stat-value">{Math.round(avgCompletion * 100)}%</div>
+          <div className="stat-sub">Last 7 Days</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">📚 Syllabus</div>
+          <div className="stat-value">{Math.round(syllabusProgress * 100)}%</div>
+          <div className="stat-sub">Topics Completed</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 className="card-title">Today's Plan</h3>
+          <span style={{ color: 'var(--text-light)' }}>{completedItems.length} / {todayItems.length} completed</span>
+        </div>
+        {todayItems.length > 0 ? (
+          <>
+            <div className="progress-bar-bg" style={{ marginBottom: '16px' }}>
+              <div className="progress-bar-fill" style={{ width: `${planProgress * 100}%` }}></div>
+            </div>
+            <div>
+              {todayItems.map(item => {
+                const subject = subjects.find(s => s.id === item.subjectId);
+                const subjColor = subject?.colorHex || subject?.color || '#3b82f6';
+                const duration = item.duration || item.estimatedMinutes || 60;
+                return (
+                  <div key={item.id} className="plan-item" style={{ opacity: item.completed ? 0.6 : 1 }}>
+                    <input type="checkbox" className="plan-item-checkbox" checked={!!item.completed} onChange={() => toggleTask(item.id)} />
+                    <span className="plan-type-badge">{TYPE_ICONS[item.type]}</span>
+                    {subject && <span className="chip" style={{ backgroundColor: subjColor + '20', color: subjColor, border: `1px solid ${subjColor}` }}>{subject.name}</span>}
+                    <span style={{ flex: 1, textDecoration: item.completed ? 'line-through' : 'none' }}>{item.title}</span>
+                    <span style={{ color: 'var(--text-light)', fontSize: '0.85rem' }}>{duration}m</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="empty" style={{ padding: '2rem 0' }}>
+            <p>No plan for today.</p>
+            <button className="btn btn-primary btn-sm" onClick={() => setActiveTab('plan')} style={{ marginTop: '10px' }}>Create Plan</button>
+          </div>
+        )}
+      </div>
+
+      <div className="grid-2col">
+        <div className="card">
+          <h3 className="card-title" style={{ marginBottom: '16px' }}>7-Day Consistency</h3>
+          <div className="consistency-grid">
+            {last7Days.map((day, idx) => {
+              let color = 'var(--bg-card)';
+              if (day.hasPlan) {
+                if (day.completion >= 0.8) color = 'var(--success)';
+                else if (day.completion >= 0.5) color = 'var(--warning)';
+                else color = 'var(--danger)';
+              }
+              return (
+                <div key={idx} className="consistency-day">
+                  <div className="consistency-day-label">{day.label}</div>
+                  <div className="consistency-day-value" style={{ backgroundColor: color, color: day.hasPlan && day.completion >= 0.5 ? '#fff' : 'inherit', padding: '8px', borderRadius: '8px', margin: '4px 0', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                    {day.hasPlan ? `${Math.round(day.completion * 100)}%` : '-'}
+                  </div>
+                  <div className="consistency-day-sub">{day.hasPlan ? `${day.completedCount}/${day.totalCount}` : 'No plan'}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="card">
+          <h3 className="card-title" style={{ marginBottom: '16px' }}>GATE Readiness</h3>
+          <div style={{ textAlign: 'center', padding: '10px 0' }}>
+            <div style={{ fontSize: '3rem', fontWeight: 'bold', color: readinessInfo.readiness >= 80 ? 'var(--success)' : readinessInfo.readiness >= 60 ? 'var(--primary)' : 'var(--warning)' }}>
+              {readinessInfo.readiness}%
+            </div>
+            <div style={{ fontWeight: '500', fontSize: '1.2rem', marginBottom: '16px' }}>{readinessInfo.levelText}</div>
+            
+            <div className="progress-bar-bg" style={{ marginBottom: '16px' }}>
+              <div className="progress-bar-fill" style={{ width: `${readinessInfo.readiness}%`, backgroundColor: readinessInfo.readiness >= 80 ? 'var(--success)' : 'var(--primary)' }}></div>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: 'var(--text-light)' }}>
+              <div>Syllabus: {readinessInfo.syllabusProgress}%</div>
+              <div>Mocks: {readinessInfo.avgMockScore}%</div>
+              <div>Consistency: {readinessInfo.consistencyScore}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {trendData.length > 0 && (
+        <div className="card">
+          <h3 className="card-title" style={{ marginBottom: '16px' }}>Plan Completion Trend (30 Days)</h3>
+          <div style={{ height: '200px', width: '100%' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                <XAxis dataKey="date" stroke="var(--text-light)" fontSize={12} tickLine={false} />
+                <YAxis stroke="var(--text-light)" fontSize={12} tickLine={false} domain={[0, 100]} />
+                <Tooltip contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', borderRadius: '8px' }} />
+                <Line type="monotone" dataKey="completion" stroke="var(--primary)" strokeWidth={3} dot={{ r: 3, fill: 'var(--primary)' }} activeDot={{ r: 5 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function DailyPlanView({ dailyPlans, subjects, topics, showToast }) {
+  const [currentDate, setCurrentDate] = useState(todayISO());
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [showReflect, setShowReflect] = useState(false);
+
+  const plan = dailyPlans.find(p => p.date === currentDate) || { id: generateId(), date: currentDate, items: [], reflection: null };
+  const items = plan.items || [];
+  const completedCount = items.filter(i => i.completed).length;
+  const progress = items.length > 0 ? completedCount / items.length : 0;
+  
+  const totalMins = items.reduce((sum, item) => sum + (parseInt(item.duration) || 0), 0);
+  const completedMins = items.filter(i => i.completed).reduce((sum, item) => sum + (parseInt(item.duration) || 0), 0);
+
+  const navigateDate = (days) => {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() + days);
+    setCurrentDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+  };
+
+  const savePlan = (updatedPlan) => {
+    DataService.saveDailyPlan(updatedPlan).catch(() => showToast("Failed to save plan"));
+  };
+
+  const toggleTask = (taskId) => {
+    const updated = { ...plan, items: items.map(i => i.id === taskId ? { ...i, completed: !i.completed } : i) };
+    savePlan(updated);
+  };
+
+  const deleteTask = (taskId) => {
+    const updated = { ...plan, items: items.filter(i => i.id !== taskId) };
+    savePlan(updated);
+  };
+
+  const copyPrevious = () => {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() - 1);
+    const prevDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const prevPlan = dailyPlans.find(p => p.date === prevDate);
+    if (prevPlan && prevPlan.items.length > 0) {
+      const newItems = prevPlan.items.map(i => ({ ...i, id: generateId(), completed: false }));
+      savePlan({ ...plan, items: [...items, ...newItems] });
+      showToast("Copied from previous day");
+    } else {
+      showToast("No plan found on previous day");
+    }
+  };
+
+  const applyTemplate = (type) => {
+    let newItems = [];
+    if (type === 'Standard') {
+      newItems = [
+        { id: generateId(), type: 'LECTURE', title: 'Morning Lecture', duration: 120, completed: false },
+        { id: generateId(), type: 'PRACTICE', title: 'Problem Solving', duration: 90, completed: false },
+        { id: generateId(), type: 'REVISION', title: 'Evening Review', duration: 60, completed: false }
+      ];
+    } else if (type === 'Heavy') {
+      newItems = [
+        { id: generateId(), type: 'LECTURE', title: 'Lecture 1', duration: 120, completed: false },
+        { id: generateId(), type: 'LECTURE', title: 'Lecture 2', duration: 120, completed: false },
+        { id: generateId(), type: 'PRACTICE', title: 'Practice Set', duration: 120, completed: false },
+        { id: generateId(), type: 'REVISION', title: 'Quick Revision', duration: 60, completed: false }
+      ];
+    } else if (type === 'Revision') {
+      newItems = [
+        { id: generateId(), type: 'REVISION', title: 'Deep Revision', duration: 180, completed: false },
+        { id: generateId(), type: 'MOCK_TEST', title: 'Sectional Test', duration: 90, completed: false },
+        { id: generateId(), type: 'PRACTICE', title: 'Test Analysis', duration: 60, completed: false }
+      ];
+    }
+    savePlan({ ...plan, items: [...items, ...newItems] });
+    showToast(`${type} template applied`);
+  };
+
+  // Mini calendar logic
+  const calendarDays = useMemo(() => {
+    const days = [];
+    const today = new Date();
+    for (let i = -7; i <= 21; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i);
+      const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      days.push({ date: dStr, label: d.getDate(), dayLabel: d.toLocaleDateString('en-US', { weekday: 'narrow' }), isToday: dStr === todayISO() });
+    }
+    return days;
+  }, []);
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <button className="btn btn-secondary btn-sm" onClick={() => navigateDate(-1)}>← Prev</button>
+        <h2 style={{ margin: 0 }}>{new Date(currentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
+        <button className="btn btn-secondary btn-sm" onClick={() => navigateDate(1)}>Next →</button>
+      </div>
+
+      <div style={{ display: 'flex', overflowX: 'auto', gap: '8px', paddingBottom: '8px', marginBottom: '16px' }} className="mini-calendar">
+        {calendarDays.map(d => {
+          const hasPlan = dailyPlans.some(p => p.date === d.date && p.items.length > 0);
+          const isSelected = d.date === currentDate;
+          return (
+            <div key={d.date} onClick={() => setCurrentDate(d.date)} style={{
+              minWidth: '40px', padding: '8px 4px', textAlign: 'center', borderRadius: '8px', cursor: 'pointer',
+              backgroundColor: isSelected ? 'var(--primary)' : 'var(--bg-card)',
+              color: isSelected ? '#fff' : 'inherit',
+              border: d.isToday && !isSelected ? '2px solid var(--primary)' : '2px solid transparent',
+              opacity: hasPlan || isSelected || d.isToday ? 1 : 0.6
+            }}>
+              <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{d.dayLabel}</div>
+              <div style={{ fontWeight: 'bold' }}>{d.label}</div>
+              {hasPlan && <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: isSelected ? '#fff' : 'var(--primary)', margin: '2px auto 0' }}></div>}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+          <div>
+            <h3 className="card-title" style={{ marginBottom: '4px' }}>Daily Tasks</h3>
+            <div style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>
+              {completedCount} of {items.length} completed • {Math.round(completedMins / 60 * 10) / 10}h / {Math.round(totalMins / 60 * 10) / 10}h planned
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowReflect(true)}>✍️ Reflect</button>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowAddTask(true)}>+ Add Task</button>
+          </div>
+        </div>
+
+        <div className="progress-bar-bg" style={{ marginBottom: '20px' }}>
+          <div className="progress-bar-fill" style={{ width: `${progress * 100}%` }}></div>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="empty" style={{ padding: '2rem 0' }}>
+            <p>No tasks planned for this day.</p>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '16px', flexWrap: 'wrap' }}>
+              <button className="btn btn-secondary btn-sm" onClick={copyPrevious}>Copy Previous Day</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => applyTemplate('Standard')}>Standard Day</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => applyTemplate('Heavy')}>Heavy Day</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => applyTemplate('Revision')}>Revision Day</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {items.map(item => {
+              const subject = subjects.find(s => s.id === item.subjectId);
+              const subjColor = subject?.colorHex || subject?.color || '#3b82f6';
+              const duration = item.duration || item.estimatedMinutes || 60;
+              return (
+                <div key={item.id} className="plan-item" style={{ opacity: item.completed ? 0.6 : 1 }}>
+                  <input type="checkbox" className="plan-item-checkbox" checked={!!item.completed} onChange={() => toggleTask(item.id)} />
+                  <span className="plan-type-badge">{TYPE_ICONS[item.type]}</span>
+                  {subject && <span className="chip" style={{ backgroundColor: subjColor + '20', color: subjColor, border: `1px solid ${subjColor}` }}>{subject.name}</span>}
+                  <span style={{ flex: 1, textDecoration: item.completed ? 'line-through' : 'none' }}>{item.title}</span>
+                  <span style={{ color: 'var(--text-light)', fontSize: '0.85rem' }}>{duration}m</span>
+                  <button className="del-btn" onClick={() => deleteTask(item.id)} style={{ marginLeft: '8px' }}>×</button>
+                </div>
+              );
+            })}
+            <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px', display: 'flex', gap: '8px', overflowX: 'auto' }}>
+              <button className="btn btn-secondary btn-xs" onClick={copyPrevious}>Copy Previous</button>
+              <button className="btn btn-secondary btn-xs" onClick={() => applyTemplate('Standard')}>+ Standard</button>
+              <button className="btn btn-secondary btn-xs" onClick={() => applyTemplate('Heavy')}>+ Heavy</button>
+              <button className="btn btn-secondary btn-xs" onClick={() => applyTemplate('Revision')}>+ Revision</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {plan.reflection && (
+        <div className="card reflection-card">
+          <h3 className="card-title">Reflection</h3>
+          <div className="star-rating" style={{ marginBottom: '8px' }}>
+            {[1, 2, 3, 4, 5].map(star => (
+              <span key={star} className={`star ${star <= plan.reflection.rating ? 'active' : ''}`}>★</span>
+            ))}
+          </div>
+          <p style={{ whiteSpace: 'pre-wrap', color: 'var(--text-light)' }}>{plan.reflection.notes}</p>
+        </div>
+      )}
+
+      {showAddTask && (
+        <AddTaskModal 
+          onClose={() => setShowAddTask(false)} 
+          onAdd={(task) => {
+            savePlan({ ...plan, items: [...items, { ...task, id: generateId(), completed: false, duration: task.duration, estimatedMinutes: task.duration }] });
+            setShowAddTask(false);
+          }}
+          subjects={subjects}
+          topics={topics}
+        />
+      )}
+
+      {showReflect && (
+        <ReflectionModal
+          onClose={() => setShowReflect(false)}
+          onSave={(reflection) => {
+            savePlan({ ...plan, reflection });
+            setShowReflect(false);
+          }}
+          initialData={plan.reflection}
+        />
+      )}
+    </>
+  );
+}
+
+function AddTaskModal({ onClose, onAdd, subjects, topics }) {
+  const [type, setType] = useState('LECTURE');
+  const [subjectId, setSubjectId] = useState('');
+  const [topicId, setTopicId] = useState('');
+  const [title, setTitle] = useState('');
+  const [duration, setDuration] = useState(60);
+
+  const subjectTopics = topics.filter(t => t.subjectId === subjectId && !t.parentId);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    onAdd({ type, subjectId, topicId, title, duration: parseInt(duration) });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Add Task</h3>
+          <button className="del-btn" onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Type</label>
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+              {PLAN_ITEM_TYPES.map(t => (
+                <button type="button" key={t} className={`btn btn-sm ${type === t ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setType(t)}>
+                  {TYPE_ICONS[t]} {TYPE_LABELS[t]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Title</label>
+            <input type="text" className="input input-rect" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Watch Calculus Lec 4" autoFocus />
+          </div>
+          <div className="grid-2col" style={{ marginBottom: '16px', gap: '16px' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Subject (Optional)</label>
+              <select className="input input-rect" value={subjectId} onChange={e => { setSubjectId(e.target.value); setTopicId(''); }}>
+                <option value="">None</option>
+                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Topic (Optional)</label>
+              <select className="input input-rect" value={topicId} onChange={e => setTopicId(e.target.value)} disabled={!subjectId}>
+                <option value="">None</option>
+                {subjectTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Duration (minutes)</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <input type="range" min="15" max="240" step="15" value={duration} onChange={e => setDuration(e.target.value)} style={{ flex: 1 }} />
+              <span style={{ minWidth: '40px', textAlign: 'right', fontWeight: 'bold' }}>{duration}m</span>
+            </div>
+          </div>
+          <button type="submit" className="btn btn-primary w-full" disabled={!title.trim()}>Add Task</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ReflectionModal({ onClose, onSave, initialData }) {
+  const [rating, setRating] = useState(initialData?.rating || 3);
+  const [notes, setNotes] = useState(initialData?.notes || '');
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Day Reflection</h3>
+          <button className="del-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="form-group">
+          <label className="form-label">How did today go?</label>
+          <div className="star-rating" style={{ fontSize: '2rem', justifyContent: 'center', marginBottom: '16px' }}>
+            {[1, 2, 3, 4, 5].map(star => (
+              <span key={star} className={`star ${star <= rating ? 'active' : ''}`} onClick={() => setRating(star)} style={{ cursor: 'pointer' }}>★</span>
+            ))}
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Notes / Learnings</label>
+          <textarea className="input input-rect" value={notes} onChange={e => setNotes(e.target.value)} rows="4" placeholder="What went well? What needs improvement?"></textarea>
+        </div>
+        <button className="btn btn-primary w-full" onClick={() => onSave({ rating, notes })}>Save Reflection</button>
+      </div>
+    </div>
+  );
+}
+
+function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab }) {
+  const [showAddSubject, setShowAddSubject] = useState(false);
+  const [showAddTopic, setShowAddTopic] = useState(false);
+  const [selectedSubjectId, setSelectedSubjectId] = useState(null);
+  const [expandedSubjects, setExpandedSubjects] = useState({});
+
+  if (!activeGoal) {
+    return (
+      <div className="card" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+        <h2>No Active Exam Goal</h2>
+        <p style={{ color: 'var(--text-light)', marginBottom: '1rem' }}>Set a goal in Settings to build your syllabus.</p>
+        <button className="btn btn-primary" onClick={() => setActiveTab('settings')}>Go to Settings</button>
+      </div>
+    );
+  }
+
+  const goalSubjects = subjects.filter(s => String(s.examGoalId) === String(activeGoal.id));
+
+  const toggleSubject = (id) => setExpandedSubjects(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const STATUS_CYCLE = {
+    'NOT_STARTED': 'IN_PROGRESS',
+    'IN_PROGRESS': 'COMPLETED',
+    'COMPLETED': 'NEEDS_REVISION',
+    'NEEDS_REVISION': 'COMPLETED'
+  };
+
+  const STATUS_COLORS = {
+    'NOT_STARTED': 'var(--text-light)',
+    'IN_PROGRESS': 'var(--warning)',
+    'COMPLETED': 'var(--success)',
+    'NEEDS_REVISION': 'var(--danger)'
+  };
+
+  const STATUS_LABELS = {
+    'NOT_STARTED': 'Not Started',
+    'IN_PROGRESS': 'In Progress',
+    'COMPLETED': 'Completed',
+    'NEEDS_REVISION': 'Needs Revision'
+  };
+
+  const cycleStatus = (topic) => {
+    const nextStatus = STATUS_CYCLE[topic.status || 'NOT_STARTED'];
+    DataService.saveTopic({ ...topic, status: nextStatus }).catch(() => showToast("Error updating status"));
+  };
+
+  const deleteTopic = (id) => {
+    if (window.confirm("Delete this topic?")) {
+      DataService.deleteTopic(id).catch(() => showToast("Error deleting topic"));
+    }
+  };
+
+  const deleteSubject = (id, e) => {
+    e.stopPropagation();
+    if (window.confirm("Delete this subject and ALL its topics?")) {
+      DataService.deleteSubject(id).catch(() => showToast("Error deleting subject"));
+    }
+  };
+
+  const addSubtopic = (parentId) => {
+    const name = window.prompt("Subtopic name:");
+    if (name) {
+      const parent = topics.find(t => t.id === parentId);
+      if (parent) {
+        DataService.saveTopic({
+          id: generateId(), examGoalId: activeGoal.id, subjectId: parent.subjectId, parentId, name, status: 'NOT_STARTED'
+        });
+      }
+    }
+  };
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0 }}>Syllabus Tracker</h2>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowAddSubject(true)}>+ Subject</button>
+      </div>
+
+      {goalSubjects.length === 0 ? (
+        <div className="empty card" style={{ padding: '3rem 1rem' }}>
+          <p>No subjects added yet. Start building your syllabus!</p>
+        </div>
+      ) : (
+        goalSubjects.map(subject => {
+          const subjectTopics = topics.filter(t => t.subjectId === subject.id && !t.parentId);
+          const completedTopics = subjectTopics.filter(t => t.status === 'COMPLETED').length;
+          const progress = subjectTopics.length > 0 ? completedTopics / subjectTopics.length : 0;
+          const isExpanded = expandedSubjects[subject.id];
+          const subjColor = subject.colorHex || subject.color || '#3b82f6';
+
+          return (
+            <div key={subject.id} className="subject card" style={{ padding: '0', overflow: 'hidden', marginBottom: '16px' }}>
+              <div className="subject-head" onClick={() => toggleSubject(subject.id)} style={{ padding: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', backgroundColor: isExpanded ? 'var(--bg-app)' : 'transparent' }}>
+                <div className="dot" style={{ backgroundColor: subjColor }}></div>
+                <div style={{ flex: 1 }}>
+                  <div className="subject-title">{subject.name}</div>
+                  <div className="progress-mini" style={{ height: '4px', backgroundColor: 'var(--border)', borderRadius: '2px', marginTop: '6px', width: '100px' }}>
+                    <div style={{ height: '100%', backgroundColor: subjColor, width: `${progress * 100}%`, borderRadius: '2px' }}></div>
+                  </div>
+                </div>
+                <div style={{ color: 'var(--text-light)', fontSize: '0.9rem', marginRight: '16px' }}>
+                  {completedTopics}/{subjectTopics.length}
+                </div>
+                <button className="del-btn" onClick={(e) => deleteSubject(subject.id, e)}>×</button>
+              </div>
+
+              {isExpanded && (
+                <div style={{ padding: '16px', borderTop: '1px solid var(--border)' }}>
+                  {subjectTopics.length === 0 ? (
+                    <div className="empty" style={{ padding: '1rem 0' }}>No topics yet.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {subjectTopics.map(topic => {
+                        const subtopics = topics.filter(t => t.parentId === topic.id);
+                        return (
+                          <div key={topic.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ fontWeight: '500' }}>{topic.name}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div onClick={() => cycleStatus(topic)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: STATUS_COLORS[topic.status || 'NOT_STARTED'] }}>
+                                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: STATUS_COLORS[topic.status || 'NOT_STARTED'] }}></div>
+                                  {STATUS_LABELS[topic.status || 'NOT_STARTED']}
+                                </div>
+                                <button className="btn btn-secondary btn-xs" onClick={() => addSubtopic(topic.id)}>+ Sub</button>
+                                <button className="del-btn" onClick={() => deleteTopic(topic.id)}>×</button>
+                              </div>
+                            </div>
+                            
+                            {subtopics.length > 0 && (
+                              <div style={{ marginTop: '12px', paddingLeft: '16px', borderLeft: '2px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {subtopics.map(sub => (
+                                  <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}>
+                                    <div style={{ color: 'var(--text-light)' }}>{sub.name}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                      <div onClick={() => cycleStatus(sub)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: STATUS_COLORS[sub.status || 'NOT_STARTED'] }}>
+                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: STATUS_COLORS[sub.status || 'NOT_STARTED'] }}></div>
+                                        {STATUS_LABELS[sub.status || 'NOT_STARTED']}
+                                      </div>
+                                      <button className="del-btn" onClick={() => deleteTopic(sub.id)}>×</button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <button className="btn btn-secondary btn-sm w-full" style={{ marginTop: '12px' }} onClick={() => { setSelectedSubjectId(subject.id); setShowAddTopic(true); }}>
+                    + Add Topic
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+
+      {showAddSubject && (
+        <AddSubjectModal 
+          activeGoal={activeGoal}
+          onClose={() => setShowAddSubject(false)}
+          onAdd={(s) => { DataService.saveSubject({ ...s, colorHex: s.color }); setShowAddSubject(false); }}
+        />
+      )}
+
+      {showAddTopic && (
+        <AddTopicModal
+          activeGoal={activeGoal}
+          subjectId={selectedSubjectId}
+          onClose={() => { setShowAddTopic(false); setSelectedSubjectId(null); }}
+          onAdd={(t) => { DataService.saveTopic(t); setShowAddTopic(false); setSelectedSubjectId(null); }}
+        />
+      )}
+    </>
+  );
+}
+
+function AddSubjectModal({ activeGoal, onClose, onAdd }) {
+  const [name, setName] = useState('');
+  const [color, setColor] = useState('#3b82f6');
+  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Add Subject</h3>
+          <button className="del-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Subject Name</label>
+          <input className="input input-rect" value={name} onChange={e => setName(e.target.value)} autoFocus />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Color</label>
+          <div className="color-picker" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {colors.map(c => (
+              <div key={c} className="color-option" onClick={() => setColor(c)} style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: c, cursor: 'pointer', border: color === c ? '3px solid #fff' : 'none', boxShadow: color === c ? `0 0 0 2px ${c}` : 'none' }}></div>
+            ))}
+          </div>
+        </div>
+        <button className="btn btn-primary w-full" onClick={() => onAdd({ id: generateId(), examGoalId: activeGoal.id, name, color })} disabled={!name.trim()}>Add Subject</button>
+      </div>
+    </div>
+  );
+}
+
+function AddTopicModal({ activeGoal, subjectId, onClose, onAdd }) {
+  const [name, setName] = useState('');
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Add Topic</h3>
+          <button className="del-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Topic Name</label>
+          <input className="input input-rect" value={name} onChange={e => setName(e.target.value)} autoFocus />
+        </div>
+        <button className="btn btn-primary w-full" onClick={() => onAdd({ id: generateId(), examGoalId: activeGoal.id, subjectId, name, status: 'NOT_STARTED' })} disabled={!name.trim()}>Add Topic</button>
+      </div>
+    </div>
+  );
+}
+
+function SettingsView({ user, examGoals, mockTests, subjects, topics, activeGoal, onSaveGoal, onDeleteGoal, onSetActiveGoal, onSaveMockTest, onDeleteMockTest, showToast }) {
+  const [showAddGoal, setShowAddGoal] = useState(false);
+
+  return (
+    <>
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <h3 className="card-title">Account</h3>
+        {user ? (
+          <div>
+            <div className="account-info-row" style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+              {user.photoURL ? <img src={user.photoURL} alt="User" style={{ width: '48px', height: '48px', borderRadius: '50%' }} /> : <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 'bold' }}>{user.email?.[0].toUpperCase()}</div>}
+              <div>
+                <div style={{ fontWeight: 'bold' }}>{user.displayName || 'User'}</div>
+                <div style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>{user.email}</div>
+              </div>
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() => signOut(auth)}>Sign Out</button>
+          </div>
+        ) : (
+          <p>Not signed in.</p>
+        )}
+      </div>
+
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 className="card-title" style={{ margin: 0 }}>Exam Goals</h3>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowAddGoal(true)}>+ Add Goal</button>
+        </div>
+        
+        {examGoals.length === 0 ? (
+          <div className="empty" style={{ padding: '1rem 0' }}>No exam goals. Create one!</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {examGoals.map(goal => (
+              <div key={goal.id} className="goal-card" style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: goal.isActive ? 'var(--bg-app)' : 'transparent', borderColor: goal.isActive ? 'var(--primary)' : 'var(--border)' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span className="goal-card-name" style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{goal.name}</span>
+                    {goal.isActive && <span className="chip" style={{ backgroundColor: 'var(--primary)', color: '#fff' }}>Active</span>}
+                  </div>
+                  <div className="goal-card-meta" style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>
+                    Target Date: {new Date(goal.examDate).toLocaleDateString()}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {!goal.isActive && <button className="btn btn-secondary btn-sm" onClick={() => onSetActiveGoal(goal.id)}>Activate</button>}
+                  <button className="del-btn" onClick={() => { if(window.confirm('Delete this goal and all associated data?')) onDeleteGoal(goal.id); }}>×</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <MockTestSection mockTests={mockTests} subjects={subjects} topics={topics} activeGoal={activeGoal} onSave={onSaveMockTest} onDelete={onDeleteMockTest} showToast={showToast} />
+
+      {showAddGoal && (
+        <AddGoalModal onClose={() => setShowAddGoal(false)} onSave={(g) => { onSaveGoal(g); setShowAddGoal(false); }} isFirst={examGoals.length === 0} />
+      )}
+    </>
+  );
+}
+
+function AddGoalModal({ onClose, onSave, isFirst }) {
+  const [name, setName] = useState('');
+  const [examDate, setExamDate] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (name && examDate) {
+      onSave({ id: generateId(), name, examDate, isActive: isFirst, createdAt: new Date().toISOString() });
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Add Exam Goal</h3>
+          <button className="del-btn" onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Exam Name</label>
+            <input type="text" className="input input-rect" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. GATE CSE 2027" required autoFocus />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Target Exam Date</label>
+            <input type="date" className="input input-rect" value={examDate} onChange={e => setExamDate(e.target.value)} required />
+          </div>
+          <button type="submit" className="btn btn-primary w-full">Save Goal</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function MockTestSection({ mockTests, subjects, activeGoal, onSave, onDelete }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [filterType, setFilterType] = useState('ALL');
+
+  if (!activeGoal) return null;
+
+  const goalTests = mockTests.filter(t => String(t.examGoalId) === String(activeGoal.id)).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const filteredTests = filterType === 'ALL' ? goalTests : goalTests.filter(t => t.type === filterType);
+
+  const chartData = [...filteredTests].reverse().map(t => ({
+    name: new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    score: t.scorePercentage
+  }));
+
+  return (
+    <div className="card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h3 className="card-title" style={{ margin: 0 }}>Mock Tests & Scores</h3>
+        <button className="btn btn-primary btn-sm" onClick={() => setShowAdd(true)}>+ Add Score</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '4px' }}>
+        {['ALL', 'FULL_MOCK', 'SECTIONAL', 'TOPIC'].map(type => (
+          <button key={type} className={`btn btn-sm ${filterType === type ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilterType(type)}>
+            {type.replace('_', ' ')}
+          </button>
+        ))}
+      </div>
+
+      {chartData.length > 1 && (
+        <div style={{ height: '200px', width: '100%', marginBottom: '24px' }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+              <XAxis dataKey="name" stroke="var(--text-light)" fontSize={12} tickLine={false} />
+              <YAxis stroke="var(--text-light)" fontSize={12} tickLine={false} domain={[0, 100]} />
+              <Tooltip contentStyle={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border)', borderRadius: '8px' }} />
+              <Line type="monotone" dataKey="score" stroke="var(--primary)" strokeWidth={3} dot={{ r: 4, fill: 'var(--primary)' }} activeDot={{ r: 6 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {filteredTests.length === 0 ? (
+        <div className="empty" style={{ padding: '2rem 0' }}>No test scores recorded yet.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {filteredTests.map(test => {
+            const subject = subjects.find(s => s.id === test.subjectId);
+            return (
+              <div key={test.id} style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: 'bold' }}>{test.title}</span>
+                    <span className="chip" style={{ backgroundColor: 'var(--bg-app)' }}>{test.type.replace('_', ' ')}</span>
+                  </div>
+                  <div style={{ color: 'var(--text-light)', fontSize: '0.85rem' }}>
+                    {new Date(test.date).toLocaleDateString()} {subject && `• ${subject.name}`}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '1.2rem', color: test.scorePercentage >= 80 ? 'var(--success)' : test.scorePercentage >= 50 ? 'var(--warning)' : 'var(--danger)' }}>
+                      {test.scorePercentage}%
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>{test.score} / {test.maxScore}</div>
+                  </div>
+                  <button className="del-btn" onClick={() => { if(window.confirm('Delete this test score?')) onDelete(test.id); }}>×</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showAdd && (
+        <AddMockTestModal 
+          activeGoal={activeGoal}
+          subjects={subjects}
+          onClose={() => setShowAdd(false)}
+          onSave={(t) => { onSave(t); setShowAdd(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddMockTestModal({ activeGoal, subjects, onClose, onSave }) {
+  const [title, setTitle] = useState('');
+  const [type, setType] = useState('FULL_MOCK');
+  const [date, setDate] = useState(todayISO());
+  const [subjectId, setSubjectId] = useState('');
+  const [score, setScore] = useState('');
+  const [maxScore, setMaxScore] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (title && score && maxScore) {
+      const numScore = parseFloat(score);
+      const numMax = parseFloat(maxScore);
+      const percentage = Math.round((numScore / numMax) * 100);
+      onSave({
+        id: generateId(),
+        examGoalId: activeGoal.id,
+        title, type, date, subjectId,
+        score: numScore, maxScore: numMax, scorePercentage: percentage
+      });
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Add Test Score</h3>
+          <button className="del-btn" onClick={onClose}>×</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Test Title</label>
+            <input type="text" className="input input-rect" value={title} onChange={e => setTitle(e.target.value)} required autoFocus placeholder="e.g. Made Easy Mock 1" />
+          </div>
+          <div className="grid-2col" style={{ gap: '16px', marginBottom: '16px' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Type</label>
+              <select className="input input-rect" value={type} onChange={e => setType(e.target.value)}>
+                <option value="FULL_MOCK">Full Mock</option>
+                <option value="SECTIONAL">Sectional</option>
+                <option value="TOPIC">Topic Test</option>
+              </select>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Date</label>
+              <input type="date" className="input input-rect" value={date} onChange={e => setDate(e.target.value)} required />
+            </div>
+          </div>
+          {type !== 'FULL_MOCK' && (
+            <div className="form-group">
+              <label className="form-label">Subject</label>
+              <select className="input input-rect" value={subjectId} onChange={e => setSubjectId(e.target.value)}>
+                <option value="">None</option>
+                {subjects.filter(s => String(s.examGoalId) === String(activeGoal.id)).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="grid-2col" style={{ gap: '16px', marginBottom: '16px' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Marks Obtained</label>
+              <input type="number" step="0.5" className="input input-rect" value={score} onChange={e => setScore(e.target.value)} required />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Max Marks</label>
+              <input type="number" step="1" className="input input-rect" value={maxScore} onChange={e => setMaxScore(e.target.value)} required />
+            </div>
+          </div>
+          <button type="submit" className="btn btn-primary w-full">Save Result</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
+function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  
   const [examGoals, setExamGoals] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [topics, setTopics] = useState([]);
-  const [sessions, setSessions] = useState([]);
   const [mockTests, setMockTests] = useState([]);
   const [dailyPlans, setDailyPlans] = useState([]);
-  const [lastSyncTime, setLastSyncTime] = useState(null);
+  
+  const [clockTime, setClockTime] = useState('');
+  const [toastMsg, setToastMsg] = useState('');
 
-  const [clockTime, setClockTime] = useState('--:--');
-  const [toastMsg, setToastMsg] = useState(null);
-
-  const showToast = (msg) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3000);
-  };
-
-  // Load subscriptions
   useEffect(() => {
-    const unsubAuth       = DataService.subscribeToAuth(setUser);
-    const unsubGoals      = DataService.subscribeToExamGoals(setExamGoals);
-    const unsubSubjects   = DataService.subscribeToSubjects(setSubjects);
-    const unsubTopics     = DataService.subscribeToTopics(setTopics);
-    const unsubSessions   = DataService.subscribeToSessions(setSessions);
-    const unsubMockTests  = DataService.subscribeToMockTests(setMockTests);
-    const unsubPlans      = DataService.subscribeToDailyPlans(setDailyPlans);
-    const unsubLastSync   = DataService.subscribeToLastSyncTime(setLastSyncTime);
+    const timer = setInterval(() => {
+      const d = new Date();
+      setClockTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const unsubAuth = DataService.subscribeToAuth((u) => {
+      setUser(u);
+      setAuthLoading(false);
+    });
+    const unsubGoals = DataService.subscribeToExamGoals(setExamGoals);
+    const unsubSubjects = DataService.subscribeToSubjects(setSubjects);
+    const unsubTopics = DataService.subscribeToTopics(setTopics);
+    const unsubMockTests = DataService.subscribeToMockTests(setMockTests);
+    const unsubDailyPlans = DataService.subscribeToDailyPlans(setDailyPlans);
 
     return () => {
-      unsubAuth(); unsubGoals(); unsubSubjects(); unsubTopics();
-      unsubSessions(); unsubMockTests(); unsubPlans(); unsubLastSync();
+      unsubAuth();
+      unsubGoals();
+      unsubSubjects();
+      unsubTopics();
+      unsubMockTests();
+      unsubDailyPlans();
     };
   }, []);
 
-  // Clock tick which is working right now 
-  useEffect(() => {
-    const updateClock = () => {
-      const now = new Date();
-      setClockTime(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
-    };
-    updateClock();
-    const id = setInterval(updateClock, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
-      const key = e.key;
-      if (key === '1') setActiveTab('command');
-      else if (key === '2') setActiveTab('plan');
-      else if (key === '3') setActiveTab('syllabus');
-      else if (key === '4') setActiveTab('analytics');
-      else if (key === '5') setActiveTab('settings');
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+      if (e.key === '1') setActiveTab('dashboard');
+      if (e.key === '2') setActiveTab('plan');
+      if (e.key === '3') setActiveTab('syllabus');
+      if (e.key === '4') setActiveTab('settings');
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3000);
+  };
+
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch {
+      showToast("Sign in failed");
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="auth-loading">
+        <div className="spinner"></div>
+        <div className="loading-text">Loading Focusly...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <SignInView onLogin={handleLogin} />;
+  }
+
   const activeGoal = examGoals.find(g => g.isActive) || null;
-  const daysRemaining = getDaysRemaining(GATE_EXAM_DATE);
+  const daysRemaining = activeGoal ? getDaysRemaining(activeGoal.examDate) : null;
 
-  const todayStr = todayISO();
-  const todaySessions = sessions.filter(s => s.date === todayStr);
-  const todaySeconds = todaySessions.reduce((acc, s) => acc + s.completedDurationSeconds, 0);
-  const todayHours = (todaySeconds / 3600).toFixed(1);
+  const handleSetActiveGoal = (id) => {
+    DataService.setActiveExamGoal(id);
+    showToast("Active goal updated");
+  };
 
-  // Consistency streak: consecutive days with ≥80% plan completion
-  const currentStreak = useMemo(() => {
-    let streak = 0;
-    let d = new Date();
-    let checkDateStr = d.toISOString().split('T')[0];
-
-    // Check if today counts
-    const todayPlan = dailyPlans.find(p => p.date === checkDateStr);
-    if (!todayPlan || todayPlan.items?.length === 0) {
-      d.setDate(d.getDate() - 1);
-      checkDateStr = d.toISOString().split('T')[0];
-    }
-
-    while (true) {
-      const plan = dailyPlans.find(p => p.date === checkDateStr);
-      if (!plan || !plan.items || plan.items.length === 0) break;
-      const completed = plan.items.filter(i => i.completed).length;
-      const rate = completed / plan.items.length;
-      if (rate < 0.8) break;
-      streak++;
-      d.setDate(d.getDate() - 1);
-      checkDateStr = d.toISOString().split('T')[0];
-    }
-    return streak;
-  }, [dailyPlans]);
-
-  // Study streak (consecutive days studied)
-  const studyStreak = useMemo(() => {
-    const dates = new Set(sessions.filter(s => s.completedDurationSeconds > 0).map(s => s.date));
-    let streak = 0;
-    let d = new Date();
-    let checkDateStr = d.toISOString().split('T')[0];
-    if (!dates.has(checkDateStr)) {
-      d.setDate(d.getDate() - 1);
-      checkDateStr = d.toISOString().split('T')[0];
-    }
-    while (dates.has(checkDateStr)) {
-      streak++;
-      d.setDate(d.getDate() - 1);
-      checkDateStr = d.toISOString().split('T')[0];
-    }
-    return streak;
-  }, [sessions]);
-
-  const TABS = [
-    { id: 'command',   label: '🎯 command' },
-    { id: 'plan',      label: '📋 plan' },
-    { id: 'syllabus',  label: '📚 syllabus' },
-    { id: 'analytics', label: '📊 analytics' },
-    { id: 'settings',  label: '⚙️ settings' },
+  const tabs = [
+    { id: 'dashboard', label: '🎯 Dashboard' },
+    { id: 'plan', label: '📋 Plan' },
+    { id: 'syllabus', label: '📚 Syllabus' },
+    { id: 'settings', label: '⚙️ Settings' }
   ];
 
   return (
     <div className="app-container">
-      {/* NOTIFICATION TOAST */}
       {toastMsg && <div className="toast">{toastMsg}</div>}
-
       <div className="wrap">
-        {/* HEADER */}
         <header className="app-header">
           <div className="logo">
             <span className="logo-text">focusly</span>
@@ -157,9 +1190,8 @@ export default function App() {
           <div className="clock-pill">{clockTime}</div>
         </header>
 
-        {/* TABS */}
         <div className="tabs">
-          {TABS.map(t => (
+          {tabs.map(t => (
             <button
               key={t.id}
               className={`tab ${activeTab === t.id ? 'active' : ''}`}
@@ -170,1718 +1202,56 @@ export default function App() {
           ))}
         </div>
 
-        {/* VIEWS */}
-        {activeTab === 'command' && (
-          <CommandCenterView
-            daysRemaining={daysRemaining}
-            todayHours={todayHours}
-            currentStreak={currentStreak}
-            studyStreak={studyStreak}
-            dailyPlans={dailyPlans}
-            sessions={sessions}
-            subjects={subjects}
-            topics={topics}
-            activeGoal={activeGoal}
-            setActiveTab={setActiveTab}
-            showToast={showToast}
-          />
-        )}
-
-        {activeTab === 'plan' && (
-          <DailyPlanView
-            dailyPlans={dailyPlans}
-            subjects={subjects}
-            topics={topics}
-            sessions={sessions}
-            activeGoal={activeGoal}
-            showToast={showToast}
-          />
-        )}
-
-        {activeTab === 'syllabus' && (
-          <SyllabusView
-            activeGoal={activeGoal}
-            subjects={subjects}
-            topics={topics}
-            showToast={showToast}
-            setActiveTab={setActiveTab}
-          />
-        )}
-
-        {activeTab === 'analytics' && (
-          <AnalyticsView
-            sessions={sessions}
-            subjects={subjects}
-            topics={topics}
-            activeGoal={activeGoal}
-            mockTests={mockTests}
-            dailyPlans={dailyPlans}
-            onSaveMockTest={(test) => {
-              DataService.saveMockTest(test);
-              showToast('Mock test score saved');
-            }}
-            onDeleteMockTest={(id) => {
-              DataService.deleteMockTest(id);
-              showToast('Mock test deleted');
-            }}
-            streak={studyStreak}
-            showToast={showToast}
-          />
-        )}
-
-        {activeTab === 'settings' && (
-          <SettingsView
-            user={user}
-            examGoals={examGoals}
-            lastSyncTime={lastSyncTime}
-            onSaveGoal={(goal) => {
-              DataService.saveExamGoal(goal);
-              showToast('Exam goal saved');
-            }}
-            onDeleteGoal={(id) => {
-              DataService.deleteExamGoal(id);
-              showToast('Exam goal deleted');
-            }}
-            onSetActiveGoal={(id) => {
-              DataService.setActiveExamGoal(id);
-              showToast('Active goal updated');
-            }}
-            showToast={showToast}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ====================================================
-// COMMAND CENTER VIEW
-// ====================================================
-
-function CommandCenterView({ daysRemaining, todayHours, currentStreak, studyStreak, dailyPlans, sessions, subjects, topics, activeGoal, setActiveTab, showToast }) {
-  const todayStr = todayISO();
-  const todayPlan = dailyPlans.find(p => p.date === todayStr);
-  const todayItems = todayPlan?.items || [];
-  const completedItems = todayItems.filter(i => i.completed);
-  const planProgress = todayItems.length > 0 ? completedItems.length / todayItems.length : 0;
-
-  // Daily target
-  const dailyTargetHours = activeGoal ? (activeGoal.dailyTargetMinutes / 60) : 10;
-  const hoursProgress = Math.min(parseFloat(todayHours) / dailyTargetHours, 1);
-
-  // Last 7 days plan completion
-  const last7Days = useMemo(() => {
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const iso = d.toISOString().split('T')[0];
-      const plan = dailyPlans.find(p => p.date === iso);
-      const items = plan?.items || [];
-      const completed = items.filter(it => it.completed).length;
-      const total = items.length;
-      const rate = total > 0 ? completed / total : -1; // -1 = no plan
-      days.push({
-        date: iso,
-        dayLabel: d.toLocaleDateString(undefined, { weekday: 'short' }),
-        rate,
-        completed,
-        total
-      });
-    }
-    return days;
-  }, [dailyPlans]);
-
-  const avgCompletion = useMemo(() => {
-    const withPlans = last7Days.filter(d => d.rate >= 0);
-    if (withPlans.length === 0) return 0;
-    return withPlans.reduce((a, d) => a + d.rate, 0) / withPlans.length;
-  }, [last7Days]);
-
-  const handleToggleItem = (itemId) => {
-    if (!todayPlan) return;
-    const updatedItems = todayPlan.items.map(i =>
-      i.id === itemId ? { ...i, completed: !i.completed, completedAt: !i.completed ? Date.now() : null } : i
-    );
-    DataService.saveDailyPlan({ ...todayPlan, items: updatedItems });
-  };
-
-  // GATE countdown progress (from prep start to exam date)
-  const totalPrepDays = 365; // approximate full prep period
-  const percentElapsed = Math.min(((totalPrepDays - daysRemaining) / totalPrepDays) * 100, 100);
-
-  // SVG ring constants
-  const CIRCUM = 2 * Math.PI * 46;
-
-  return (
-    <>
-      {/* ── GATE Countdown Hero ── */}
-      <div className="card countdown-hero">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 1 }}>GATE 2027 CSE</div>
-            <div style={{ fontSize: 14, color: 'var(--accent-gold)', fontWeight: 700, marginTop: 2 }}>TARGET: AIR &lt; {GATE_TARGET_RANK}</div>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right' }}>
-            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
-          </div>
-        </div>
-
-        <div style={{ textAlign: 'center', margin: '8px 0 16px' }}>
-          <div style={{ fontSize: 56, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{daysRemaining}</div>
-          <div style={{ fontSize: 16, color: 'var(--text-secondary)', fontWeight: 500, marginTop: 4 }}>DAYS REMAINING</div>
-        </div>
-
-        <div className="progress-bar-bg" style={{ marginBottom: 6 }}>
-          <div className="progress-bar-fill" style={{ width: `${percentElapsed}%`, background: 'linear-gradient(90deg, var(--accent-blue), var(--accent-purple))' }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
-          <span>Prep started</span>
-          <span>{percentElapsed.toFixed(0)}% timeline elapsed</span>
-          <span>Feb 6, 2027</span>
-        </div>
-      </div>
-
-      {/* ── Stats Row ── */}
-      <div className="card">
-        <div className="stat-grid">
-          <div className="stat-card">
-            <div className="stat-label">🔥 Study Streak</div>
-            <div className="stat-value" style={{ color: 'var(--accent-gold)' }}>{studyStreak}</div>
-            <div className="stat-sub">days</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">⏱ Studied Today</div>
-            <div className="stat-value" style={{ color: 'var(--accent-blue)' }}>{todayHours}h</div>
-            <div className="stat-sub">of {dailyTargetHours}h target</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">📋 Plan Streak</div>
-            <div className="stat-value" style={{ color: 'var(--accent-emerald)' }}>{currentStreak}</div>
-            <div className="stat-sub">days ≥80%</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">📊 Avg Completion</div>
-            <div className="stat-value" style={{ color: 'var(--accent-purple)' }}>{(avgCompletion * 100).toFixed(0)}%</div>
-            <div className="stat-sub">last 7 days</div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Today's Plan Execution ── */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div className="card-title" style={{ marginBottom: 0 }}>📋 Today's Battle Plan</div>
-          {todayItems.length > 0 && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: planProgress >= 0.8 ? 'var(--accent-emerald)' : planProgress >= 0.5 ? 'var(--accent-gold)' : 'var(--accent-red)' }}>
-              {completedItems.length}/{todayItems.length} ({(planProgress * 100).toFixed(0)}%)
-            </span>
+        <main style={{ paddingBottom: '40px' }}>
+          {activeTab === 'dashboard' && (
+            <DashboardView 
+              daysRemaining={daysRemaining} 
+              dailyPlans={dailyPlans} 
+              subjects={subjects} 
+              topics={topics} 
+              activeGoal={activeGoal} 
+              mockTests={mockTests} 
+              setActiveTab={setActiveTab} 
+              showToast={showToast} 
+            />
           )}
-        </div>
-
-        {todayItems.length > 0 && (
-          <div className="progress-bar-bg" style={{ marginBottom: 16 }}>
-            <div className="progress-bar-fill" style={{
-              width: `${planProgress * 100}%`,
-              background: planProgress >= 0.8 ? 'var(--accent-emerald)' : planProgress >= 0.5 ? 'var(--accent-gold)' : 'var(--accent-red)'
-            }} />
-          </div>
-        )}
-
-        {todayItems.length === 0 ? (
-          <div className="empty">
-            No plan for today yet.
-            <br />
-            <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }} onClick={() => setActiveTab('plan')}>
-              Create Today's Plan →
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {todayItems.map(item => {
-              const subj = subjects.find(s => String(s.id) === String(item.subjectId));
-              return (
-                <div key={item.id}
-                  className={`plan-item ${item.completed ? 'completed' : ''}`}
-                  onClick={() => handleToggleItem(item.id)}
-                >
-                  <div className="plan-item-checkbox">
-                    {item.completed ? '✓' : ''}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                      <span className="plan-type-badge" data-type={item.type}>{TYPE_ICONS[item.type]} {TYPE_LABELS[item.type]}</span>
-                      {subj && <span className="chip" style={{ border: `1.5px solid ${subj.colorHex}`, color: subj.colorHex, background: `${subj.colorHex}20`, fontSize: 10 }}>{subj.name}</span>}
-                    </div>
-                    <div style={{ fontWeight: 600, fontSize: 14, opacity: item.completed ? 0.5 : 1, textDecoration: item.completed ? 'line-through' : 'none' }}>
-                      {item.title}
-                    </div>
-                  </div>
-                  {item.estimatedMinutes && (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 }}>
-                      {item.estimatedMinutes}m
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ── Hours Progress Ring + Quick Log ── */}
-      <div className="grid-2col">
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">⏱ Hours Progress</div>
-          <div className="ring-container" style={{ flexDirection: 'column' }}>
-            <svg viewBox="0 0 100 100" style={{ width: 120, height: 120 }}>
-              <defs>
-                <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="var(--accent-blue)" />
-                  <stop offset="100%" stopColor="var(--accent-purple)" />
-                </linearGradient>
-              </defs>
-              <circle className="ring-bg" cx="50" cy="50" r="46" />
-              <circle className="ring-fg" cx="50" cy="50" r="46"
-                transform="rotate(-90 50 50)"
-                style={{
-                  strokeDasharray: CIRCUM,
-                  strokeDashoffset: CIRCUM - CIRCUM * hoursProgress,
-                }}
-              />
-              <text x="50" y="48" fontSize="14" fontWeight="700" fill="var(--text-primary)" style={{ textAnchor: 'middle' }}>{todayHours}h</text>
-              <text x="50" y="62" fontSize="7" fill="var(--text-secondary)" style={{ textAnchor: 'middle' }}>of {dailyTargetHours}h</text>
-            </svg>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">⚡ Quick Actions</div>
-          <div className="quick-actions">
-            <button className="btn btn-primary quick-action-btn" onClick={() => setActiveTab('plan')}>
-              📋 Plan Day
-            </button>
-            <button className="btn btn-secondary quick-action-btn" onClick={() => setActiveTab('syllabus')}>
-              📚 Syllabus
-            </button>
-            <button className="btn btn-secondary quick-action-btn" onClick={() => setActiveTab('analytics')}>
-              📊 Analytics
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 7-Day Consistency ── */}
-      <div className="card">
-        <div className="card-title">📅 7-Day Consistency</div>
-        <div className="consistency-grid">
-          {last7Days.map(day => {
-            let colorClass = 'gray';
-            if (day.rate >= 0.8) colorClass = 'green';
-            else if (day.rate >= 0.5) colorClass = 'yellow';
-            else if (day.rate >= 0) colorClass = 'red';
-            return (
-              <div key={day.date} className={`consistency-day ${colorClass}`}>
-                <div className="consistency-day-label">{day.dayLabel}</div>
-                <div className="consistency-day-value">
-                  {day.rate < 0 ? '—' : `${(day.rate * 100).toFixed(0)}%`}
-                </div>
-                {day.total > 0 && <div className="consistency-day-sub">{day.completed}/{day.total}</div>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ====================================================
-// DAILY PLAN VIEW
-// ====================================================
-
-function DailyPlanView({ dailyPlans, subjects, topics, sessions, activeGoal, showToast }) {
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = todayISO();
-    const todayPlan = dailyPlans.find(p => p.date === today);
-    // If today has a plan, show today. Otherwise, show today for creation.
-    return today;
-  });
-  const [showAddItem, setShowAddItem] = useState(false);
-  const [showReflection, setShowReflection] = useState(false);
-  const [showSessionLogger, setShowSessionLogger] = useState(false);
-
-  // Add item form
-  const [itemType, setItemType] = useState('LECTURE');
-  const [itemSubjectId, setItemSubjectId] = useState('');
-  const [itemTopicId, setItemTopicId] = useState('');
-  const [itemTitle, setItemTitle] = useState('');
-  const [itemMinutes, setItemMinutes] = useState(60);
-
-  // Reflection form
-  const [reflectionText, setReflectionText] = useState('');
-  const [reflectionRating, setReflectionRating] = useState(3);
-
-  const currentPlan = dailyPlans.find(p => p.date === selectedDate);
-  const planItems = currentPlan?.items || [];
-  const completedItems = planItems.filter(i => i.completed);
-
-  const isToday = selectedDate === todayISO();
-  const isPast = selectedDate < todayISO();
-
-  const topicsForSubject = topics.filter(t => String(t.subjectId) === String(itemSubjectId));
-
-  const handleAddItem = () => {
-    if (!itemTitle.trim()) return;
-    const newItem = {
-      id: String(Date.now()),
-      type: itemType,
-      subjectId: itemSubjectId || null,
-      topicId: itemTopicId || null,
-      title: itemTitle.trim(),
-      estimatedMinutes: itemMinutes,
-      completed: false,
-      completedAt: null,
-      notes: null,
-      score: null,
-      totalMarks: null,
-    };
-
-    const items = [...planItems, newItem];
-    DataService.saveDailyPlan({
-      ...currentPlan,
-      id: selectedDate,
-      date: selectedDate,
-      items,
-      createdAt: currentPlan?.createdAt || Date.now(),
-    });
-
-    setItemTitle('');
-    setItemMinutes(60);
-    setItemTopicId('');
-    setShowAddItem(false);
-    showToast('Plan item added');
-  };
-
-  const handleToggleItem = (itemId) => {
-    if (!currentPlan) return;
-    const updatedItems = currentPlan.items.map(i =>
-      i.id === itemId ? { ...i, completed: !i.completed, completedAt: !i.completed ? Date.now() : null } : i
-    );
-    DataService.saveDailyPlan({ ...currentPlan, items: updatedItems });
-  };
-
-  const handleDeleteItem = (itemId) => {
-    if (!currentPlan) return;
-    const updatedItems = currentPlan.items.filter(i => i.id !== itemId);
-    DataService.saveDailyPlan({ ...currentPlan, items: updatedItems });
-    showToast('Item removed');
-  };
-
-  const handleSaveReflection = () => {
-    if (!currentPlan) return;
-    DataService.saveDailyPlan({
-      ...currentPlan,
-      reflection: reflectionText.trim() || null,
-      rating: reflectionRating,
-    });
-    setShowReflection(false);
-    showToast('Reflection saved');
-  };
-
-  const handleCopyPreviousDay = () => {
-    const prevDate = new Date(selectedDate);
-    prevDate.setDate(prevDate.getDate() - 1);
-    const prevISO = prevDate.toISOString().split('T')[0];
-    const prevPlan = dailyPlans.find(p => p.date === prevISO);
-    if (!prevPlan || !prevPlan.items?.length) {
-      showToast('No previous day plan found');
-      return;
-    }
-    const copiedItems = prevPlan.items.map(item => ({
-      ...item,
-      id: String(Date.now()) + Math.random().toString(36).substr(2, 5),
-      completed: false,
-      completedAt: null,
-    }));
-    DataService.saveDailyPlan({
-      id: selectedDate,
-      date: selectedDate,
-      items: copiedItems,
-      createdAt: Date.now(),
-    });
-    showToast('Copied previous day plan');
-  };
-
-  const handleApplyTemplate = (template) => {
-    const templateItems = {
-      standard: [
-        { type: 'LECTURE', title: 'Lecture 1 — New Topic', estimatedMinutes: 90 },
-        { type: 'LECTURE', title: 'Lecture 2 — New Topic', estimatedMinutes: 90 },
-        { type: 'PRACTICE', title: 'Problem Solving Set 1', estimatedMinutes: 60 },
-        { type: 'LECTURE', title: 'Lecture 3 — New Topic', estimatedMinutes: 90 },
-        { type: 'PRACTICE', title: 'Problem Solving Set 2', estimatedMinutes: 60 },
-        { type: 'REVISION', title: 'Revision — Previous Topics', estimatedMinutes: 60 },
-        { type: 'TEST', title: 'Topic-wise Test', estimatedMinutes: 45 },
-      ],
-      heavy: [
-        { type: 'LECTURE', title: 'Lecture 1', estimatedMinutes: 90 },
-        { type: 'LECTURE', title: 'Lecture 2', estimatedMinutes: 90 },
-        { type: 'LECTURE', title: 'Lecture 3', estimatedMinutes: 90 },
-        { type: 'PRACTICE', title: 'Practice Problems', estimatedMinutes: 90 },
-        { type: 'PRACTICE', title: 'PYQ Practice', estimatedMinutes: 60 },
-        { type: 'REVISION', title: 'Revision Block', estimatedMinutes: 60 },
-        { type: 'TEST', title: 'Subject Test', estimatedMinutes: 60 },
-        { type: 'MOCK_TEST', title: 'Full-Length Mock', estimatedMinutes: 180 },
-      ],
-      revision: [
-        { type: 'REVISION', title: 'Revision Block 1', estimatedMinutes: 90 },
-        { type: 'REVISION', title: 'Revision Block 2', estimatedMinutes: 90 },
-        { type: 'PRACTICE', title: 'PYQ Practice 1', estimatedMinutes: 60 },
-        { type: 'PRACTICE', title: 'PYQ Practice 2', estimatedMinutes: 60 },
-        { type: 'MOCK_TEST', title: 'Full-Length Mock Test', estimatedMinutes: 180 },
-        { type: 'REVISION', title: 'Weak Area Focus', estimatedMinutes: 60 },
-      ],
-    };
-
-    const items = (templateItems[template] || []).map(item => ({
-      ...item,
-      id: String(Date.now()) + Math.random().toString(36).substr(2, 5),
-      subjectId: null,
-      topicId: null,
-      completed: false,
-      completedAt: null,
-      notes: null,
-      score: null,
-      totalMarks: null,
-    }));
-
-    DataService.saveDailyPlan({
-      id: selectedDate,
-      date: selectedDate,
-      items: [...planItems, ...items],
-      createdAt: currentPlan?.createdAt || Date.now(),
-    });
-    showToast(`${template} template applied`);
-  };
-
-  // Date navigation
-  const navigateDate = (delta) => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + delta);
-    setSelectedDate(d.toISOString().split('T')[0]);
-  };
-
-  // Plan calendar (next 30 days)
-  const calendarDays = useMemo(() => {
-    const days = [];
-    for (let i = -7; i <= 21; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      const iso = d.toISOString().split('T')[0];
-      const plan = dailyPlans.find(p => p.date === iso);
-      days.push({ date: iso, hasPlan: !!plan && plan.items?.length > 0, isToday: iso === todayISO() });
-    }
-    return days;
-  }, [dailyPlans]);
-
-  const totalPlannedMinutes = planItems.reduce((a, i) => a + (i.estimatedMinutes || 0), 0);
-
-  return (
-    <>
-      {/* Date Navigation */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigateDate(-1)}>← Prev</button>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontWeight: 700, fontSize: 16 }}>
-              {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
-            </div>
-            <div style={{ fontSize: 12, color: isToday ? 'var(--accent-emerald)' : isPast ? 'var(--text-muted)' : 'var(--accent-blue)' }}>
-              {isToday ? 'TODAY' : isPast ? 'PAST' : 'UPCOMING'}
-            </div>
-          </div>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigateDate(1)}>Next →</button>
-        </div>
-
-        {/* Mini Calendar */}
-        <div style={{ display: 'flex', gap: 3, overflowX: 'auto', padding: '4px 0' }}>
-          {calendarDays.map(day => (
-            <div
-              key={day.date}
-              onClick={() => setSelectedDate(day.date)}
-              style={{
-                width: 32, height: 36, borderRadius: 8, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
-                background: day.date === selectedDate ? 'var(--accent-blue)' : day.isToday ? 'var(--bg-card-hover)' : 'transparent',
-                color: day.date === selectedDate ? '#fff' : 'var(--text-secondary)',
-                border: day.isToday && day.date !== selectedDate ? '1px solid var(--accent-blue)' : '1px solid transparent',
-                fontSize: 11, fontWeight: day.date === selectedDate ? 700 : 500,
-              }}
-            >
-              <span>{new Date(day.date + 'T00:00:00').getDate()}</span>
-              {day.hasPlan && <span style={{ width: 4, height: 4, borderRadius: '50%', background: day.date === selectedDate ? '#fff' : 'var(--accent-emerald)', marginTop: 1 }} />}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Plan Items */}
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div>
-            <div className="card-title" style={{ marginBottom: 2 }}>📋 Daily Plan</div>
-            {planItems.length > 0 && (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {completedItems.length}/{planItems.length} tasks · ~{Math.round(totalPlannedMinutes / 60)}h planned
-              </div>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowAddItem(true)}>+ Add Task</button>
-          </div>
-        </div>
-
-        {planItems.length > 0 && (
-          <div className="progress-bar-bg" style={{ marginBottom: 14 }}>
-            <div className="progress-bar-fill" style={{
-              width: `${(completedItems.length / planItems.length) * 100}%`,
-              background: completedItems.length === planItems.length ? 'var(--accent-emerald)' : 'var(--accent-blue)'
-            }} />
-          </div>
-        )}
-
-        {planItems.length === 0 ? (
-          <div className="empty">
-            No tasks planned for this day.
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-              <button className="btn btn-primary btn-sm" onClick={() => setShowAddItem(true)}>+ Add Task</button>
-              <button className="btn btn-secondary btn-sm" onClick={handleCopyPreviousDay}>📋 Copy Previous Day</button>
-            </div>
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 10, flexWrap: 'wrap' }}>
-              <button className="btn btn-secondary btn-xs" onClick={() => handleApplyTemplate('standard')}>Standard Day</button>
-              <button className="btn btn-secondary btn-xs" onClick={() => handleApplyTemplate('heavy')}>Heavy Day</button>
-              <button className="btn btn-secondary btn-xs" onClick={() => handleApplyTemplate('revision')}>Revision Day</button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {planItems.map(item => {
-              const subj = subjects.find(s => String(s.id) === String(item.subjectId));
-              return (
-                <div key={item.id} className={`plan-item ${item.completed ? 'completed' : ''}`}>
-                  <div className="plan-item-checkbox" onClick={() => handleToggleItem(item.id)}>
-                    {item.completed ? '✓' : ''}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
-                      <span className="plan-type-badge" data-type={item.type}>{TYPE_ICONS[item.type]} {TYPE_LABELS[item.type]}</span>
-                      {subj && <span className="chip" style={{ border: `1.5px solid ${subj.colorHex}`, color: subj.colorHex, background: `${subj.colorHex}20`, fontSize: 10 }}>{subj.name}</span>}
-                    </div>
-                    <div style={{ fontWeight: 600, fontSize: 14, opacity: item.completed ? 0.5 : 1, textDecoration: item.completed ? 'line-through' : 'none' }}>
-                      {item.title}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    {item.estimatedMinutes && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{item.estimatedMinutes}m</span>}
-                    <button className="del-btn" onClick={() => handleDeleteItem(item.id)}>✕</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Action buttons */}
-        {planItems.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowAddItem(true)}>+ Add More</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => {
-              setReflectionText(currentPlan?.reflection || '');
-              setReflectionRating(currentPlan?.rating || 3);
-              setShowReflection(true);
-            }}>✍️ Reflect</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowSessionLogger(true)}>⏱ Log Session</button>
-          </div>
-        )}
-      </div>
-
-      {/* Reflection Card (if exists) */}
-      {currentPlan?.reflection && (
-        <div className="card reflection-card">
-          <div className="card-title">✍️ Day Reflection</div>
-          <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-            {[1, 2, 3, 4, 5].map(s => (
-              <span key={s} style={{ fontSize: 16, color: s <= (currentPlan.rating || 0) ? 'var(--accent-gold)' : 'var(--text-muted)' }}>★</span>
-            ))}
-          </div>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{currentPlan.reflection}</p>
-        </div>
-      )}
-
-      {/* Add Item Modal */}
-      {showAddItem && (
-        <div className="modal-overlay" onClick={() => setShowAddItem(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">Add Plan Task</div>
-
-            <div className="form-group" style={{ marginBottom: 14 }}>
-              <label className="form-label">Type</label>
-              <div className="tag-row">
-                {PLAN_ITEM_TYPES.map(t => (
-                  <button key={t} className={`tag-chip ${itemType === t ? 'active' : ''}`}
-                    onClick={() => setItemType(t)}>
-                    {TYPE_ICONS[t]} {TYPE_LABELS[t]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid-2col" style={{ gap: 12, marginBottom: 14 }}>
-              <div className="form-group">
-                <label className="form-label">Subject</label>
-                <select className="input" value={itemSubjectId} onChange={e => setItemSubjectId(e.target.value)}>
-                  <option value="">— none —</option>
-                  {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-              {topicsForSubject.length > 0 && (
-                <div className="form-group">
-                  <label className="form-label">Topic</label>
-                  <select className="input" value={itemTopicId} onChange={e => setItemTopicId(e.target.value)}>
-                    <option value="">— none —</option>
-                    {topicsForSubject.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            <div className="form-group" style={{ marginBottom: 14 }}>
-              <label className="form-label">Task Title *</label>
-              <input className="input" value={itemTitle} onChange={e => setItemTitle(e.target.value)}
-                placeholder="e.g. Watch Lecture 5 — KMP Algorithm" autoFocus
-                onKeyDown={e => e.key === 'Enter' && handleAddItem()} />
-            </div>
-
-            <div className="form-group" style={{ marginBottom: 18 }}>
-              <label className="form-label">Estimated Duration (minutes)</label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button className="btn btn-secondary btn-xs" onClick={() => setItemMinutes(p => Math.max(15, p - 15))}>−15</button>
-                <span style={{ fontWeight: 700, minWidth: 50, textAlign: 'center' }}>{itemMinutes}m</span>
-                <button className="btn btn-secondary btn-xs" onClick={() => setItemMinutes(p => p + 15)}>+15</button>
-                <button className="btn btn-secondary btn-xs" onClick={() => setItemMinutes(p => p + 30)}>+30</button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setShowAddItem(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleAddItem}>Add Task</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reflection Modal */}
-      {showReflection && (
-        <div className="modal-overlay" onClick={() => setShowReflection(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">End of Day Reflection</div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label className="form-label" style={{ marginBottom: 8, display: 'block' }}>How did today go?</label>
-              <div className="star-rating">
-                {[1, 2, 3, 4, 5].map(star => (
-                  <span key={star} className={`star ${star <= reflectionRating ? 'active' : ''}`}
-                    onClick={() => setReflectionRating(star)}>★</span>
-                ))}
-              </div>
-            </div>
-
-            <div className="form-group" style={{ marginBottom: 16 }}>
-              <label className="form-label">Reflection Notes</label>
-              <textarea className="input-rect" rows="4"
-                placeholder="What went well? What needs improvement? What will you change tomorrow?"
-                value={reflectionText} onChange={e => setReflectionText(e.target.value)} />
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setShowReflection(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSaveReflection}>Save Reflection</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Session Logger Modal */}
-      {showSessionLogger && (
-        <SessionLoggerModal
-          subjects={subjects}
-          onSave={(session) => {
-            DataService.saveSession(session);
-            showToast('Session logged');
-            setShowSessionLogger(false);
-          }}
-          onClose={() => setShowSessionLogger(false)}
-        />
-      )}
-    </>
-  );
-}
-
-// ====================================================
-// SESSION LOGGER MODAL
-// ====================================================
-
-function SessionLoggerModal({ subjects, onSave, onClose }) {
-  const [subjectId, setSubjectId] = useState('');
-  const [label, setLabel] = useState('Study Session');
-  const [durationMinutes, setDurationMinutes] = useState(60);
-  const [tag, setTag] = useState('');
-  const [notes, setNotes] = useState('');
-
-  useEffect(() => {
-    const s = subjects.find(x => String(x.id) === String(subjectId));
-    if (s) setLabel(s.name);
-  }, [subjectId, subjects]);
-
-  const handleSave = () => {
-    const now = Date.now();
-    onSave({
-      label: label || 'Study Session',
-      durationMinutes,
-      completedDurationSeconds: durationMinutes * 60,
-      date: todayISO(),
-      startTime: now - durationMinutes * 60 * 1000,
-      endTime: now,
-      isCompleted: true,
-      notes: notes.trim() || null,
-      tag: tag || null,
-      subjectId: subjectId || null,
-      confidenceRating: null,
-      focusScore: null,
-    });
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">⏱ Log Study Session</div>
-
-        <div className="grid-2col" style={{ gap: 12, marginBottom: 14 }}>
-          <div className="form-group">
-            <label className="form-label">Subject</label>
-            <select className="input" value={subjectId} onChange={e => setSubjectId(e.target.value)}>
-              <option value="">No subject</option>
-              {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Session Name</label>
-            <input className="input" value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. OS Lecture 5" />
-          </div>
-        </div>
-
-        <div className="form-group" style={{ marginBottom: 14 }}>
-          <label className="form-label">Duration (minutes)</label>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="btn btn-secondary btn-xs" onClick={() => setDurationMinutes(p => Math.max(5, p - 15))}>−15</button>
-            <button className="btn btn-secondary btn-xs" onClick={() => setDurationMinutes(p => Math.max(5, p - 5))}>−5</button>
-            <span style={{ fontWeight: 700, minWidth: 60, textAlign: 'center', fontSize: 18 }}>{durationMinutes}m</span>
-            <button className="btn btn-secondary btn-xs" onClick={() => setDurationMinutes(p => p + 5)}>+5</button>
-            <button className="btn btn-secondary btn-xs" onClick={() => setDurationMinutes(p => p + 15)}>+15</button>
-            <button className="btn btn-secondary btn-xs" onClick={() => setDurationMinutes(p => p + 30)}>+30</button>
-          </div>
-        </div>
-
-        <div className="form-group" style={{ marginBottom: 14 }}>
-          <label className="form-label">Tag</label>
-          <div className="tag-row">
-            {['LECTURE', 'REVISION', 'PRACTICE', 'TEST'].map(t => (
-              <button key={t} className={`tag-chip ${tag === t ? 'active' : ''}`}
-                onClick={() => setTag(tag === t ? '' : t)}>
-                {t.replace('_', ' ').toLowerCase()}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="form-group" style={{ marginBottom: 16 }}>
-          <label className="form-label">Notes (optional)</label>
-          <input className="input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="What did you cover?" />
-        </div>
-
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave}>Log Session</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ====================================================
-// SYLLABUS VIEW
-// ====================================================
-
-function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab }) {
-  const [showAddSubj, setShowAddSubj] = useState(false);
-  const [showAddTopicSubjId, setShowAddTopicSubjId] = useState(null);
-  const [subjectName, setSubjectName] = useState('');
-  const [colorHex, setColorHex] = useState('#3b82f6');
-  const [topicName, setTopicName] = useState('');
-  const [expandedSubjId, setExpandedSubjId] = useState(null);
-  const [activeAddSubTopicId, setActiveAddSubTopicId] = useState(null);
-  const [subTopicName, setSubTopicName] = useState('');
-
-  const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
-
-  const handleAddSubject = () => {
-    if (!subjectName.trim()) return;
-    DataService.saveSubject({ name: subjectName.trim(), examGoalId: activeGoal?.id || 'local-goal', colorHex, sortOrder: subjects.length });
-    showToast(`Subject added: ${subjectName}`);
-    setSubjectName(''); setShowAddSubj(false);
-  };
-
-  const handleAddTopic = () => {
-    if (!topicName.trim() || !showAddTopicSubjId) return;
-    DataService.saveTopic({ name: topicName.trim(), subjectId: showAddTopicSubjId, status: 'NOT_STARTED', sortOrder: topics.filter(t => t.subjectId === showAddTopicSubjId).length, subTopics: [] });
-    showToast(`Topic added: ${topicName}`);
-    setTopicName(''); setShowAddTopicSubjId(null);
-  };
-
-  const handleCycleStatus = (topic) => {
-    const statuses = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_REVISION'];
-    DataService.saveTopic({ ...topic, status: statuses[(statuses.indexOf(topic.status) + 1) % statuses.length] });
-  };
-
-  const handleAddSubTopic = (topic) => {
-    if (!subTopicName.trim()) return;
-    DataService.saveTopic({ ...topic, subTopics: [...(topic.subTopics || []), { id: String(Date.now()), name: subTopicName.trim(), status: 'NOT_STARTED' }] });
-    setSubTopicName(''); setActiveAddSubTopicId(null);
-  };
-
-  const handleDeleteSubTopic = (topic, subTopicId) => {
-    if (confirm('Delete this sub-topic?')) {
-      DataService.saveTopic({ ...topic, subTopics: (topic.subTopics || []).filter(s => s.id !== subTopicId) });
-      showToast('Sub-topic deleted');
-    }
-  };
-
-  const handleCycleSubTopicStatus = (topic, subTopicId) => {
-    const statuses = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'];
-    DataService.saveTopic({ ...topic, subTopics: (topic.subTopics || []).map(sub => sub.id === subTopicId ? { ...sub, status: statuses[(statuses.indexOf(sub.status) + 1) % statuses.length] } : sub) });
-  };
-
-  const statusChipStyle = (status) => {
-    const map = {
-      NOT_STARTED:    { bg: 'var(--border)', color: 'var(--text-muted)' },
-      IN_PROGRESS:    { bg: 'rgba(59,130,246,0.15)', color: 'var(--accent-blue)' },
-      COMPLETED:      { bg: 'rgba(16,185,129,0.15)', color: 'var(--accent-emerald)' },
-      NEEDS_REVISION: { bg: 'rgba(245,158,11,0.15)', color: 'var(--accent-gold)' },
-    };
-    return map[status] || map.NOT_STARTED;
-  };
-
-  return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-        <div className="card-title" style={{ marginBottom: 0 }}>📚 Syllabus Tracker</div>
-        {activeGoal && <button className="btn btn-primary btn-sm" onClick={() => setShowAddSubj(true)}>+ Add Subject</button>}
-      </div>
-
-      {!activeGoal ? (
-        <div className="empty">Set an exam goal first<br /><button className="btn btn-secondary btn-sm" style={{ marginTop: 12 }} onClick={() => setActiveTab('settings')}>Go to Settings →</button></div>
-      ) : subjects.length === 0 ? (
-        <div className="empty">Syllabus is empty — add a subject to start<br /><button className="btn btn-primary btn-sm" style={{ marginTop: 12 }} onClick={() => setShowAddSubj(true)}>Add Subject</button></div>
-      ) : (
-        subjects.map(s => {
-          const subjTopics = topics.filter(t => String(t.subjectId) === String(s.id));
-          const completed = subjTopics.filter(t => t.status === 'COMPLETED').length;
-          const rate = subjTopics.length > 0 ? completed / subjTopics.length : 0;
-          const isExpanded = expandedSubjId === s.id;
-          return (
-            <div key={s.id} className="subject">
-              <div className="subject-head">
-                <div className="subject-title" style={{ cursor: 'pointer' }} onClick={() => setExpandedSubjId(isExpanded ? null : s.id)}>
-                  <span className="dot" style={{ backgroundColor: s.colorHex }} />
-                  {s.name}
-                  <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>{isExpanded ? ' ▲' : ' ▼'}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className="progress-mini">{(rate * 100).toFixed(0)}% · {completed}/{subjTopics.length}</span>
-                  <button className="del-btn" onClick={() => { if (confirm('Delete subject and all topics?')) { DataService.deleteSubject(s.id); showToast('Subject deleted'); } }}>✕</button>
-                </div>
-              </div>
-              <div className="progress-bar-bg" style={{ marginBottom: 12 }}>
-                <div className="progress-bar-fill" style={{ width: `${rate * 100}%`, background: s.colorHex }} />
-              </div>
-              {isExpanded && (
-                <div style={{ marginTop: 8 }}>
-                  {subjTopics.length === 0
-                    ? <p style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 8 }}>No topics yet — add one below!</p>
-                    : subjTopics.map(t => {
-                        const sc = statusChipStyle(t.status);
-                        const statusLabel = t.status.toLowerCase().replace('_', ' ');
-                        return (
-                          <div key={t.id} style={{ padding: '10px 14px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 12, marginBottom: 8 }} onClick={e => e.stopPropagation()}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                              <span style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</span>
-                              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                <span className="chip" style={{ background: sc.bg, color: sc.color, border: `1.5px solid ${sc.color}`, cursor: 'pointer', fontSize: 11 }}
-                                  onClick={() => handleCycleStatus(t)}>{statusLabel}</span>
-                                <button className="btn btn-secondary btn-xs" onClick={() => { setActiveAddSubTopicId(activeAddSubTopicId === t.id ? null : t.id); setSubTopicName(''); }}>+ sub</button>
-                                <button className="del-btn" onClick={() => { DataService.deleteTopic(t.id); showToast('Topic deleted'); }}>✕</button>
-                              </div>
-                            </div>
-                            {(t.subTopics || []).map(sub => {
-                              const ssc = statusChipStyle(sub.status);
-                              return (
-                                <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4, padding: '5px 8px 5px 20px', borderLeft: `2px solid ${s.colorHex}`, marginLeft: 8, marginTop: 6 }}>
-                                  <span style={{ fontSize: 13 }}>{sub.name}</span>
-                                  <div style={{ display: 'flex', gap: 5 }}>
-                                    <span className="chip" style={{ background: ssc.bg, color: ssc.color, border: `1.5px solid ${ssc.color}`, cursor: 'pointer', fontSize: 10, padding: '2px 8px' }}
-                                      onClick={() => handleCycleSubTopicStatus(t, sub.id)}>{sub.status.toLowerCase().replace('_', ' ')}</span>
-                                    <button className="del-btn" style={{ fontSize: 14 }} onClick={() => handleDeleteSubTopic(t, sub.id)}>✕</button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            {activeAddSubTopicId === t.id && (
-                              <div style={{ display: 'flex', gap: 6, marginLeft: 8, marginTop: 8, paddingLeft: 10, borderLeft: `2px solid ${s.colorHex}` }}>
-                                <input className="input-sm" style={{ flex: 1 }} value={subTopicName} onChange={e => setSubTopicName(e.target.value)} placeholder="Sub-topic name…" onKeyDown={e => e.key === 'Enter' && handleAddSubTopic(t)} autoFocus />
-                                <button className="btn btn-secondary btn-xs" onClick={() => handleAddSubTopic(t)}>Add</button>
-                                <button className="btn btn-secondary btn-xs" onClick={() => { setActiveAddSubTopicId(null); setSubTopicName(''); }}>✕</button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                  }
-                  <div style={{ textAlign: 'center', marginTop: 10 }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => setShowAddTopicSubjId(s.id)}>+ Add Topic</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })
-      )}
-
-      {/* Add Subject Modal */}
-      {showAddSubj && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">Add Subject</div>
-            <div className="form-group" style={{ marginBottom: 16 }}>
-              <label className="form-label">Subject Name</label>
-              <input className="input" placeholder="e.g. Data Structures, Algorithms…" value={subjectName} onChange={e => setSubjectName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddSubject()} autoFocus />
-            </div>
-            <div className="form-group" style={{ marginBottom: 18 }}>
-              <label className="form-label">Choose Color</label>
-              <div className="color-picker">
-                {colors.map(c => <div key={c} className={`color-option ${colorHex === c ? 'selected' : ''}`} style={{ backgroundColor: c }} onClick={() => setColorHex(c)} />)}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setShowAddSubj(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleAddSubject}>Add</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Topic Modal */}
-      {showAddTopicSubjId && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">Add Topic</div>
-            <div className="form-group" style={{ marginBottom: 18 }}>
-              <label className="form-label">Topic Name</label>
-              <input className="input" placeholder="e.g. Minimization using K-Maps…" value={topicName} onChange={e => setTopicName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddTopic()} autoFocus />
-            </div>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setShowAddTopicSubjId(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleAddTopic}>Add</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ====================================================
-// ANALYTICS VIEW
-// ====================================================
-
-function AnalyticsView({ sessions, subjects, topics, activeGoal, mockTests, dailyPlans, onSaveMockTest, onDeleteMockTest, streak, showToast }) {
-  const [selectedDate, setSelectedDate] = useState(null);
-  const heatmapWrapperRef = useRef(null);
-
-  useEffect(() => {
-    if (heatmapWrapperRef.current) {
-      heatmapWrapperRef.current.scrollLeft = heatmapWrapperRef.current.scrollWidth;
-    }
-  }, [sessions]);
-
-  // Plan consistency score (0-100)
-  const consistencyScore = useMemo(() => {
-    const last30 = [];
-    for (let i = 0; i < 30; i++) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      const iso = d.toISOString().split('T')[0];
-      const plan = dailyPlans.find(p => p.date === iso);
-      last30.push(plan);
-    }
-
-    const daysWithPlans = last30.filter(p => p && p.items?.length > 0).length;
-    const planCreationRate = daysWithPlans / 30;
-
-    const completionRates = last30
-      .filter(p => p && p.items?.length > 0)
-      .map(p => p.items.filter(i => i.completed).length / p.items.length);
-    const avgCompletionRate = completionRates.length > 0 ? completionRates.reduce((a, b) => a + b, 0) / completionRates.length : 0;
-
-    const streakBonus = Math.min(streak / 30, 1) * 0.2;
-
-    return Math.round((planCreationRate * 40 + avgCompletionRate * 40 + streakBonus * 100) * 100) / 100;
-  }, [dailyPlans, streak]);
-
-  // GATE Readiness
-  const gateReadiness = useMemo(() => {
-    const totalTopics = topics.length;
-    const completedTopics = topics.filter(t => t.status === 'COMPLETED').length;
-    const syllabusCompletion = totalTopics > 0 ? completedTopics / totalTopics : 0;
-
-    const goalTests = activeGoal ? mockTests.filter(t => String(t.examGoalId) === String(activeGoal.id)) : [];
-    const avgMockScore = goalTests.length > 0 ? goalTests.reduce((a, t) => a + t.scorePercentage, 0) / goalTests.length : 0;
-
-    const readiness = (syllabusCompletion * 30 + (avgMockScore / 100) * 40 + (consistencyScore / 100) * 30);
-    let level = 'Not Ready';
-    if (readiness >= 80) level = 'GATE Ready';
-    else if (readiness >= 60) level = 'Almost There';
-    else if (readiness >= 35) level = 'Getting There';
-
-    return { readiness: Math.round(readiness), level, syllabusCompletion, avgMockScore };
-  }, [topics, mockTests, activeGoal, consistencyScore]);
-
-  // Coverage gaps (subjects not studied in 7 days)
-  const coverageGaps = useMemo(() => {
-    const now = new Date();
-    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-    return subjects.filter(s => {
-      const recentSessions = sessions.filter(se => String(se.subjectId) === String(s.id) && new Date(se.date) >= weekAgo);
-      return recentSessions.length === 0;
-    });
-  }, [subjects, sessions]);
-
-  const wowDelta = useMemo(() => {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const curStart = new Date(today); curStart.setDate(today.getDate() - 6);
-    const prevEnd = new Date(today); prevEnd.setDate(today.getDate() - 7);
-    const prevStart = new Date(today); prevStart.setDate(today.getDate() - 13);
-    const cur = sessions.filter(s => { const d = new Date(s.date); return d >= curStart && d <= today; });
-    const prev = sessions.filter(s => { const d = new Date(s.date); return d >= prevStart && d <= prevEnd; });
-    const curH = cur.reduce((a, s) => a + s.completedDurationSeconds, 0) / 3600;
-    const prevH = prev.reduce((a, s) => a + s.completedDurationSeconds, 0) / 3600;
-    const delta = prevH > 0 ? ((curH - prevH) / prevH) * 100 : 0;
-    return { curH, prevH, delta };
-  }, [sessions]);
-
-  const weeks = useMemo(() => {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const start = new Date(today); start.setDate(today.getDate() - 364);
-    const sun = new Date(start); sun.setDate(start.getDate() - start.getDay());
-    const endSat = new Date(today); endSat.setDate(today.getDate() + (6 - today.getDay()));
-    const list = []; let cur = new Date(sun);
-    while (cur <= endSat) {
-      const week = [];
-      for (let i = 0; i < 7; i++) { week.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
-      list.push(week);
-    }
-    return list;
-  }, [sessions]);
-
-  const monthLabels = useMemo(() => {
-    const labels = []; let last = '';
-    weeks.forEach((week, wIdx) => {
-      const mn = week[3].toLocaleDateString(undefined, { month: 'short' });
-      if (mn !== last) { labels.push({ text: mn, colIndex: wIdx }); last = mn; }
-    });
-    return labels;
-  }, [weeks]);
-
-  const startDate = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - 364); return d; }, []);
-  const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
-
-  const getPieData = () => {
-    const tots = {};
-    sessions.forEach(s => { if (s.subjectId && s.completedDurationSeconds > 0) tots[s.subjectId] = (tots[s.subjectId] || 0) + s.completedDurationSeconds; });
-    return Object.keys(tots).map(id => {
-      const s = subjects.find(x => String(x.id) === String(id));
-      return { name: s ? s.name : 'Unknown', value: Math.round(tots[id] / 60), color: s ? s.colorHex : '#888' };
-    }).filter(x => x.value > 0);
-  };
-  const pieData = getPieData();
-
-  const barData = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i));
-    const iso = d.toISOString().split('T')[0];
-    const hours = sessions.filter(s => s.date === iso).reduce((a, s) => a + s.completedDurationSeconds, 0) / 3600;
-    return { day: d.toLocaleDateString(undefined, { weekday: 'short' }), hours: parseFloat(hours.toFixed(1)) };
-  });
-
-  const getDaySessions = (date) => {
-    if (!date) return [];
-    const iso = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-    return sessions.filter(s => s.date === iso);
-  };
-
-  // Plan completion trend (last 30 days)
-  const planTrendData = useMemo(() => {
-    const data = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      const iso = d.toISOString().split('T')[0];
-      const plan = dailyPlans.find(p => p.date === iso);
-      const items = plan?.items || [];
-      const completed = items.filter(it => it.completed).length;
-      const rate = items.length > 0 ? Math.round((completed / items.length) * 100) : null;
-      data.push({
-        date: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-        completion: rate,
-      });
-    }
-    return data.filter(d => d.completion !== null);
-  }, [dailyPlans]);
-
-  return (
-    <>
-      {/* GATE Readiness + Consistency Score */}
-      <div className="grid-2col">
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">🎯 GATE Readiness</div>
-          <div style={{ textAlign: 'center', margin: '8px 0' }}>
-            <div style={{ fontSize: 36, fontWeight: 800, color: gateReadiness.readiness >= 60 ? 'var(--accent-emerald)' : gateReadiness.readiness >= 35 ? 'var(--accent-gold)' : 'var(--accent-red)' }}>
-              {gateReadiness.readiness}%
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>{gateReadiness.level}</div>
-          </div>
-          <div className="progress-bar-bg" style={{ margin: '10px 0 12px' }}>
-            <div className="progress-bar-fill" style={{
-              width: `${gateReadiness.readiness}%`,
-              background: gateReadiness.readiness >= 60 ? 'var(--accent-emerald)' : gateReadiness.readiness >= 35 ? 'var(--accent-gold)' : 'var(--accent-red)'
-            }} />
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Syllabus</span><span>{(gateReadiness.syllabusCompletion * 100).toFixed(0)}%</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Mock Avg</span><span>{gateReadiness.avgMockScore.toFixed(0)}%</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Consistency</span><span>{consistencyScore}%</span></div>
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">📈 Week vs Week</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { label: 'This week', value: `${wowDelta.curH.toFixed(1)}h` },
-              { label: 'Prev week', value: `${wowDelta.prevH.toFixed(1)}h` },
-            ].map(r => (
-              <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
-                <span style={{ color: 'var(--text-secondary)' }}>{r.label}</span>
-                <strong>{r.value}</strong>
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4, fontSize: 14 }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Delta</span>
-              <strong style={{ color: wowDelta.delta >= 0 ? 'var(--accent-emerald)' : 'var(--accent-red)', fontSize: 18 }}>
-                {wowDelta.delta >= 0 ? '▲' : '▼'} {Math.abs(wowDelta.delta).toFixed(1)}%
-              </strong>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Coverage Gaps Warning */}
-      {coverageGaps.length > 0 && (
-        <div className="card" style={{ borderColor: 'var(--accent-red)', borderWidth: 1 }}>
-          <div className="card-title" style={{ color: 'var(--accent-red)' }}>⚠️ Coverage Gaps — Not studied in 7 days</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {coverageGaps.map(s => (
-              <span key={s.id} className="chip" style={{ border: `1.5px solid ${s.colorHex}`, color: s.colorHex, background: `${s.colorHex}15` }}>
-                {s.name}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Bar chart */}
-      <div className="card">
-        <div className="card-title">📊 Study Time — Last 7 Days</div>
-        <div style={{ width: '100%', height: 180 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={barData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-              <XAxis dataKey="day" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke="var(--text-muted)" fontSize={11} tickFormatter={v => `${v}h`} tickLine={false} axisLine={false} />
-              <Tooltip formatter={v => [`${v} hours`, 'Studied']} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontFamily: 'Fredoka, sans-serif', color: 'var(--text-primary)' }} cursor={{ fill: 'rgba(59,130,246,0.1)' }} />
-              <Bar dataKey="hours" fill="url(#barGrad)" radius={[6, 6, 0, 0]}>
-                <defs>
-                  <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--accent-blue)" /><stop offset="100%" stopColor="var(--accent-purple)" />
-                  </linearGradient>
-                </defs>
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Plan Completion Trend */}
-      {planTrendData.length > 0 && (
-        <div className="card">
-          <div className="card-title">📋 Plan Completion Trend — 30 Days</div>
-          <div style={{ height: 120 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={planTrendData} margin={{ top: 5, right: 5, left: -30, bottom: 0 }}>
-                <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={9} tickLine={false} />
-                <YAxis stroke="var(--text-muted)" fontSize={9} tickLine={false} domain={[0, 100]} unit="%" />
-                <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontFamily: 'Fredoka, sans-serif', fontSize: 11, color: 'var(--text-primary)' }} />
-                <Line type="monotone" dataKey="completion" stroke="var(--accent-emerald)" strokeWidth={2.5} dot={{ fill: 'var(--accent-emerald)', r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* Distribution + Consistency */}
-      <div className="grid-2col">
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">🍩 Subject Split</div>
-          {pieData.length > 0 ? (
-            <div className="chart-distribution-layout">
-              <div className="chart-pie-wrapper">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={50} paddingAngle={3} dataKey="value">
-                      {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                    </Pie>
-                    <Tooltip formatter={v => `${v} mins`} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontFamily: 'Fredoka, sans-serif', color: 'var(--text-primary)' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="chart-legend-wrapper">
-                {pieData.map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, paddingBottom: 4, borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: item.color, flexShrink: 0 }} />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-                    </div>
-                    <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{item.value}m</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : <div className="empty" style={{ fontSize: 14 }}>No subject sessions yet</div>}
-        </div>
-
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-title">🏆 Consistency Score</div>
-          <div style={{ textAlign: 'center', margin: '12px 0' }}>
-            <div style={{ fontSize: 42, fontWeight: 800, color: consistencyScore >= 70 ? 'var(--accent-emerald)' : consistencyScore >= 40 ? 'var(--accent-gold)' : 'var(--accent-red)' }}>
-              {consistencyScore}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>out of 100</div>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, textAlign: 'center' }}>
-            Based on plan creation rate, completion rate, and streak length over 30 days
-          </div>
-        </div>
-      </div>
-
-      {/* Activity heatmap */}
-      <div className="card">
-        <div className="card-title">🗓 Activity Heatmap</div>
-        <div className="github-heatmap-wrapper" ref={heatmapWrapperRef}>
-          <div className="github-heatmap-inner">
-            <div className="github-heatmap-months">
-              {monthLabels.map((lbl, i) => <div key={i} className="github-heatmap-month-label" style={{ gridColumn: `${lbl.colIndex + 2} / span 4` }}>{lbl.text}</div>)}
-            </div>
-            <div className="github-heatmap-grid">
-              <span className="github-heatmap-weekday-label" style={{ gridRow: 2, gridColumn: 1 }}>Mon</span>
-              <span className="github-heatmap-weekday-label" style={{ gridRow: 4, gridColumn: 1 }}>Wed</span>
-              <span className="github-heatmap-weekday-label" style={{ gridRow: 6, gridColumn: 1 }}>Fri</span>
-              {weeks.flatMap((week, wIdx) =>
-                week.map((day, dIdx) => {
-                  if (day < startDate || day > today) return <div key={`${wIdx}-${dIdx}`} className="github-heatmap-cell empty" style={{ gridRow: dIdx + 1, gridColumn: wIdx + 2 }} />;
-                  const iso = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
-                  const secs = sessions.filter(s => s.date === iso).reduce((a, s) => a + s.completedDurationSeconds, 0);
-                  const level = secs === 0 ? 0 : secs < 1800 ? 1 : secs < 3600 ? 2 : secs < 7200 ? 3 : 4;
-                  return (
-                    <div key={`${wIdx}-${dIdx}`} className={`github-heatmap-cell level-${level}`}
-                      style={{ gridRow: dIdx + 1, gridColumn: wIdx + 2 }}
-                      title={`${day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}: ${(secs / 3600).toFixed(1)}h`}
-                      onClick={() => setSelectedDate(day)} />
-                  );
-                })
-              )}
-            </div>
-          </div>
-          <div className="github-heatmap-legend">
-            <span>Less</span>
-            {[0, 1, 2, 3, 4].map(l => <div key={l} className={`github-heatmap-legend-cell level-${l}`} />)}
-            <span>More</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Mock tests */}
-      <MockTestSection mockTests={mockTests} subjects={subjects} topics={topics} activeGoal={activeGoal} onSave={onSaveMockTest} onDelete={onDeleteMockTest} showToast={showToast} />
-
-      {/* Day drill-down modal */}
-      {selectedDate && (() => {
-        const ds = getDaySessions(selectedDate);
-        const totalH = (ds.reduce((a, s) => a + s.completedDurationSeconds, 0) / 3600).toFixed(1);
-        return (
-          <div className="modal-overlay" onClick={() => setSelectedDate(null)}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <div>
-                  <div className="modal-header" style={{ marginBottom: 2 }}>{selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{totalH}h total</div>
-                </div>
-                <button className="del-btn" style={{ fontSize: 20 }} onClick={() => setSelectedDate(null)}>✕</button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto' }}>
-                {ds.length === 0
-                  ? <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' }}>No sessions on this day</p>
-                  : ds.map(s => {
-                    const timeStr = new Date(s.startTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-                    const subj = subjects.find(sub => String(sub.id) === String(s.subjectId));
-                    return (
-                      <div key={s.id} style={{ display: 'flex', gap: 10, padding: '10px 14px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 44 }}>{timeStr}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</div>
-                          {subj && <span className="chip" style={{ marginTop: 3, border: `1.5px solid ${subj.colorHex}`, color: subj.colorHex, background: `${subj.colorHex}20`, fontSize: 10 }}>{subj.name}</span>}
-                        </div>
-                        <div className="session-mins" style={{ fontSize: 14 }}>{Math.round(s.completedDurationSeconds / 60)}m</div>
-                      </div>
-                    );
-                  })
-                }
-              </div>
-              <div style={{ textAlign: 'right', marginTop: 14 }}>
-                <button className="btn btn-secondary btn-sm" onClick={() => setSelectedDate(null)}>Close</button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-    </>
-  );
-}
-
-// ====================================================
-// MOCK TEST SECTION
-// ====================================================
-
-function MockTestSection({ mockTests, subjects, topics, activeGoal, onSave, onDelete, showToast }) {
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [filterSubject, setFilterSubject] = useState(null);
-  const [filterTopic, setFilterTopic] = useState(null);
-  const [testName, setTestName] = useState('');
-  const [subjectId, setSubjectId] = useState(subjects[0]?.id || '');
-  const [topicId, setTopicId] = useState('');
-  const [obtainedMarks, setObtainedMarks] = useState('');
-  const [totalMarks, setTotalMarks] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
-  const [correctM, setCorrectM] = useState('');
-  const [penaltyM, setPenaltyM] = useState('');
-
-  const netMarks = (parseFloat(correctM) || 0) - (parseFloat(penaltyM) || 0);
-
-  useEffect(() => { if (subjects.length > 0 && !subjectId) setSubjectId(subjects[0].id); }, [subjects]);
-  useEffect(() => { setTopicId(''); }, [subjectId]);
-
-  const topicsForSubject = topics?.filter(t => String(t.subjectId) === String(subjectId)) || [];
-
-  if (!activeGoal) return (
-    <div className="card">
-      <div className="card-title">🏆 Practice Tests</div>
-      <div className="empty">Set an active goal to track tests</div>
-    </div>
-  );
-
-  const goalTests = mockTests.filter(t => String(t.examGoalId) === String(activeGoal.id)).sort((a, b) => new Date(a.date) - new Date(b.date));
-  const topicsForFilter = topics?.filter(t => String(t.subjectId) === String(filterSubject)) || [];
-  const filteredTests = goalTests.filter(t => {
-    if (filterTopic) return String(t.topicId) === String(filterTopic);
-    if (filterSubject) return String(t.subjectId) === String(filterSubject);
-    return true;
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!testName || !subjectId) return;
-    const obtained = parseFloat(obtainedMarks) || 0, total = parseFloat(totalMarks) || 100;
-    onSave({
-      examGoalId: activeGoal.id, subjectId, topicId: topicId || null, testName,
-      scorePercentage: total > 0 ? (obtained / total) * 100 : 0,
-      obtainedMarks: obtained, totalMarks: total, correctMarks: parseFloat(correctM) || 0,
-      penaltyMarks: parseFloat(penaltyM) || 0, netMarks, notes, date, createdAt: Date.now()
-    });
-    setTestName(''); setObtainedMarks(''); setTotalMarks(''); setNotes('');
-    setCorrectM(''); setPenaltyM(''); setTopicId('');
-    setShowAddForm(false);
-  };
-
-  const chartData = filteredTests.map(t => ({ date: new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), score: Math.round(t.scorePercentage), name: t.testName }));
-
-  return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-        <div className="card-title" style={{ marginBottom: 0 }}>🏆 Practice Tests</div>
-        {subjects.length > 0 && !showAddForm && <button className="btn btn-primary btn-sm" onClick={() => setShowAddForm(true)}>+ Log Result</button>}
-      </div>
-
-      {showAddForm ? (
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="form-group">
-            <label className="form-label">Test Name *</label>
-            <input className="input" value={testName} onChange={e => setTestName(e.target.value)} required placeholder="e.g. PYQ Set — OS 2020-2024" />
-          </div>
-          <div className="grid-3col" style={{ gap: 10, marginBottom: 12 }}>
-            <div className="form-group">
-              <label className="form-label">Subject</label>
-              <select className="input-sm" value={subjectId} onChange={e => setSubjectId(e.target.value)} required>
-                {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            {topicsForSubject.length > 0 && (
-              <div className="form-group">
-                <label className="form-label">Topic</label>
-                <select className="input-sm" value={topicId} onChange={e => setTopicId(e.target.value)}>
-                  <option value="">— none —</option>
-                  {topicsForSubject.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </div>
-            )}
-            <div className="form-group">
-              <label className="form-label">Date</label>
-              <input className="input-sm" type="date" value={date} onChange={e => setDate(e.target.value)} required />
-            </div>
-          </div>
-          <div className="grid-2col" style={{ gap: 10, marginBottom: 12 }}>
-            <div className="form-group"><label className="form-label">Obtained Marks</label><input className="input-sm" type="number" step="any" value={obtainedMarks} onChange={e => setObtainedMarks(e.target.value)} placeholder="72" /></div>
-            <div className="form-group"><label className="form-label">Total Marks</label><input className="input-sm" type="number" step="any" value={totalMarks} onChange={e => setTotalMarks(e.target.value)} placeholder="100" /></div>
-          </div>
-          <div className="grid-3col" style={{ gap: 10, marginBottom: 12 }}>
-            <div className="form-group"><label className="form-label">Correct (+)</label><input className="input-sm" type="number" step="any" value={correctM} onChange={e => setCorrectM(e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Penalty (−)</label><input className="input-sm" type="number" step="any" value={penaltyM} onChange={e => setPenaltyM(e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Net (auto)</label><div className="input-sm" style={{ color: netMarks >= 0 ? 'var(--accent-emerald)' : 'var(--accent-red)', fontWeight: 700, display: 'flex', alignItems: 'center', cursor: 'default' }}>{(correctM || penaltyM) ? netMarks.toFixed(2) : '—'}</div></div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Notes</label>
-            <input className="input" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Weak areas, observations…" />
-          </div>
-          <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Save Result</button>
-          </div>
-        </form>
-      ) : (
-        <>
-          {subjects.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-              <button className={`tag-chip ${!filterSubject ? 'active' : ''}`} onClick={() => { setFilterSubject(null); setFilterTopic(null); }}>All</button>
-              {subjects.map(s => (
-                <button key={s.id} className={`tag-chip ${filterSubject === s.id ? 'active' : ''}`} style={{ borderColor: s.colorHex, color: filterSubject === s.id ? '#fff' : s.colorHex, background: filterSubject === s.id ? s.colorHex : 'transparent' }}
-                  onClick={() => { setFilterSubject(filterSubject === s.id ? null : s.id); setFilterTopic(null); }}>{s.name}</button>
-              ))}
-            </div>
+          {activeTab === 'plan' && (
+            <DailyPlanView 
+              dailyPlans={dailyPlans} 
+              subjects={subjects} 
+              topics={topics} 
+              showToast={showToast} 
+            />
           )}
-          {filterSubject && topicsForFilter.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10, paddingLeft: 8 }}>
-              <button className={`tag-chip ${!filterTopic ? 'active' : ''}`} onClick={() => setFilterTopic(null)}>All topics</button>
-              {topicsForFilter.map(t => <button key={t.id} className={`tag-chip ${filterTopic === t.id ? 'active' : ''}`} onClick={() => setFilterTopic(filterTopic === t.id ? null : t.id)}>{t.name}</button>)}
-            </div>
+          {activeTab === 'syllabus' && (
+            <SyllabusView 
+              activeGoal={activeGoal} 
+              subjects={subjects} 
+              topics={topics} 
+              showToast={showToast} 
+              setActiveTab={setActiveTab}
+            />
           )}
-
-          {chartData.length > 0 && (
-            <div style={{ height: 100, marginBottom: 14 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 5, left: -30, bottom: 0 }}>
-                  <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={9} tickLine={false} />
-                  <YAxis stroke="var(--text-muted)" fontSize={9} tickLine={false} domain={[0, 100]} unit="%" />
-                  <Tooltip contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, fontFamily: 'Fredoka, sans-serif', fontSize: 11, color: 'var(--text-primary)' }} />
-                  <Line type="monotone" dataKey="score" stroke="var(--accent-gold)" strokeWidth={2.5} dot={{ fill: 'var(--accent-gold)', r: 4 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+          {activeTab === 'settings' && (
+            <SettingsView 
+              user={user}
+              examGoals={examGoals} 
+              mockTests={mockTests} 
+              subjects={subjects} 
+              topics={topics} 
+              activeGoal={activeGoal}
+              onSaveGoal={(g) => { DataService.saveExamGoal(g); showToast("Goal saved"); }}
+              onDeleteGoal={(id) => { DataService.deleteExamGoal(id); showToast("Goal deleted"); }}
+              onSetActiveGoal={handleSetActiveGoal}
+              onSaveMockTest={(t) => { DataService.saveMockTest(t); showToast("Test score saved"); }}
+              onDeleteMockTest={(id) => { DataService.deleteMockTest(id); showToast("Test score deleted"); }}
+              showToast={showToast}
+            />
           )}
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {filteredTests.slice().reverse().map(t => {
-              const subj = subjects.find(s => String(s.id) === String(t.subjectId));
-              const score = Math.round(t.scorePercentage);
-              const scoreColor = score >= 75 ? 'var(--accent-emerald)' : score >= 50 ? 'var(--accent-gold)' : 'var(--accent-red)';
-              return (
-                <div key={t.id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px' }}>
-                    <div style={{ flex: 1, minWidth: 0, marginRight: 10 }}>
-                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 4 }}>
-                        {subj && <span className="chip" style={{ border: `1.5px solid ${subj.colorHex}`, color: subj.colorHex, background: `${subj.colorHex}20`, fontSize: 11 }}>{subj.name}</span>}
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.date}</span>
-                      </div>
-                      <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.testName}</div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>{t.obtainedMarks}/{t.totalMarks} marks</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontWeight: 800, color: scoreColor, fontSize: 18 }}>{score}%</span>
-                      <button className="del-btn" onClick={() => onDelete(t.id)}>✕</button>
-                    </div>
-                  </div>
-                  {t.notes && <div style={{ padding: '0 16px 10px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>📝 {t.notes}</div>}
-                </div>
-              );
-            })}
-            {filteredTests.length === 0 && <div className="empty" style={{ fontSize: 14 }}>No tests recorded — tap Log Result to start</div>}
-          </div>
-        </>
-      )}
+        </main>
+      </div>
     </div>
   );
 }
 
-// ====================================================
-// SETTINGS VIEW (formerly Account)
-// ====================================================
-
-function SettingsView({ user, examGoals, lastSyncTime, onSaveGoal, onDeleteGoal, onSetActiveGoal, showToast }) {
-  const [showAddGoal, setShowAddGoal] = useState(false);
-  const [goalName, setGoalName] = useState('GATE 2027 CSE');
-  const [goalDate, setGoalDate] = useState(GATE_EXAM_DATE);
-  const [targetMins, setTargetMins] = useState(600);
-
-  const handleLogin = async () => {
-    if (!auth) { alert('Firebase not configured. Add VITE_FIREBASE_API_KEY env vars to enable cloud sync.'); return; }
-    try { await signInWithPopup(auth, googleProvider); showToast('Signed in'); }
-    catch (e) { console.error(e); alert('Login failed: ' + e.message); }
-  };
-
-  const handleLogout = async () => {
-    if (auth) { await signOut(auth); showToast('Signed out'); }
-  };
-
-  const handleSaveGoal = () => {
-    if (!goalName.trim() || !goalDate) return;
-    onSaveGoal({ name: goalName.trim(), examDate: goalDate, dailyTargetMinutes: targetMins, isActive: examGoals.length === 0, createdAt: Date.now() });
-    setGoalName('GATE 2027 CSE'); setGoalDate(GATE_EXAM_DATE); setShowAddGoal(false);
-  };
-
-  const exportData = () => {
-    const keys = ['focusly_exam_goals', 'focusly_subjects', 'focusly_topics', 'focusly_sessions', 'focusly_mock_tests', 'focusly_daily_plans'];
-    const data = Object.fromEntries(keys.map(k => [k.replace('focusly_', ''), JSON.parse(localStorage.getItem(k) || '[]')]));
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url;
-    a.download = `gate_command_backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click(); URL.revokeObjectURL(url);
-    showToast('Export complete');
-  };
-
-  const clearData = () => {
-    if (confirm('Clear ALL local study data? This cannot be undone!')) {
-      localStorage.clear(); showToast('Data cleared, reloading…');
-      setTimeout(() => window.location.reload(), 1000);
-    }
-  };
-
-  return (
-    <div className="card">
-      <div className="card-title">⚙️ Settings</div>
-
-      {/* Sync status */}
-      <div style={{ marginBottom: 18 }}>
-        {[
-          { key: 'Sync Status', val: user ? 'Connected ✅' : 'Offline (local mode)', color: user ? 'var(--accent-emerald)' : 'var(--accent-gold)' },
-          { key: 'Account', val: user ? user.email : 'Local guest' },
-          { key: 'Database', val: user ? 'Firestore' : 'localStorage' },
-          ...(lastSyncTime ? [{ key: 'Last Sync', val: lastSyncTime }] : []),
-        ].map(r => (
-          <div key={r.key} className="account-info-row">
-            <span className="account-info-key">{r.key}</span>
-            <span className="account-info-val" style={r.color ? { color: r.color } : {}}>{r.val}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Google sign in */}
-      <div className="section-sep"><div className="line" /><div className="label">Cloud Sync</div><div className="line" /></div>
-      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.6 }}>Link a Google account to sync across devices</p>
-      {user
-        ? <button className="btn btn-danger w-full" style={{ justifyContent: 'center', marginBottom: 20 }} onClick={handleLogout}>Sign Out</button>
-        : <button className="btn btn-primary w-full" style={{ justifyContent: 'center', marginBottom: 20 }} onClick={handleLogin}>Sign In with Google</button>
-      }
-
-      {/* Exam goals */}
-      <div className="section-sep"><div className="line" /><div className="label">Exam Goals</div><div className="line" /></div>
-      {examGoals.length === 0
-        ? <div className="empty" style={{ fontSize: 14, marginBottom: 12 }}>No goals yet</div>
-        : <div style={{ marginBottom: 14 }}>
-          {examGoals.map(g => (
-            <div key={g.id} className={`goal-card ${g.isActive ? 'active' : ''}`}>
-              <div>
-                <div className="goal-card-name">{g.name} {g.isActive && <span className="chip" style={{ fontSize: 11, background: 'rgba(59,130,246,0.15)', color: 'var(--accent-blue)', border: '1px solid var(--accent-blue)' }}>Active</span>}</div>
-                <div className="goal-card-meta">{g.examDate} · {(g.dailyTargetMinutes / 60).toFixed(1)}h/day target</div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {!g.isActive && <button className="btn btn-secondary btn-xs" onClick={() => onSetActiveGoal(g.id)}>Activate</button>}
-                <button className="del-btn" onClick={() => onDeleteGoal(g.id)}>✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      }
-      <button className="btn btn-secondary w-full" style={{ justifyContent: 'center', marginBottom: 20 }} onClick={() => setShowAddGoal(true)}>+ Add Exam Goal</button>
-
-      {/* Data management */}
-      <div className="section-sep"><div className="line" /><div className="label">Data</div><div className="line" /></div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button className="btn btn-secondary btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={exportData}>Export Backup</button>
-        <button className="btn btn-danger btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={clearData}>Clear Cache</button>
-      </div>
-
-      {/* Add goal modal */}
-      {showAddGoal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">New Exam Target 🎯</div>
-            <div className="form-group" style={{ marginBottom: 14 }}>
-              <label className="form-label">Exam Name</label>
-              <input className="input" placeholder="e.g. GATE 2027 CSE" value={goalName} onChange={e => setGoalName(e.target.value)} autoFocus />
-            </div>
-            <div className="form-group" style={{ marginBottom: 14 }}>
-              <label className="form-label">Target Date</label>
-              <input className="input" type="date" value={goalDate} onChange={e => setGoalDate(e.target.value)} />
-            </div>
-            <div className="form-group" style={{ marginBottom: 18 }}>
-              <label className="form-label">Daily Study Target</label>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'center', marginTop: 6 }}>
-                <button className="btn btn-secondary btn-sm" onClick={() => setTargetMins(p => Math.max(60, p - 30))}>−30m</button>
-                <span style={{ fontSize: 18, fontWeight: 700, minWidth: 80, textAlign: 'center' }}>{(targetMins / 60).toFixed(1)} hrs</span>
-                <button className="btn btn-secondary btn-sm" onClick={() => setTargetMins(p => p + 30)}>+30m</button>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button className="btn btn-secondary" onClick={() => setShowAddGoal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSaveGoal}>Create</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+export default App;

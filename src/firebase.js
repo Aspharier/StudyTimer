@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from 'firebase/firestore';
 
 // Environment variables configuration (defined in .env or passed at runtime)
 const firebaseConfig = {
@@ -23,7 +23,15 @@ if (isFirebaseConfigured) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+
+    // Initialize Firestore with persistent offline cache
+    // This stores data in IndexedDB so it survives page reloads and works offline
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentSingleTabManager()
+      })
+    });
+
     googleProvider = new GoogleAuthProvider();
   } catch (error) {
     console.error("Firebase failed to initialize: ", error);
