@@ -890,11 +890,18 @@ function SettingsView({ user, examGoals, mockTests, subjects, topics, activeGoal
 function AddGoalModal({ onClose, onSave, isFirst }) {
   const [name, setName] = useState('');
   const [examDate, setExamDate] = useState('');
+  const [isActive, setIsActive] = useState(true);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (name && examDate) {
-      onSave({ id: generateId(), name, examDate, isActive: isFirst, createdAt: new Date().toISOString() });
+      onSave({ 
+        id: generateId(), 
+        name: name.trim(), 
+        examDate, 
+        isActive: isFirst || isActive, 
+        createdAt: new Date().toISOString() 
+      });
     }
   };
 
@@ -913,6 +920,18 @@ function AddGoalModal({ onClose, onSave, isFirst }) {
           <div className="form-group">
             <label className="form-label">Target Exam Date</label>
             <input type="date" className="input input-rect" value={examDate} onChange={e => setExamDate(e.target.value)} required />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '12px 0 16px' }}>
+            <input 
+              type="checkbox" 
+              id="set-active-goal" 
+              checked={isActive} 
+              onChange={e => setIsActive(e.target.checked)} 
+              style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+            />
+            <label htmlFor="set-active-goal" style={{ cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}>
+              Set as current active target
+            </label>
           </div>
           <button type="submit" className="btn btn-primary w-full">Save Goal</button>
         </form>

@@ -12,9 +12,11 @@ import {
   where
 } from 'firebase/firestore';
 
-const generateId = () => String(Date.now()) + Math.random().toString(36).substr(2, 5);
+const generateId = () => String(Date.now()) + Math.random().toString(36).substring(2, 7);
 
 let currentUid = null;
+let authResolved = false;
+let currentUser = null;
 
 const listeners = {
   auth: [],
@@ -41,41 +43,117 @@ const state = {
   dailyPlans: []
 };
 
+const getCacheKey = (uid) => `focusly_cache_${uid}`;
+
+const loadCache = (uid) => {
+  try {
+    const raw = localStorage.getItem(getCacheKey(uid));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      state.examGoals = parsed.examGoals || [];
+      state.subjects = parsed.subjects || [];
+      state.topics = parsed.topics || [];
+      state.mockTests = parsed.mockTests || [];
+      state.dailyPlans = parsed.dailyPlans || [];
+    }
+  } catch (e) {
+    console.warn("Failed to load local cache:", e);
+  }
+};
+
+const saveCache = (uid) => {
+  if (!uid) return;
+  try {
+    localStorage.setItem(getCacheKey(uid), JSON.stringify(state));
+  } catch (e) {
+    console.warn("Failed to save local cache:", e);
+  }
+};
+
 const notifyListeners = (key) => {
-  listeners[key].forEach(cb => cb(state[key]));
+  if (listeners[key]) {
+    listeners[key].forEach(cb => {
+      try {
+        cb(state[key]);
+      } catch (err) {
+        console.error(`Error notifying listener for ${key}:`, err);
+      }
+    });
+  }
+  if (currentUid) {
+    saveCache(currentUid);
+  }
 };
 
 const notifyAuthListeners = (user) => {
-  listeners.auth.forEach(cb => cb(user));
+  listeners.auth.forEach(cb => {
+    try {
+      cb(user);
+    } catch (err) {
+      console.error("Error in auth listener:", err);
+    }
+  });
 };
 
 const setupFirestoreListeners = (uid) => {
   currentUid = uid;
-  
-  unsubs.examGoals = onSnapshot(collection(db, `users/${uid}/exam_goals`), (snapshot) => {
-    state.examGoals = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    notifyListeners('examGoals');
-  });
+  loadCache(uid);
+  ['examGoals', 'subjects', 'topics', 'mockTests', 'dailyPlans'].forEach(notifyListeners);
 
-  unsubs.subjects = onSnapshot(collection(db, `users/${uid}/subjects`), (snapshot) => {
-    state.subjects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    notifyListeners('subjects');
-  });
+  if (!db) return;
 
-  unsubs.topics = onSnapshot(collection(db, `users/${uid}/topics`), (snapshot) => {
-    state.topics = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    notifyListeners('topics');
-  });
+  const errHandler = (name) => (err) => {
+    console.warn(`Firestore snapshot warning on ${name}:`, err.message);
+  };
 
-  unsubs.mockTests = onSnapshot(collection(db, `users/${uid}/mock_tests`), (snapshot) => {
-    state.mockTests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    notifyListeners('mockTests');
-  });
+  try {
+    unsubs.examGoals = onSnapshot(
+      collection(db, `users/${uid}/exam_goals`), 
+      (snapshot) => {
+        state.examGoals = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        notifyListeners('examGoals');
+      },
+      errHandler('exam_goals')
+    );
 
-  unsubs.dailyPlans = onSnapshot(collection(db, `users/${uid}/daily_plans`), (snapshot) => {
-    state.dailyPlans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    notifyListeners('dailyPlans');
-  });
+    unsubs.subjects = onSnapshot(
+      collection(db, `users/${uid}/subjects`), 
+      (snapshot) => {
+        state.subjects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        notifyListeners('subjects');
+      },
+      errHandler('subjects')
+    );
+
+    unsubs.topics = onSnapshot(
+      collection(db, `users/${uid}/topics`), 
+      (snapshot) => {
+        state.topics = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        notifyListeners('topics');
+      },
+      errHandler('topics')
+    );
+
+    unsubs.mockTests = onSnapshot(
+      collection(db, `users/${uid}/mock_tests`), 
+      (snapshot) => {
+        state.mockTests = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        notifyListeners('mockTests');
+      },
+      errHandler('mock_tests')
+    );
+
+    unsubs.dailyPlans = onSnapshot(
+      collection(db, `users/${uid}/daily_plans`), 
+      (snapshot) => {
+        state.dailyPlans = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        notifyListeners('dailyPlans');
+      },
+      errHandler('daily_plans')
+    );
+  } catch (err) {
+    console.error("Error attaching Firestore snapshot listeners:", err);
+  }
 };
 
 const clearFirestoreListeners = () => {
@@ -91,6 +169,8 @@ const clearFirestoreListeners = () => {
 
 if (auth) {
   onAuthStateChanged(auth, (user) => {
+    authResolved = true;
+    currentUser = user;
     notifyAuthListeners(user);
     if (user) {
       setupFirestoreListeners(user.uid);
@@ -103,7 +183,10 @@ if (auth) {
 export const DataService = {
   subscribeToAuth: (cb) => {
     listeners.auth.push(cb);
-    cb(auth?.currentUser || null);
+    // Only fire immediately if Firebase has finished checking persistent auth
+    if (authResolved) {
+      cb(currentUser);
+    }
     return () => {
       listeners.auth = listeners.auth.filter(l => l !== cb);
     };
@@ -145,100 +228,216 @@ export const DataService = {
   },
 
   saveExamGoal: async (goal) => {
-    if (!currentUid) return;
     const id = goal.id || generateId();
-    const data = { ...goal };
-    delete data.id;
+    const newGoal = { ...goal, id };
+    
+    // 1. Optimistic instant UI update
+    if (newGoal.isActive) {
+      state.examGoals = state.examGoals.map(g => ({ ...g, isActive: false }));
+    }
+    state.examGoals = state.examGoals.filter(g => g.id !== id);
+    state.examGoals.push(newGoal);
+    notifyListeners('examGoals');
 
-    if (goal.isActive) {
-      const batch = writeBatch(db);
-      state.examGoals.forEach(g => {
-        if (g.id !== id && g.isActive) {
-          batch.set(doc(db, `users/${currentUid}/exam_goals`, g.id), { isActive: false }, { merge: true });
+    // 2. Cloud Firestore sync
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        if (newGoal.isActive) {
+          const batch = writeBatch(db);
+          state.examGoals.forEach(g => {
+            if (g.id !== id && g.isActive) {
+              batch.set(doc(db, `users/${uid}/exam_goals`, g.id), { isActive: false }, { merge: true });
+            }
+          });
+          const data = { ...newGoal };
+          delete data.id;
+          batch.set(doc(db, `users/${uid}/exam_goals`, id), data);
+          await batch.commit();
+        } else {
+          const data = { ...newGoal };
+          delete data.id;
+          await setDoc(doc(db, `users/${uid}/exam_goals`, id), data);
         }
-      });
-      batch.set(doc(db, `users/${currentUid}/exam_goals`, id), data);
-      await batch.commit();
-    } else {
-      await setDoc(doc(db, `users/${currentUid}/exam_goals`, id), data);
+      } catch (err) {
+        console.error("Firestore saveExamGoal failed:", err);
+      }
     }
   },
+
   deleteExamGoal: async (id) => {
-    if (!currentUid) return;
-    await deleteDoc(doc(db, `users/${currentUid}/exam_goals`, id));
+    state.examGoals = state.examGoals.filter(g => g.id !== id);
+    notifyListeners('examGoals');
+
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        await deleteDoc(doc(db, `users/${uid}/exam_goals`, id));
+      } catch (err) {
+        console.error("Firestore deleteExamGoal failed:", err);
+      }
+    }
   },
+
   setActiveExamGoal: async (id) => {
-    if (!currentUid) return;
-    const batch = writeBatch(db);
-    state.examGoals.forEach(g => {
-      batch.set(doc(db, `users/${currentUid}/exam_goals`, g.id), { isActive: g.id === id }, { merge: true });
-    });
-    await batch.commit();
+    state.examGoals = state.examGoals.map(g => ({ ...g, isActive: g.id === id }));
+    notifyListeners('examGoals');
+
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        const batch = writeBatch(db);
+        state.examGoals.forEach(g => {
+          batch.set(doc(db, `users/${uid}/exam_goals`, g.id), { isActive: g.id === id }, { merge: true });
+        });
+        await batch.commit();
+      } catch (err) {
+        console.error("Firestore setActiveExamGoal failed:", err);
+      }
+    }
   },
 
   saveSubject: async (subj) => {
-    if (!currentUid) return;
     const id = subj.id || generateId();
-    const data = { ...subj };
-    delete data.id;
-    await setDoc(doc(db, `users/${currentUid}/subjects`, id), data);
+    const newSubj = { ...subj, id };
+    state.subjects = state.subjects.filter(s => s.id !== id);
+    state.subjects.push(newSubj);
+    notifyListeners('subjects');
+
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        const data = { ...newSubj };
+        delete data.id;
+        await setDoc(doc(db, `users/${uid}/subjects`, id), data);
+      } catch (err) {
+        console.error("Firestore saveSubject failed:", err);
+      }
+    }
   },
+
   deleteSubject: async (id) => {
-    if (!currentUid) return;
-    const batch = writeBatch(db);
-    batch.delete(doc(db, `users/${currentUid}/subjects`, id));
-    
-    const q = query(collection(db, `users/${currentUid}/topics`), where("subjectId", "==", id));
-    const qs = await getDocs(q);
-    qs.forEach(d => {
-      batch.delete(d.ref);
-    });
-    
-    await batch.commit();
+    state.subjects = state.subjects.filter(s => s.id !== id);
+    state.topics = state.topics.filter(t => t.subjectId !== id);
+    notifyListeners('subjects');
+    notifyListeners('topics');
+
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, `users/${uid}/subjects`, id));
+        const q = query(collection(db, `users/${uid}/topics`), where("subjectId", "==", id));
+        const qs = await getDocs(q);
+        qs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      } catch (err) {
+        console.error("Firestore deleteSubject failed:", err);
+      }
+    }
   },
 
   saveTopic: async (topic) => {
-    if (!currentUid) return;
     const id = topic.id || generateId();
-    const data = { ...topic };
-    delete data.id;
-    await setDoc(doc(db, `users/${currentUid}/topics`, id), data);
+    const newTopic = { ...topic, id };
+    state.topics = state.topics.filter(t => t.id !== id);
+    state.topics.push(newTopic);
+    notifyListeners('topics');
+
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        const data = { ...newTopic };
+        delete data.id;
+        await setDoc(doc(db, `users/${uid}/topics`, id), data);
+      } catch (err) {
+        console.error("Firestore saveTopic failed:", err);
+      }
+    }
   },
+
   deleteTopic: async (id) => {
-    if (!currentUid) return;
-    const batch = writeBatch(db);
-    batch.delete(doc(db, `users/${currentUid}/topics`, id));
-    
-    const q = query(collection(db, `users/${currentUid}/topics`), where("parentId", "==", id));
-    const qs = await getDocs(q);
-    qs.forEach(d => {
-      batch.delete(d.ref);
-    });
-    
-    await batch.commit();
+    state.topics = state.topics.filter(t => t.id !== id && t.parentId !== id);
+    notifyListeners('topics');
+
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, `users/${uid}/topics`, id));
+        const q = query(collection(db, `users/${uid}/topics`), where("parentId", "==", id));
+        const qs = await getDocs(q);
+        qs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      } catch (err) {
+        console.error("Firestore deleteTopic failed:", err);
+      }
+    }
   },
 
   saveMockTest: async (test) => {
-    if (!currentUid) return;
     const id = test.id || generateId();
-    const data = { ...test };
-    delete data.id;
-    await setDoc(doc(db, `users/${currentUid}/mock_tests`, id), data);
+    const newTest = { ...test, id };
+    state.mockTests = state.mockTests.filter(t => t.id !== id);
+    state.mockTests.push(newTest);
+    notifyListeners('mockTests');
+
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        const data = { ...newTest };
+        delete data.id;
+        await setDoc(doc(db, `users/${uid}/mock_tests`, id), data);
+      } catch (err) {
+        console.error("Firestore saveMockTest failed:", err);
+      }
+    }
   },
+
   deleteMockTest: async (id) => {
-    if (!currentUid) return;
-    await deleteDoc(doc(db, `users/${currentUid}/mock_tests`, id));
+    state.mockTests = state.mockTests.filter(t => t.id !== id);
+    notifyListeners('mockTests');
+
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        await deleteDoc(doc(db, `users/${uid}/mock_tests`, id));
+      } catch (err) {
+        console.error("Firestore deleteMockTest failed:", err);
+      }
+    }
   },
 
   saveDailyPlan: async (plan) => {
-    if (!currentUid) return;
     const id = plan.id || plan.date || generateId();
-    const data = { ...plan };
-    delete data.id;
-    await setDoc(doc(db, `users/${currentUid}/daily_plans`, id), data);
+    const newPlan = { ...plan, id };
+    state.dailyPlans = state.dailyPlans.filter(p => p.id !== id && p.date !== newPlan.date);
+    state.dailyPlans.push(newPlan);
+    notifyListeners('dailyPlans');
+
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        const data = { ...newPlan };
+        delete data.id;
+        await setDoc(doc(db, `users/${uid}/daily_plans`, id), data);
+      } catch (err) {
+        console.error("Firestore saveDailyPlan failed:", err);
+      }
+    }
   },
+
   deleteDailyPlan: async (id) => {
-    if (!currentUid) return;
-    await deleteDoc(doc(db, `users/${currentUid}/daily_plans`, id));
+    state.dailyPlans = state.dailyPlans.filter(p => p.id !== id);
+    notifyListeners('dailyPlans');
+
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (uid && db) {
+      try {
+        await deleteDoc(doc(db, `users/${uid}/daily_plans`, id));
+      } catch (err) {
+        console.error("Firestore deleteDailyPlan failed:", err);
+      }
+    }
   }
 };
