@@ -1115,6 +1115,7 @@ function App() {
   
   const [clockTime, setClockTime] = useState('');
   const [toastMsg, setToastMsg] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1125,6 +1126,7 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const unsubSync = DataService.subscribeToSyncStatus(setIsSyncing);
     const unsubAuth = DataService.subscribeToAuth((u) => {
       setUser(u);
       setAuthLoading(false);
@@ -1136,6 +1138,7 @@ function App() {
     const unsubDailyPlans = DataService.subscribeToDailyPlans(setDailyPlans);
 
     return () => {
+      unsubSync();
       unsubAuth();
       unsubGoals();
       unsubSubjects();
@@ -1183,7 +1186,7 @@ function App() {
     return <SignInView onLogin={handleLogin} />;
   }
 
-  const activeGoal = examGoals.find(g => g.isActive) || null;
+  const activeGoal = examGoals.find(g => g.isActive) || examGoals[0] || null;
   const daysRemaining = activeGoal ? getDaysRemaining(activeGoal.examDate) : null;
 
   const handleSetActiveGoal = (id) => {
@@ -1203,8 +1206,24 @@ function App() {
       {toastMsg && <div className="toast">{toastMsg}</div>}
       <div className="wrap">
         <header className="app-header">
-          <div className="logo">
+          <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="logo-text">focusly</span>
+            {user && (
+              <span 
+                className="chip" 
+                style={{ 
+                  fontSize: '0.72rem', 
+                  padding: '2px 8px', 
+                  backgroundColor: isSyncing ? 'var(--warning)' : 'var(--bg-card)', 
+                  color: isSyncing ? '#fff' : 'var(--success)', 
+                  border: '1px solid var(--border)',
+                  cursor: 'default'
+                }}
+                title={`Signed in as ${user.email}`}
+              >
+                {isSyncing ? '🔄 Syncing...' : '☁️ Cloud Synced'}
+              </span>
+            )}
           </div>
           <div className="clock-pill">{clockTime}</div>
         </header>
@@ -1259,7 +1278,14 @@ function App() {
               subjects={subjects} 
               topics={topics} 
               activeGoal={activeGoal}
-              onSaveGoal={(g) => { DataService.saveExamGoal(g); showToast("Goal saved"); }}
+              onSaveGoal={async (g) => { 
+                try {
+                  await DataService.saveExamGoal(g); 
+                  showToast("Goal saved & synced to cloud ✨"); 
+                } catch (err) {
+                  showToast("Saved locally. Cloud sync warning: " + err.message);
+                }
+              }}
               onDeleteGoal={(id) => { DataService.deleteExamGoal(id); showToast("Goal deleted"); }}
               onSetActiveGoal={handleSetActiveGoal}
               onSaveMockTest={(t) => { DataService.saveMockTest(t); showToast("Test score saved"); }}

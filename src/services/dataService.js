@@ -14,9 +14,28 @@ import {
 
 const generateId = () => String(Date.now()) + Math.random().toString(36).substring(2, 7);
 
+const sanitizeForFirestore = (obj) => {
+  const clean = {};
+  Object.keys(obj).forEach(key => {
+    if (obj[key] !== undefined) {
+      clean[key] = obj[key];
+    }
+  });
+  return clean;
+};
+
 let currentUid = null;
 let authResolved = false;
 let currentUser = null;
+let syncStatusListeners = [];
+let isSyncing = false;
+
+const setSyncStatus = (status) => {
+  isSyncing = status;
+  syncStatusListeners.forEach(cb => {
+    try { cb(status); } catch (e) { console.error(e); }
+  });
+};
 
 const listeners = {
   auth: [],
@@ -50,11 +69,11 @@ const loadCache = (uid) => {
     const raw = localStorage.getItem(getCacheKey(uid));
     if (raw) {
       const parsed = JSON.parse(raw);
-      state.examGoals = parsed.examGoals || [];
-      state.subjects = parsed.subjects || [];
-      state.topics = parsed.topics || [];
-      state.mockTests = parsed.mockTests || [];
-      state.dailyPlans = parsed.dailyPlans || [];
+      state.examGoals = Array.isArray(parsed.examGoals) ? parsed.examGoals : [];
+      state.subjects = Array.isArray(parsed.subjects) ? parsed.subjects : [];
+      state.topics = Array.isArray(parsed.topics) ? parsed.topics : [];
+      state.mockTests = Array.isArray(parsed.mockTests) ? parsed.mockTests : [];
+      state.dailyPlans = Array.isArray(parsed.dailyPlans) ? parsed.dailyPlans : [];
     }
   } catch (e) {
     console.warn("Failed to load local cache:", e);
@@ -95,20 +114,70 @@ const notifyAuthListeners = (user) => {
   });
 };
 
+// If local cache has items that aren't yet in Firestore, upload them
+const syncLocalToCloudIfEmpty = async (uid) => {
+  if (!db || !uid) return;
+  try {
+    setSyncStatus(true);
+    const goalsRef = collection(db, 'users', uid, 'exam_goals');
+    const goalsSnap = await getDocs(goalsRef);
+
+    if (goalsSnap.empty && state.examGoals.length > 0) {
+      console.log("Cloud is empty. Uploading local exam goals to Firestore...");
+      const batch = writeBatch(db);
+      state.examGoals.forEach(g => {
+        const data = sanitizeForFirestore({ ...g });
+        delete data.id;
+        batch.set(doc(db, 'users', uid, 'exam_goals', String(g.id)), data);
+      });
+      state.subjects.forEach(s => {
+        const data = sanitizeForFirestore({ ...s });
+        delete data.id;
+        batch.set(doc(db, 'users', uid, 'subjects', String(s.id)), data);
+      });
+      state.topics.forEach(t => {
+        const data = sanitizeForFirestore({ ...t });
+        delete data.id;
+        batch.set(doc(db, 'users', uid, 'topics', String(t.id)), data);
+      });
+      state.mockTests.forEach(m => {
+        const data = sanitizeForFirestore({ ...m });
+        delete data.id;
+        batch.set(doc(db, 'users', uid, 'mock_tests', String(m.id)), data);
+      });
+      state.dailyPlans.forEach(p => {
+        const data = sanitizeForFirestore({ ...p });
+        delete data.id;
+        batch.set(doc(db, 'users', uid, 'daily_plans', String(p.id || p.date)), data);
+      });
+      await batch.commit();
+      console.log("Successfully uploaded local cache to Firestore cloud!");
+    }
+  } catch (err) {
+    console.warn("syncLocalToCloudIfEmpty warning:", err);
+  } finally {
+    setSyncStatus(false);
+  }
+};
+
 const setupFirestoreListeners = (uid) => {
   currentUid = uid;
   loadCache(uid);
   ['examGoals', 'subjects', 'topics', 'mockTests', 'dailyPlans'].forEach(notifyListeners);
 
-  if (!db) return;
+  if (!db) {
+    console.error("Firestore database instance is not initialized!");
+    return;
+  }
 
   const errHandler = (name) => (err) => {
     console.warn(`Firestore snapshot warning on ${name}:`, err.message);
   };
 
   try {
+    // 1. Exam Goals
     unsubs.examGoals = onSnapshot(
-      collection(db, `users/${uid}/exam_goals`), 
+      collection(db, 'users', uid, 'exam_goals'), 
       (snapshot) => {
         state.examGoals = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         notifyListeners('examGoals');
@@ -116,8 +185,9 @@ const setupFirestoreListeners = (uid) => {
       errHandler('exam_goals')
     );
 
+    // 2. Subjects
     unsubs.subjects = onSnapshot(
-      collection(db, `users/${uid}/subjects`), 
+      collection(db, 'users', uid, 'subjects'), 
       (snapshot) => {
         state.subjects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         notifyListeners('subjects');
@@ -125,8 +195,9 @@ const setupFirestoreListeners = (uid) => {
       errHandler('subjects')
     );
 
+    // 3. Topics
     unsubs.topics = onSnapshot(
-      collection(db, `users/${uid}/topics`), 
+      collection(db, 'users', uid, 'topics'), 
       (snapshot) => {
         state.topics = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         notifyListeners('topics');
@@ -134,8 +205,9 @@ const setupFirestoreListeners = (uid) => {
       errHandler('topics')
     );
 
+    // 4. Mock Tests
     unsubs.mockTests = onSnapshot(
-      collection(db, `users/${uid}/mock_tests`), 
+      collection(db, 'users', uid, 'mock_tests'), 
       (snapshot) => {
         state.mockTests = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         notifyListeners('mockTests');
@@ -143,14 +215,18 @@ const setupFirestoreListeners = (uid) => {
       errHandler('mock_tests')
     );
 
+    // 5. Daily Plans
     unsubs.dailyPlans = onSnapshot(
-      collection(db, `users/${uid}/daily_plans`), 
+      collection(db, 'users', uid, 'daily_plans'), 
       (snapshot) => {
         state.dailyPlans = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         notifyListeners('dailyPlans');
       },
       errHandler('daily_plans')
     );
+
+    // Run reconciliation upload if local has data but cloud is brand new
+    syncLocalToCloudIfEmpty(uid);
   } catch (err) {
     console.error("Error attaching Firestore snapshot listeners:", err);
   }
@@ -181,9 +257,15 @@ if (auth) {
 }
 
 export const DataService = {
+  subscribeToSyncStatus: (cb) => {
+    syncStatusListeners.push(cb);
+    cb(isSyncing);
+    return () => {
+      syncStatusListeners = syncStatusListeners.filter(l => l !== cb);
+    };
+  },
   subscribeToAuth: (cb) => {
     listeners.auth.push(cb);
-    // Only fire immediately if Firebase has finished checking persistent auth
     if (authResolved) {
       cb(currentUser);
     }
@@ -243,24 +325,26 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
+        setSyncStatus(true);
+        const batch = writeBatch(db);
         if (newGoal.isActive) {
-          const batch = writeBatch(db);
           state.examGoals.forEach(g => {
-            if (g.id !== id && g.isActive) {
-              batch.set(doc(db, `users/${uid}/exam_goals`, g.id), { isActive: false }, { merge: true });
+            if (g.id !== id) {
+              const ref = doc(db, 'users', uid, 'exam_goals', String(g.id));
+              batch.set(ref, sanitizeForFirestore({ ...g, isActive: false }), { merge: true });
             }
           });
-          const data = { ...newGoal };
-          delete data.id;
-          batch.set(doc(db, `users/${uid}/exam_goals`, id), data);
-          await batch.commit();
-        } else {
-          const data = { ...newGoal };
-          delete data.id;
-          await setDoc(doc(db, `users/${uid}/exam_goals`, id), data);
         }
+        const data = sanitizeForFirestore({ ...newGoal });
+        delete data.id;
+        batch.set(doc(db, 'users', uid, 'exam_goals', String(id)), data, { merge: true });
+        await batch.commit();
+        console.log("Exam goal saved to cloud Firestore:", id);
       } catch (err) {
         console.error("Firestore saveExamGoal failed:", err);
+        throw err;
+      } finally {
+        setSyncStatus(false);
       }
     }
   },
@@ -272,9 +356,12 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
-        await deleteDoc(doc(db, `users/${uid}/exam_goals`, id));
+        setSyncStatus(true);
+        await deleteDoc(doc(db, 'users', uid, 'exam_goals', String(id)));
       } catch (err) {
         console.error("Firestore deleteExamGoal failed:", err);
+      } finally {
+        setSyncStatus(false);
       }
     }
   },
@@ -286,13 +373,17 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
+        setSyncStatus(true);
         const batch = writeBatch(db);
         state.examGoals.forEach(g => {
-          batch.set(doc(db, `users/${uid}/exam_goals`, g.id), { isActive: g.id === id }, { merge: true });
+          const ref = doc(db, 'users', uid, 'exam_goals', String(g.id));
+          batch.set(ref, { isActive: g.id === id }, { merge: true });
         });
         await batch.commit();
       } catch (err) {
         console.error("Firestore setActiveExamGoal failed:", err);
+      } finally {
+        setSyncStatus(false);
       }
     }
   },
@@ -307,11 +398,14 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
-        const data = { ...newSubj };
+        setSyncStatus(true);
+        const data = sanitizeForFirestore({ ...newSubj });
         delete data.id;
-        await setDoc(doc(db, `users/${uid}/subjects`, id), data);
+        await setDoc(doc(db, 'users', uid, 'subjects', String(id)), data, { merge: true });
       } catch (err) {
         console.error("Firestore saveSubject failed:", err);
+      } finally {
+        setSyncStatus(false);
       }
     }
   },
@@ -325,14 +419,17 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
+        setSyncStatus(true);
         const batch = writeBatch(db);
-        batch.delete(doc(db, `users/${uid}/subjects`, id));
-        const q = query(collection(db, `users/${uid}/topics`), where("subjectId", "==", id));
+        batch.delete(doc(db, 'users', uid, 'subjects', String(id)));
+        const q = query(collection(db, 'users', uid, 'topics'), where("subjectId", "==", id));
         const qs = await getDocs(q);
         qs.forEach(d => batch.delete(d.ref));
         await batch.commit();
       } catch (err) {
         console.error("Firestore deleteSubject failed:", err);
+      } finally {
+        setSyncStatus(false);
       }
     }
   },
@@ -347,11 +444,14 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
-        const data = { ...newTopic };
+        setSyncStatus(true);
+        const data = sanitizeForFirestore({ ...newTopic });
         delete data.id;
-        await setDoc(doc(db, `users/${uid}/topics`, id), data);
+        await setDoc(doc(db, 'users', uid, 'topics', String(id)), data, { merge: true });
       } catch (err) {
         console.error("Firestore saveTopic failed:", err);
+      } finally {
+        setSyncStatus(false);
       }
     }
   },
@@ -363,14 +463,17 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
+        setSyncStatus(true);
         const batch = writeBatch(db);
-        batch.delete(doc(db, `users/${uid}/topics`, id));
-        const q = query(collection(db, `users/${uid}/topics`), where("parentId", "==", id));
+        batch.delete(doc(db, 'users', uid, 'topics', String(id)));
+        const q = query(collection(db, 'users', uid, 'topics'), where("parentId", "==", id));
         const qs = await getDocs(q);
         qs.forEach(d => batch.delete(d.ref));
         await batch.commit();
       } catch (err) {
         console.error("Firestore deleteTopic failed:", err);
+      } finally {
+        setSyncStatus(false);
       }
     }
   },
@@ -385,11 +488,14 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
-        const data = { ...newTest };
+        setSyncStatus(true);
+        const data = sanitizeForFirestore({ ...newTest });
         delete data.id;
-        await setDoc(doc(db, `users/${uid}/mock_tests`, id), data);
+        await setDoc(doc(db, 'users', uid, 'mock_tests', String(id)), data, { merge: true });
       } catch (err) {
         console.error("Firestore saveMockTest failed:", err);
+      } finally {
+        setSyncStatus(false);
       }
     }
   },
@@ -401,9 +507,12 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
-        await deleteDoc(doc(db, `users/${uid}/mock_tests`, id));
+        setSyncStatus(true);
+        await deleteDoc(doc(db, 'users', uid, 'mock_tests', String(id)));
       } catch (err) {
         console.error("Firestore deleteMockTest failed:", err);
+      } finally {
+        setSyncStatus(false);
       }
     }
   },
@@ -418,11 +527,14 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
-        const data = { ...newPlan };
+        setSyncStatus(true);
+        const data = sanitizeForFirestore({ ...newPlan });
         delete data.id;
-        await setDoc(doc(db, `users/${uid}/daily_plans`, id), data);
+        await setDoc(doc(db, 'users', uid, 'daily_plans', String(id)), data, { merge: true });
       } catch (err) {
         console.error("Firestore saveDailyPlan failed:", err);
+      } finally {
+        setSyncStatus(false);
       }
     }
   },
@@ -434,9 +546,12 @@ export const DataService = {
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
-        await deleteDoc(doc(db, `users/${uid}/daily_plans`, id));
+        setSyncStatus(true);
+        await deleteDoc(doc(db, 'users', uid, 'daily_plans', String(id)));
       } catch (err) {
         console.error("Firestore deleteDailyPlan failed:", err);
+      } finally {
+        setSyncStatus(false);
       }
     }
   }
