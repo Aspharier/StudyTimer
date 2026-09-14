@@ -1240,3 +1240,95 @@ select.input, select.input-sm, select.input-rect {
   border-color: var(--accent-gold);
 }
 
+/* ============ SYLLABUS TOPIC CARDS ============ */
+.topic-card {
+  border-radius: 12px;
+  padding: 12px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.topic-card[data-status="NOT_STARTED"] {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  border: 1.5px solid rgba(148, 163, 184, 0.35);
+  color: #1e293b;
+}
+.topic-card[data-status="IN_PROGRESS"] {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1.5px solid rgba(245, 158, 11, 0.35);
+  color: #1e293b;
+}
+.topic-card[data-status="COMPLETED"] {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1.5px solid rgba(16, 185, 129, 0.35);
+  color: #1e293b;
+}
+.topic-card[data-status="NEEDS_REVISION"] {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border: 1.5px solid rgba(239, 68, 68, 0.35);
+  color: #1e293b;
+}
+
+.topic-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  color: #1e293b;
+}
+
+.subtopic-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.76rem;
+  padding: 3px 6px;
+  border-radius: 6px;
+  margin-bottom: 3px;
+}
+.subtopic-title {
+  color: #334155;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.subtopic-count {
+  font-size: 0.7rem;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+
+/* Dark mode topic card styles */
+[data-theme="dark"] .topic-card {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+[data-theme="dark"] .topic-card[data-status="NOT_STARTED"] {
+  background: linear-gradient(135deg, #1f232b 0%, #191b22 100%);
+  border: 1.5px solid rgba(148, 163, 184, 0.25);
+}
+[data-theme="dark"] .topic-card[data-status="IN_PROGRESS"] {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.16) 0%, rgba(245, 158, 11, 0.05) 100%), #1f2229;
+  border: 1.5px solid rgba(245, 158, 11, 0.4);
+}
+[data-theme="dark"] .topic-card[data-status="COMPLETED"] {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0.05) 100%), #1f2229;
+  border: 1.5px solid rgba(16, 185, 129, 0.4);
+}
+[data-theme="dark"] .topic-card[data-status="NEEDS_REVISION"] {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(239, 68, 68, 0.05) 100%), #1f2229;
+  border: 1.5px solid rgba(239, 68, 68, 0.4);
+}
+
+[data-theme="dark"] .topic-card .topic-title {
+  color: #ffffff !important;
+}
+[data-theme="dark"] .topic-card .subtopic-title {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .topic-card .subtopic-count {
+  color: #94a3b8 !important;
+}
+

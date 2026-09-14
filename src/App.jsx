@@ -630,34 +630,26 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
     'NOT_STARTED': {
       label: 'Not Started',
       color: '#94a3b8',
-      bg: 'rgba(148,163,184,0.1)',
-      border: 'rgba(148,163,184,0.3)',
-      icon: '',
-      gradient: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+      bg: 'rgba(148,163,184,0.18)',
+      border: 'rgba(148,163,184,0.35)',
     },
     'IN_PROGRESS': {
       label: 'In Progress',
       color: '#f59e0b',
-      bg: 'rgba(245,158,11,0.1)',
+      bg: 'rgba(245,158,11,0.18)',
       border: 'rgba(245,158,11,0.35)',
-      icon: '',
-      gradient: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
     },
     'COMPLETED': {
       label: 'Completed',
       color: '#10b981',
-      bg: 'rgba(16,185,129,0.1)',
+      bg: 'rgba(16,185,129,0.18)',
       border: 'rgba(16,185,129,0.35)',
-      icon: '',
-      gradient: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
     },
     'NEEDS_REVISION': {
       label: 'Needs Revision',
       color: '#ef4444',
-      bg: 'rgba(239,68,68,0.1)',
-      border: 'rgba(239,68,68,0.3)',
-      icon: '',
-      gradient: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+      bg: 'rgba(239,68,68,0.18)',
+      border: 'rgba(239,68,68,0.35)',
     },
   };
 
@@ -836,20 +828,13 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                         const subCompleted = subtopics.filter(t => t.status === 'COMPLETED').length;
 
                         return (
-                          <div key={topic.id}
-                            style={{
-                              background: cfg.gradient,
-                              border: `1.5px solid ${cfg.border}`,
-                              borderRadius: '12px',
-                              padding: '12px',
-                              transition: 'transform 0.15s, box-shadow 0.15s',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '8px',
-                            }}
+                          <div 
+                            key={topic.id}
+                            className="topic-card"
+                            data-status={st}
                             onMouseEnter={e => {
                               e.currentTarget.style.transform = 'translateY(-2px)';
-                              e.currentTarget.style.boxShadow = `0 6px 20px ${cfg.color}25`;
+                              e.currentTarget.style.boxShadow = `0 6px 20px ${cfg.color}35`;
                             }}
                             onMouseLeave={e => {
                               e.currentTarget.style.transform = '';
@@ -875,10 +860,7 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                             </div>
 
                             {/* Topic name */}
-                            <div style={{
-                              fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)',
-                              lineHeight: 1.35,
-                            }}>
+                            <div className="topic-title">
                               {topic.name}
                             </div>
 
@@ -888,22 +870,18 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                                 {subtopics.map(sub => {
                                   const subCfg = STATUS_CONFIG[sub.status || 'NOT_STARTED'];
                                   return (
-                                    <div key={sub.id} style={{
-                                      display: 'flex', alignItems: 'center', gap: '4px',
-                                      fontSize: '0.76rem', padding: '3px 6px', borderRadius: '6px',
-                                      marginBottom: '3px', background: `${subCfg.color}10`,
-                                    }}>
-                                      <span style={{ color: 'var(--text-secondary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.name}</span>
+                                    <div key={sub.id} className="subtopic-row" style={{ background: `${subCfg.color}18` }}>
+                                      <span className="subtopic-title">{sub.name}</span>
                                       <span
                                         onClick={() => cycleStatus(sub)}
-                                        style={{ cursor: 'pointer', color: subCfg.color, fontWeight: '700', fontSize: '0.7rem', flexShrink: 0, padding: '1px 4px', borderRadius: '4px', background: subCfg.bg }}
+                                        style={{ cursor: 'pointer', color: subCfg.color, fontWeight: '700', fontSize: '0.7rem', flexShrink: 0, padding: '1px 5px', borderRadius: '4px', background: subCfg.bg }}
                                         title="Click to change status"
                                       >{subCfg.label}</span>
                                       <button className="del-btn" onClick={() => deleteTopic(sub.id)} style={{ fontSize: '0.7rem', opacity: 0.5, flexShrink: 0 }}>×</button>
                                     </div>
                                   );
                                 })}
-                                <div style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '2px' }}>
+                                <div className="subtopic-count">
                                   {subCompleted}/{subtopics.length} subtopics done
                                 </div>
                               </div>
