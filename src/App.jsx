@@ -4,7 +4,6 @@ import { DataService } from './services/dataService';
 import { signInWithPopup, googleProvider, auth, signOut } from './firebase';
 
 const PLAN_ITEM_TYPES = ['LECTURE', 'PRACTICE', 'TEST', 'REVISION', 'MOCK_TEST'];
-const TYPE_ICONS = { LECTURE: '📖', PRACTICE: '✏️', TEST: '📝', REVISION: '🔄', MOCK_TEST: '🏆' };
 const TYPE_LABELS = { LECTURE: 'Lecture', PRACTICE: 'Practice', TEST: 'Test', REVISION: 'Revision', MOCK_TEST: 'Mock Test' };
 
 const todayISO = () => {
@@ -177,17 +176,17 @@ function DashboardView({ daysRemaining, dailyPlans, subjects, topics, activeGoal
 
       <div className="stat-grid">
         <div className="stat-card">
-          <div className="stat-label">🔥 Plan Streak</div>
+          <div className="stat-label">Plan Streak</div>
           <div className="stat-value">{currentStreak}</div>
           <div className="stat-sub">Days (≥80%)</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">📊 Avg Completion</div>
+          <div className="stat-label">Avg Completion</div>
           <div className="stat-value">{Math.round(avgCompletion * 100)}%</div>
           <div className="stat-sub">Last 7 Days</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">📚 Syllabus</div>
+          <div className="stat-label">Syllabus</div>
           <div className="stat-value">{Math.round(syllabusProgress * 100)}%</div>
           <div className="stat-sub">Topics Completed</div>
         </div>
@@ -211,7 +210,7 @@ function DashboardView({ daysRemaining, dailyPlans, subjects, topics, activeGoal
                 return (
                   <div key={item.id} className="plan-item" style={{ opacity: item.completed ? 0.6 : 1 }}>
                     <input type="checkbox" className="plan-item-checkbox" checked={!!item.completed} onChange={() => toggleTask(item.id)} />
-                    <span className="plan-type-badge">{TYPE_ICONS[item.type]}</span>
+                    <span className="chip" style={{ fontSize: '0.72rem', padding: '1px 6px' }}>{TYPE_LABELS[item.type] || item.type}</span>
                     {subject && <span className="chip" style={{ backgroundColor: subjColor + '20', color: subjColor, border: `1px solid ${subjColor}` }}>{subject.name}</span>}
                     <span style={{ flex: 1, textDecoration: item.completed ? 'line-through' : 'none' }}>{item.title}</span>
                     <span style={{ color: 'var(--text-light)', fontSize: '0.85rem' }}>{duration}m</span>
@@ -415,7 +414,7 @@ function DailyPlanView({ dailyPlans, subjects, topics, showToast }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowReflect(true)}>✍️ Reflect</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowReflect(true)}>Reflect</button>
             <button className="btn btn-primary btn-sm" onClick={() => setShowAddTask(true)}>+ Add Task</button>
           </div>
         </div>
@@ -443,7 +442,7 @@ function DailyPlanView({ dailyPlans, subjects, topics, showToast }) {
               return (
                 <div key={item.id} className="plan-item" style={{ opacity: item.completed ? 0.6 : 1 }}>
                   <input type="checkbox" className="plan-item-checkbox" checked={!!item.completed} onChange={() => toggleTask(item.id)} />
-                  <span className="plan-type-badge">{TYPE_ICONS[item.type]}</span>
+                  <span className="chip" style={{ fontSize: '0.72rem', padding: '1px 6px' }}>{TYPE_LABELS[item.type] || item.type}</span>
                   {subject && <span className="chip" style={{ backgroundColor: subjColor + '20', color: subjColor, border: `1px solid ${subjColor}` }}>{subject.name}</span>}
                   <span style={{ flex: 1, textDecoration: item.completed ? 'line-through' : 'none' }}>{item.title}</span>
                   <span style={{ color: 'var(--text-light)', fontSize: '0.85rem' }}>{duration}m</span>
@@ -464,10 +463,8 @@ function DailyPlanView({ dailyPlans, subjects, topics, showToast }) {
       {plan.reflection && (
         <div className="card reflection-card">
           <h3 className="card-title">Reflection</h3>
-          <div className="star-rating" style={{ marginBottom: '8px' }}>
-            {[1, 2, 3, 4, 5].map(star => (
-              <span key={star} className={`star ${star <= plan.reflection.rating ? 'active' : ''}`}>★</span>
-            ))}
+          <div style={{ marginBottom: '8px', fontWeight: 600, fontSize: '0.95rem' }}>
+            Day Rating: {plan.reflection.rating} / 5
           </div>
           <p style={{ whiteSpace: 'pre-wrap', color: 'var(--text-light)' }}>{plan.reflection.notes}</p>
         </div>
@@ -527,7 +524,7 @@ function AddTaskModal({ onClose, onAdd, subjects, topics }) {
             <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
               {PLAN_ITEM_TYPES.map(t => (
                 <button type="button" key={t} className={`btn btn-sm ${type === t ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setType(t)}>
-                  {TYPE_ICONS[t]} {TYPE_LABELS[t]}
+                  {TYPE_LABELS[t]}
                 </button>
               ))}
             </div>
@@ -579,9 +576,16 @@ function ReflectionModal({ onClose, onSave, initialData }) {
         </div>
         <div className="form-group">
           <label className="form-label">How did today go?</label>
-          <div className="star-rating" style={{ fontSize: '2rem', justifyContent: 'center', marginBottom: '16px' }}>
-            {[1, 2, 3, 4, 5].map(star => (
-              <span key={star} className={`star ${star <= rating ? 'active' : ''}`} onClick={() => setRating(star)} style={{ cursor: 'pointer' }}>★</span>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '16px' }}>
+            {[1, 2, 3, 4, 5].map(val => (
+              <button
+                type="button"
+                key={val}
+                className={`rating-btn ${val <= rating ? 'active' : ''}`}
+                onClick={() => setRating(val)}
+              >
+                {val}
+              </button>
             ))}
           </div>
         </div>
@@ -628,7 +632,7 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
       color: '#94a3b8',
       bg: 'rgba(148,163,184,0.1)',
       border: 'rgba(148,163,184,0.3)',
-      icon: '○',
+      icon: '',
       gradient: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
     },
     'IN_PROGRESS': {
@@ -636,15 +640,15 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
       color: '#f59e0b',
       bg: 'rgba(245,158,11,0.1)',
       border: 'rgba(245,158,11,0.35)',
-      icon: '◑',
+      icon: '',
       gradient: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
     },
     'COMPLETED': {
-      label: 'Completed ✓',
+      label: 'Completed',
       color: '#10b981',
       bg: 'rgba(16,185,129,0.1)',
       border: 'rgba(16,185,129,0.35)',
-      icon: '●',
+      icon: '',
       gradient: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
     },
     'NEEDS_REVISION': {
@@ -652,21 +656,10 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
       color: '#ef4444',
       bg: 'rgba(239,68,68,0.1)',
       border: 'rgba(239,68,68,0.3)',
-      icon: '!',
+      icon: '',
       gradient: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
     },
   };
-
-  const MOTIVATIONS = [
-    { threshold: 100, emoji: '🏆', msg: "Subject Mastered! You're unstoppable!", color: '#f59e0b' },
-    { threshold: 80,  emoji: '🚀', msg: "Almost there — final push!",            color: '#10b981' },
-    { threshold: 60,  emoji: '🔥', msg: "More than half done — keep the fire!",  color: '#f97316' },
-    { threshold: 40,  emoji: '💪', msg: "Great momentum building!",              color: '#3b82f6' },
-    { threshold: 20,  emoji: '🌱', msg: "A good start — keep going!",            color: '#8b5cf6' },
-    { threshold: 0,   emoji: '📚', msg: "Ready to conquer this subject!",        color: '#6b7280' },
-  ];
-
-  const getMotivation = (pct) => MOTIVATIONS.find(m => pct >= m.threshold);
 
   // Cycle a single topic/subtopic status. If it's a subtopic and all siblings are now
   // COMPLETED, automatically mark the parent topic as COMPLETED too.
@@ -721,7 +714,7 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
       <div style={{ marginBottom: '24px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '1.6rem' }}>📋 Syllabus Tracker</h2>
+            <h2 style={{ margin: 0, fontSize: '1.6rem' }}>Syllabus Tracker</h2>
             <p style={{ color: 'var(--text-light)', margin: '4px 0 0', fontSize: '0.9rem' }}>{activeGoal.name}</p>
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => setShowAddSubject(true)}>+ Subject</button>
@@ -731,7 +724,6 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
 
       {goalSubjects.length === 0 ? (
         <div className="empty card" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '12px' }}>📚</div>
           <p style={{ fontWeight: '600', marginBottom: '6px' }}>No subjects added yet</p>
           <p style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>Start building your syllabus by adding subjects!</p>
         </div>
@@ -795,17 +787,17 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   {completedCount > 0 && (
                     <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '3px 8px', borderRadius: '20px', background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
-                      ✓ {completedCount}
+                      {completedCount} Completed
                     </span>
                   )}
                   {inProgressCount > 0 && (
                     <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '3px 8px', borderRadius: '20px', background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
-                      ◑ {inProgressCount}
+                      {inProgressCount} In Progress
                     </span>
                   )}
                   {needsRevisionCount > 0 && (
                     <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '3px 8px', borderRadius: '20px', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
-                      ! {needsRevisionCount}
+                      {needsRevisionCount} Needs Revision
                     </span>
                   )}
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginLeft: '4px' }}>
@@ -815,10 +807,9 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
 
                 <button className="del-btn" onClick={(e) => deleteSubject(subject.id, e)} style={{ flexShrink: 0 }}>×</button>
                 <span style={{
-                  color: 'var(--text-light)', fontSize: '0.8rem', flexShrink: 0,
-                  transform: isExpanded ? 'rotate(180deg)' : 'none',
-                  transition: 'transform 0.2s', display: 'inline-block'
-                }}>▼</span>
+                  color: 'var(--text-light)', fontSize: '0.75rem', fontWeight: '600', flexShrink: 0,
+                  padding: '2px 6px', borderRadius: '4px', background: 'var(--bg-secondary)',
+                }}>{isExpanded ? 'Hide' : 'Show'}</span>
               </div>
 
               {isExpanded && (
@@ -874,7 +865,7 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                                 border: `1px solid ${cfg.border}`,
                                 whiteSpace: 'nowrap',
                               }}>
-                                {cfg.icon} {cfg.label}
+                                {cfg.label}
                               </span>
                               <button
                                 className="del-btn"
@@ -902,12 +893,12 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                                       fontSize: '0.76rem', padding: '3px 6px', borderRadius: '6px',
                                       marginBottom: '3px', background: `${subCfg.color}10`,
                                     }}>
-                                      <span style={{ color: 'var(--text-secondary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>↳ {sub.name}</span>
+                                      <span style={{ color: 'var(--text-secondary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.name}</span>
                                       <span
                                         onClick={() => cycleStatus(sub)}
-                                        style={{ cursor: 'pointer', color: subCfg.color, fontWeight: '700', fontSize: '0.7rem', flexShrink: 0 }}
+                                        style={{ cursor: 'pointer', color: subCfg.color, fontWeight: '700', fontSize: '0.7rem', flexShrink: 0, padding: '1px 4px', borderRadius: '4px', background: subCfg.bg }}
                                         title="Click to change status"
-                                      >{subCfg.icon}</span>
+                                      >{subCfg.label}</span>
                                       <button className="del-btn" onClick={() => deleteTopic(sub.id)} style={{ fontSize: '0.7rem', opacity: 0.5, flexShrink: 0 }}>×</button>
                                     </div>
                                   );
@@ -932,9 +923,9 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                                     cursor: 'pointer', whiteSpace: 'nowrap',
                                   }}
                                 >
-                                  {st === 'NOT_STARTED' ? '▶ Start' :
-                                    st === 'IN_PROGRESS' ? '✓ Mark Done' :
-                                      st === 'COMPLETED' ? '↩ Revise' : '✓ Mark Done'}
+                                  {st === 'NOT_STARTED' ? 'Start' :
+                                    st === 'IN_PROGRESS' ? 'Mark Done' :
+                                      st === 'COMPLETED' ? 'Revise' : 'Mark Done'}
                                 </button>
                               )}
                               <button
@@ -1033,11 +1024,67 @@ function AddTopicModal({ activeGoal, subjectId, onClose, onAdd }) {
   );
 }
 
-function SettingsView({ user, examGoals, mockTests, subjects, topics, activeGoal, onSaveGoal, onDeleteGoal, onSetActiveGoal, onSaveMockTest, onDeleteMockTest, showToast }) {
+function SettingsView({ user, examGoals, mockTests, subjects, topics, dailyPlans, activeGoal, onSaveGoal, onDeleteGoal, onSetActiveGoal, onSaveMockTest, onDeleteMockTest, showToast, theme, setTheme, isSyncing }) {
   const [showAddGoal, setShowAddGoal] = useState(false);
+  const [manualSyncing, setManualSyncing] = useState(false);
+
+  const handleManualSync = async () => {
+    try {
+      setManualSyncing(true);
+      const res = await DataService.syncAllData();
+      showToast(`Synced ${res.goals} goals, ${res.subjects} subjects, ${res.topics} topics, ${res.plans} plans`);
+    } catch (err) {
+      showToast("Sync warning: " + err.message);
+    } finally {
+      setManualSyncing(false);
+    }
+  };
 
   return (
     <>
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <h3 className="card-title">Appearance</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 'bold' }}>Dark Mode</div>
+            <div style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>
+              Currently using {theme === 'dark' ? 'Dark' : 'Light'} theme
+            </div>
+          </div>
+          <button 
+            className="btn btn-secondary btn-sm" 
+            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+          >
+            {theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          </button>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <h3 className="card-title">Cloud Synchronization</h3>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontWeight: 'bold' }}>Status</span>
+            <span className="chip" style={{ backgroundColor: isSyncing || manualSyncing ? 'var(--warning)' : 'var(--bg-secondary)', color: isSyncing || manualSyncing ? '#fff' : 'var(--success)', border: '1px solid var(--border)' }}>
+              {isSyncing || manualSyncing ? 'Syncing...' : 'Connected & Realtime'}
+            </span>
+          </div>
+          <div style={{ color: 'var(--text-light)', fontSize: '0.9rem', marginBottom: '12px' }}>
+            Logged in as <strong>{user?.email || 'Not signed in'}</strong>. Your data syncs automatically to all devices using this Google account.
+          </div>
+          <div style={{ color: 'var(--text-light)', fontSize: '0.85rem', marginBottom: '16px' }}>
+            Local items: {examGoals.length} goals, {subjects.length} subjects, {topics.length} topics, {dailyPlans?.length || 0} daily plans
+          </div>
+          <button 
+            className="btn btn-primary btn-sm" 
+            onClick={handleManualSync}
+            disabled={manualSyncing || isSyncing}
+          >
+            {manualSyncing || isSyncing ? 'Syncing...' : 'Force Sync to Cloud'}
+          </button>
+        </div>
+      </div>
+
       <div className="card" style={{ marginBottom: '24px' }}>
         <h3 className="card-title">Account</h3>
         {user ? (
@@ -1325,6 +1372,16 @@ function App() {
   const [clockTime, setClockTime] = useState('');
   const [toastMsg, setToastMsg] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('focusly_theme');
+    if (saved) return saved;
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('focusly_theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -1404,10 +1461,10 @@ function App() {
   };
 
   const tabs = [
-    { id: 'dashboard', label: '🎯 Dashboard' },
-    { id: 'plan', label: '📋 Plan' },
-    { id: 'syllabus', label: '📚 Syllabus' },
-    { id: 'settings', label: '⚙️ Settings' }
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'plan', label: 'Plan' },
+    { id: 'syllabus', label: 'Syllabus' },
+    { id: 'settings', label: 'Settings' }
   ];
 
   return (
@@ -1423,18 +1480,27 @@ function App() {
                 style={{ 
                   fontSize: '0.72rem', 
                   padding: '2px 8px', 
-                  backgroundColor: isSyncing ? 'var(--warning)' : 'var(--bg-card)', 
+                  backgroundColor: isSyncing ? 'var(--warning)' : 'var(--bg-secondary)', 
                   color: isSyncing ? '#fff' : 'var(--success)', 
                   border: '1px solid var(--border)',
                   cursor: 'default'
                 }}
                 title={`Signed in as ${user.email}`}
               >
-                {isSyncing ? '🔄 Syncing...' : '☁️ Cloud Synced'}
+                {isSyncing ? 'Syncing...' : 'Cloud Synced'}
               </span>
             )}
           </div>
-          <div className="clock-pill">{clockTime}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              className="btn btn-secondary btn-xs"
+              onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+              style={{ padding: '6px 12px', fontSize: '0.75rem' }}
+            >
+              {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+            </button>
+            <div className="clock-pill">{clockTime}</div>
+          </div>
         </header>
 
         <div className="tabs">
@@ -1486,11 +1552,15 @@ function App() {
               mockTests={mockTests} 
               subjects={subjects} 
               topics={topics} 
+              dailyPlans={dailyPlans}
               activeGoal={activeGoal}
+              theme={theme}
+              setTheme={setTheme}
+              isSyncing={isSyncing}
               onSaveGoal={async (g) => { 
                 try {
                   await DataService.saveExamGoal(g); 
-                  showToast("Goal saved & synced to cloud ✨"); 
+                  showToast("Goal saved & synced to cloud"); 
                 } catch (err) {
                   showToast("Saved locally. Cloud sync warning: " + err.message);
                 }

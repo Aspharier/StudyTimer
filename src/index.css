@@ -47,6 +47,42 @@
   --paper-shadow-modal: 0 20px 45px rgba(40, 30, 20, 0.16), 0 4px 12px rgba(40, 30, 20, 0.06);
 }
 
+/* ============ DARK THEME ============ */
+[data-theme="dark"] {
+  --bg-primary: #111215;
+  --bg-secondary: #181a20;
+  --bg-card: #1f2229;
+  --bg-card-hover: #262a33;
+  --border: #2d323e;
+  --border-accent: #3e4453;
+
+  --text-primary: #f3f4f6;
+  --text-secondary: #a1a7b5;
+  --text-muted: #6b7280;
+
+  --accent-blue: #3b82f6;
+  --accent-gold: #f59e0b;
+  --accent-emerald: #10b981;
+  --accent-red: #ef4444;
+  --accent-purple: #8b5cf6;
+  --glow-blue: rgba(59, 130, 246, 0.2);
+  --glow-gold: rgba(245, 158, 11, 0.2);
+
+  --primary: var(--accent-blue);
+  --success: var(--accent-emerald);
+  --warning: var(--accent-gold);
+  --danger: var(--accent-red);
+  --text: var(--text-primary);
+  --text-light: var(--text-secondary);
+  --bg: var(--bg-primary);
+  --bg-app: var(--bg-secondary);
+
+  --paper-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --paper-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --paper-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.6);
+  --paper-shadow-modal: 0 20px 45px rgba(0, 0, 0, 0.8);
+}
+
 /* ============ RESET ============ */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -575,6 +611,7 @@ select.input, select.input-sm, select.input-rect {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 14px;
+  margin-bottom: 20px;
 }
 .stat-card {
   background: var(--bg-card);
@@ -957,6 +994,7 @@ select.input, select.input-sm, select.input-rect {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+  margin-bottom: 16px;
 }
 
 /* ============ UTILITY ============ */
@@ -1024,6 +1062,7 @@ select.input, select.input-sm, select.input-rect {
   .stat-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
+    margin-bottom: 16px;
   }
   .stat-card {
     padding: 14px 10px;
@@ -1089,3 +1128,115 @@ select.input, select.input-sm, select.input-rect {
     font-size: 20px;
   }
 }
+
+/* ============ RATING BUTTONS ============ */
+.rating-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-accent);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s ease;
+}
+.rating-btn:hover {
+  border-color: var(--accent-gold);
+}
+.rating-btn.active {
+  background: var(--accent-gold);
+  color: #ffffff;
+  border-color: var(--accent-gold);
+  box-shadow: 0 2px 6px rgba(217, 119, 6, 0.25);
+}
+
+/* ============ DARK MODE SPECIFIC OVERRIDES ============ */
+[data-theme="dark"] body {
+  background-color: var(--bg-primary);
+  background-image: radial-gradient(#262a35 0.85px, transparent 0.85px);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .input,
+[data-theme="dark"] .input-rect,
+[data-theme="dark"] .input-sm,
+[data-theme="dark"] select.input {
+  background: #181a20;
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .input:focus,
+[data-theme="dark"] .input-rect:focus,
+[data-theme="dark"] .input-sm:focus {
+  background: #1e2129;
+  border-color: var(--accent-blue);
+}
+
+[data-theme="dark"] .btn-secondary {
+  background: var(--bg-card);
+  border-color: var(--border-accent);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .btn-secondary:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--text-secondary);
+}
+
+[data-theme="dark"] .tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .tab.active {
+  background: var(--bg-card);
+  color: var(--accent-blue);
+  border-color: var(--border-accent);
+}
+
+[data-theme="dark"] .modal-content {
+  background: var(--bg-card);
+  border-color: var(--border-accent);
+}
+
+[data-theme="dark"] .countdown-hero {
+  background: linear-gradient(135deg, #1e2433 0%, #161a24 100%);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .plan-item {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .plan-item:hover {
+  border-color: var(--border-accent);
+}
+
+[data-theme="dark"] .btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+[data-theme="dark"] .del-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+[data-theme="dark"] .rating-btn {
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--border);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .rating-btn.active {
+  background: var(--accent-gold);
+  color: #000;
+  border-color: var(--accent-gold);
+}
+

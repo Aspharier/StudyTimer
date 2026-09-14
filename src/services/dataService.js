@@ -14,14 +14,38 @@ import {
 
 const generateId = () => String(Date.now()) + Math.random().toString(36).substring(2, 7);
 
-const sanitizeForFirestore = (obj) => {
+const deepCleanForFirestore = (val) => {
+  if (val === undefined) return null;
+  if (val === null || typeof val !== 'object') return val;
+  if (Array.isArray(val)) {
+    return val.map(deepCleanForFirestore);
+  }
   const clean = {};
-  Object.keys(obj).forEach(key => {
-    if (obj[key] !== undefined) {
-      clean[key] = obj[key];
+  for (const [k, v] of Object.entries(val)) {
+    if (v !== undefined) {
+      clean[k] = deepCleanForFirestore(v);
     }
-  });
+  }
   return clean;
+};
+
+const sanitizeForFirestore = (obj) => deepCleanForFirestore(obj);
+
+// Firestore write batch allows max 500 ops; commit in safe chunks of 200
+const commitInBatches = async (database, operations) => {
+  const CHUNK_SIZE = 200;
+  for (let i = 0; i < operations.length; i += CHUNK_SIZE) {
+    const chunk = operations.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(database);
+    for (const op of chunk) {
+      if (op.type === 'set') {
+        batch.set(op.ref, op.data, op.options || { merge: true });
+      } else if (op.type === 'delete') {
+        batch.delete(op.ref);
+      }
+    }
+    await batch.commit();
+  }
 };
 
 let currentUid = null;
@@ -67,14 +91,26 @@ const getCacheKey = (uid) => `focusly_cache_${uid}`;
 const loadCache = (uid) => {
   try {
     const raw = localStorage.getItem(getCacheKey(uid));
+    let parsed = null;
     if (raw) {
-      const parsed = JSON.parse(raw);
-      state.examGoals = Array.isArray(parsed.examGoals) ? parsed.examGoals : [];
-      state.subjects = Array.isArray(parsed.subjects) ? parsed.subjects : [];
-      state.topics = Array.isArray(parsed.topics) ? parsed.topics : [];
-      state.mockTests = Array.isArray(parsed.mockTests) ? parsed.mockTests : [];
-      state.dailyPlans = Array.isArray(parsed.dailyPlans) ? parsed.dailyPlans : [];
+      try { parsed = JSON.parse(raw); } catch (e) { console.warn(e); }
     }
+
+    const safeArray = (val) => Array.isArray(val) ? val : null;
+    const legacyGet = (k) => {
+      try {
+        const item = localStorage.getItem(k);
+        return item ? JSON.parse(item) : null;
+      } catch {
+        return null;
+      }
+    };
+
+    state.examGoals = safeArray(parsed?.examGoals) || safeArray(legacyGet('focusly_exam_goals')) || [];
+    state.subjects = safeArray(parsed?.subjects) || safeArray(legacyGet('focusly_subjects')) || [];
+    state.topics = safeArray(parsed?.topics) || safeArray(legacyGet('focusly_topics')) || [];
+    state.mockTests = safeArray(parsed?.mockTests) || safeArray(legacyGet('focusly_mock_tests')) || [];
+    state.dailyPlans = safeArray(parsed?.dailyPlans) || safeArray(legacyGet('focusly_daily_plans')) || [];
   } catch (e) {
     console.warn("Failed to load local cache:", e);
   }
@@ -114,47 +150,60 @@ const notifyAuthListeners = (user) => {
   });
 };
 
-// If local cache has items that aren't yet in Firestore, upload them
-const syncLocalToCloudIfEmpty = async (uid) => {
-  if (!db || !uid) return;
-  try {
-    setSyncStatus(true);
-    const goalsRef = collection(db, 'users', uid, 'exam_goals');
-    const goalsSnap = await getDocs(goalsRef);
-
-    if (goalsSnap.empty && state.examGoals.length > 0) {
-      console.log("Cloud is empty. Uploading local exam goals to Firestore...");
-      const batch = writeBatch(db);
-      state.examGoals.forEach(g => {
-        const data = sanitizeForFirestore({ ...g });
-        delete data.id;
-        batch.set(doc(db, 'users', uid, 'exam_goals', String(g.id)), data);
+// Reconcile collection between cloud and local
+const syncCollection = async (uid, collName, localItems, idField = 'id') => {
+  if (!db || !uid) return localItems;
+  const collRef = collection(db, 'users', uid, collName);
+  const snap = await getDocs(collRef);
+  const cloudDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const cloudMap = new Map(cloudDocs.map(d => [String(d.id), d]));
+  const localMap = new Map((localItems || []).map(d => [String(d[idField] || d.id || d.date), d]));
+  
+  const ops = [];
+  
+  // Upload local items not yet in cloud
+  for (const [id, localItem] of localMap.entries()) {
+    if (!cloudMap.has(id)) {
+      const data = sanitizeForFirestore({ ...localItem });
+      delete data.id;
+      ops.push({
+        type: 'set',
+        ref: doc(db, 'users', uid, collName, id),
+        data,
+        options: { merge: true }
       });
-      state.subjects.forEach(s => {
-        const data = sanitizeForFirestore({ ...s });
-        delete data.id;
-        batch.set(doc(db, 'users', uid, 'subjects', String(s.id)), data);
-      });
-      state.topics.forEach(t => {
-        const data = sanitizeForFirestore({ ...t });
-        delete data.id;
-        batch.set(doc(db, 'users', uid, 'topics', String(t.id)), data);
-      });
-      state.mockTests.forEach(m => {
-        const data = sanitizeForFirestore({ ...m });
-        delete data.id;
-        batch.set(doc(db, 'users', uid, 'mock_tests', String(m.id)), data);
-      });
-      state.dailyPlans.forEach(p => {
-        const data = sanitizeForFirestore({ ...p });
-        delete data.id;
-        batch.set(doc(db, 'users', uid, 'daily_plans', String(p.id || p.date)), data);
-      });
-      await batch.commit();
-      console.log("Successfully uploaded local cache to Firestore cloud!");
+      cloudMap.set(id, { ...localItem, id });
     }
+  }
+  
+  if (ops.length > 0) {
+    await commitInBatches(db, ops);
+  }
+  
+  return Array.from(cloudMap.values());
+};
+
+const reconcileAllCollections = async (uid) => {
+  if (!db || !uid) return;
+  setSyncStatus(true);
+  try {
+    const [goals, subjects, topics, tests, plans] = await Promise.all([
+      syncCollection(uid, 'exam_goals', state.examGoals),
+      syncCollection(uid, 'subjects', state.subjects),
+      syncCollection(uid, 'topics', state.topics),
+      syncCollection(uid, 'mock_tests', state.mockTests),
+      syncCollection(uid, 'daily_plans', state.dailyPlans, 'date')
+    ]);
+
+    state.examGoals = goals;
+    state.subjects = subjects;
+    state.topics = topics;
+    state.mockTests = tests;
+    state.dailyPlans = plans;
+
+    ['examGoals', 'subjects', 'topics', 'mockTests', 'dailyPlans'].forEach(notifyListeners);
   } catch (err) {
-    console.warn("syncLocalToCloudIfEmpty warning:", err);
+    console.warn("reconcileAllCollections warning:", err);
   } finally {
     setSyncStatus(false);
   }
@@ -179,8 +228,11 @@ const setupFirestoreListeners = (uid) => {
     unsubs.examGoals = onSnapshot(
       collection(db, 'users', uid, 'exam_goals'), 
       (snapshot) => {
-        state.examGoals = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        notifyListeners('examGoals');
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (docs.length > 0 || state.examGoals.length === 0) {
+          state.examGoals = docs;
+          notifyListeners('examGoals');
+        }
       },
       errHandler('exam_goals')
     );
@@ -189,8 +241,11 @@ const setupFirestoreListeners = (uid) => {
     unsubs.subjects = onSnapshot(
       collection(db, 'users', uid, 'subjects'), 
       (snapshot) => {
-        state.subjects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        notifyListeners('subjects');
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (docs.length > 0 || state.subjects.length === 0) {
+          state.subjects = docs;
+          notifyListeners('subjects');
+        }
       },
       errHandler('subjects')
     );
@@ -199,8 +254,11 @@ const setupFirestoreListeners = (uid) => {
     unsubs.topics = onSnapshot(
       collection(db, 'users', uid, 'topics'), 
       (snapshot) => {
-        state.topics = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        notifyListeners('topics');
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (docs.length > 0 || state.topics.length === 0) {
+          state.topics = docs;
+          notifyListeners('topics');
+        }
       },
       errHandler('topics')
     );
@@ -209,8 +267,11 @@ const setupFirestoreListeners = (uid) => {
     unsubs.mockTests = onSnapshot(
       collection(db, 'users', uid, 'mock_tests'), 
       (snapshot) => {
-        state.mockTests = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        notifyListeners('mockTests');
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (docs.length > 0 || state.mockTests.length === 0) {
+          state.mockTests = docs;
+          notifyListeners('mockTests');
+        }
       },
       errHandler('mock_tests')
     );
@@ -219,14 +280,17 @@ const setupFirestoreListeners = (uid) => {
     unsubs.dailyPlans = onSnapshot(
       collection(db, 'users', uid, 'daily_plans'), 
       (snapshot) => {
-        state.dailyPlans = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        notifyListeners('dailyPlans');
+        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (docs.length > 0 || state.dailyPlans.length === 0) {
+          state.dailyPlans = docs;
+          notifyListeners('dailyPlans');
+        }
       },
       errHandler('daily_plans')
     );
 
-    // Run reconciliation upload if local has data but cloud is brand new
-    syncLocalToCloudIfEmpty(uid);
+    // Run two-way reconciliation to ensure any local items are pushed and cloud items pulled
+    reconcileAllCollections(uid);
   } catch (err) {
     console.error("Error attaching Firestore snapshot listeners:", err);
   }
@@ -257,6 +321,18 @@ if (auth) {
 }
 
 export const DataService = {
+  syncAllData: async () => {
+    const uid = currentUid || auth?.currentUser?.uid;
+    if (!uid || !db) throw new Error("Please sign in to sync with cloud.");
+    await reconcileAllCollections(uid);
+    return {
+      goals: state.examGoals.length,
+      subjects: state.subjects.length,
+      topics: state.topics.length,
+      tests: state.mockTests.length,
+      plans: state.dailyPlans.length
+    };
+  },
   subscribeToSyncStatus: (cb) => {
     syncStatusListeners.push(cb);
     cb(isSyncing);
