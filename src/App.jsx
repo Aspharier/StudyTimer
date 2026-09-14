@@ -622,19 +622,51 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
     'NEEDS_REVISION': 'COMPLETED'
   };
 
-  const STATUS_COLORS = {
-    'NOT_STARTED': 'var(--text-light)',
-    'IN_PROGRESS': 'var(--warning)',
-    'COMPLETED': 'var(--success)',
-    'NEEDS_REVISION': 'var(--danger)'
+  const STATUS_CONFIG = {
+    'NOT_STARTED': {
+      label: 'Not Started',
+      color: '#94a3b8',
+      bg: 'rgba(148,163,184,0.1)',
+      border: 'rgba(148,163,184,0.3)',
+      icon: '○',
+      gradient: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+    },
+    'IN_PROGRESS': {
+      label: 'In Progress',
+      color: '#f59e0b',
+      bg: 'rgba(245,158,11,0.1)',
+      border: 'rgba(245,158,11,0.35)',
+      icon: '◑',
+      gradient: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+    },
+    'COMPLETED': {
+      label: 'Completed ✓',
+      color: '#10b981',
+      bg: 'rgba(16,185,129,0.1)',
+      border: 'rgba(16,185,129,0.35)',
+      icon: '●',
+      gradient: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+    },
+    'NEEDS_REVISION': {
+      label: 'Needs Revision',
+      color: '#ef4444',
+      bg: 'rgba(239,68,68,0.1)',
+      border: 'rgba(239,68,68,0.3)',
+      icon: '!',
+      gradient: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+    },
   };
 
-  const STATUS_LABELS = {
-    'NOT_STARTED': 'Not Started',
-    'IN_PROGRESS': 'In Progress',
-    'COMPLETED': 'Completed',
-    'NEEDS_REVISION': 'Needs Revision'
-  };
+  const MOTIVATIONS = [
+    { threshold: 100, emoji: '🏆', msg: "Subject Mastered! You're unstoppable!", color: '#f59e0b' },
+    { threshold: 80,  emoji: '🚀', msg: "Almost there — final push!",            color: '#10b981' },
+    { threshold: 60,  emoji: '🔥', msg: "More than half done — keep the fire!",  color: '#f97316' },
+    { threshold: 40,  emoji: '💪', msg: "Great momentum building!",              color: '#3b82f6' },
+    { threshold: 20,  emoji: '🌱', msg: "A good start — keep going!",            color: '#8b5cf6' },
+    { threshold: 0,   emoji: '📚', msg: "Ready to conquer this subject!",        color: '#6b7280' },
+  ];
+
+  const getMotivation = (pct) => MOTIVATIONS.find(m => pct >= m.threshold);
 
   const cycleStatus = (topic) => {
     const nextStatus = STATUS_CYCLE[topic.status || 'NOT_STARTED'];
@@ -654,7 +686,8 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
     }
   };
 
-  const addSubtopic = (parentId) => {
+  const addSubtopic = (parentId, e) => {
+    e.stopPropagation();
     const name = window.prompt("Subtopic name:");
     if (name) {
       const parent = topics.find(t => t.id === parentId);
@@ -666,85 +699,295 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
     }
   };
 
+  // Overall syllabus stats
+  const allTopics = topics.filter(t => goalSubjects.some(s => s.id === t.subjectId) && !t.parentId);
+  const totalCompleted = allTopics.filter(t => t.status === 'COMPLETED').length;
+  const overallPct = allTopics.length > 0 ? Math.round((totalCompleted / allTopics.length) * 100) : 0;
+  const overallMotivation = getMotivation(overallPct);
+
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ margin: 0 }}>Syllabus Tracker</h2>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowAddSubject(true)}>+ Subject</button>
+      {/* Header */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1.6rem' }}>📋 Syllabus Tracker</h2>
+            <p style={{ color: 'var(--text-light)', margin: '4px 0 0', fontSize: '0.9rem' }}>{activeGoal.name}</p>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowAddSubject(true)}>+ Subject</button>
+        </div>
+
+        {/* Overall Progress Banner */}
+        {allTopics.length > 0 && (
+          <div style={{
+            marginTop: '16px',
+            padding: '14px 20px',
+            borderRadius: '14px',
+            background: `linear-gradient(135deg, ${overallMotivation.color}18 0%, ${overallMotivation.color}08 100%)`,
+            border: `1.5px solid ${overallMotivation.color}40`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
+          }}>
+            <svg width="54" height="54" viewBox="0 0 54 54" style={{ flexShrink: 0 }}>
+              <circle cx="27" cy="27" r="22" fill="none" stroke={`${overallMotivation.color}20`} strokeWidth="5" />
+              <circle cx="27" cy="27" r="22" fill="none" stroke={overallMotivation.color} strokeWidth="5"
+                strokeDasharray={`${2 * Math.PI * 22}`}
+                strokeDashoffset={`${2 * Math.PI * 22 * (1 - overallPct / 100)}`}
+                strokeLinecap="round"
+                transform="rotate(-90 27 27)"
+                style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+              />
+              <text x="27" y="32" textAnchor="middle" fill={overallMotivation.color} fontSize="11" fontWeight="700" fontFamily="Fredoka">{overallPct}%</text>
+            </svg>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.1rem', fontWeight: '700', color: overallMotivation.color }}>
+                {overallMotivation.emoji} {overallMotivation.msg}
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-light)', marginTop: '2px' }}>
+                {totalCompleted} of {allTopics.length} topics completed across all subjects
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {goalSubjects.length === 0 ? (
-        <div className="empty card" style={{ padding: '3rem 1rem' }}>
-          <p>No subjects added yet. Start building your syllabus!</p>
+        <div className="empty card" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '12px' }}>📚</div>
+          <p style={{ fontWeight: '600', marginBottom: '6px' }}>No subjects added yet</p>
+          <p style={{ color: 'var(--text-light)', fontSize: '0.9rem' }}>Start building your syllabus by adding subjects!</p>
         </div>
       ) : (
         goalSubjects.map(subject => {
           const subjectTopics = topics.filter(t => t.subjectId === subject.id && !t.parentId);
-          const completedTopics = subjectTopics.filter(t => t.status === 'COMPLETED').length;
-          const progress = subjectTopics.length > 0 ? completedTopics / subjectTopics.length : 0;
-          const isExpanded = expandedSubjects[subject.id];
+          const completedCount = subjectTopics.filter(t => t.status === 'COMPLETED').length;
+          const inProgressCount = subjectTopics.filter(t => t.status === 'IN_PROGRESS').length;
+          const needsRevisionCount = subjectTopics.filter(t => t.status === 'NEEDS_REVISION').length;
+          const pct = subjectTopics.length > 0 ? Math.round((completedCount / subjectTopics.length) * 100) : 0;
+          const motivation = getMotivation(pct);
+          const isExpanded = expandedSubjects[subject.id] !== false;
           const subjColor = subject.colorHex || subject.color || '#3b82f6';
 
           return (
-            <div key={subject.id} className="subject card" style={{ padding: '0', overflow: 'hidden', marginBottom: '16px' }}>
-              <div className="subject-head" onClick={() => toggleSubject(subject.id)} style={{ padding: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', backgroundColor: isExpanded ? 'var(--bg-app)' : 'transparent' }}>
-                <div className="dot" style={{ backgroundColor: subjColor }}></div>
+            <div key={subject.id} style={{
+              background: 'var(--bg-card)',
+              borderRadius: '16px',
+              border: `1.5px solid ${subjColor}40`,
+              boxShadow: `0 2px 12px ${subjColor}15`,
+              marginBottom: '20px',
+              overflow: 'hidden',
+            }}>
+              {/* Subject Header */}
+              <div
+                onClick={() => toggleSubject(subject.id)}
+                style={{
+                  padding: '16px 20px',
+                  background: `linear-gradient(135deg, ${subjColor}18 0%, ${subjColor}08 100%)`,
+                  borderBottom: isExpanded ? `1px solid ${subjColor}25` : 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  userSelect: 'none',
+                }}
+              >
+                <div style={{
+                  width: '14px', height: '14px', borderRadius: '50%',
+                  backgroundColor: subjColor, flexShrink: 0,
+                  boxShadow: `0 0 8px ${subjColor}80`,
+                }} />
+
                 <div style={{ flex: 1 }}>
-                  <div className="subject-title">{subject.name}</div>
-                  <div className="progress-mini" style={{ height: '4px', backgroundColor: 'var(--border)', borderRadius: '2px', marginTop: '6px', width: '100px' }}>
-                    <div style={{ height: '100%', backgroundColor: subjColor, width: `${progress * 100}%`, borderRadius: '2px' }}></div>
+                  <div style={{ fontWeight: '700', fontSize: '1.05rem', color: 'var(--text-primary)' }}>{subject.name}</div>
+                  <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: 1, height: '6px', background: `${subjColor}20`, borderRadius: '6px', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${pct}%`,
+                        background: pct === 100
+                          ? 'linear-gradient(90deg, #10b981, #34d399)'
+                          : `linear-gradient(90deg, ${subjColor}, ${subjColor}cc)`,
+                        borderRadius: '6px',
+                        transition: 'width 0.5s ease',
+                      }} />
+                    </div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: '600', color: subjColor, minWidth: '32px' }}>{pct}%</span>
                   </div>
                 </div>
-                <div style={{ color: 'var(--text-light)', fontSize: '0.9rem', marginRight: '16px' }}>
-                  {completedTopics}/{subjectTopics.length}
+
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  {completedCount > 0 && (
+                    <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '3px 8px', borderRadius: '20px', background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                      ✓ {completedCount}
+                    </span>
+                  )}
+                  {inProgressCount > 0 && (
+                    <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '3px 8px', borderRadius: '20px', background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+                      ◑ {inProgressCount}
+                    </span>
+                  )}
+                  {needsRevisionCount > 0 && (
+                    <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '3px 8px', borderRadius: '20px', background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>
+                      ! {needsRevisionCount}
+                    </span>
+                  )}
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginLeft: '4px' }}>
+                    {subjectTopics.length} topics
+                  </span>
                 </div>
-                <button className="del-btn" onClick={(e) => deleteSubject(subject.id, e)}>×</button>
+
+                <button className="del-btn" onClick={(e) => deleteSubject(subject.id, e)} style={{ flexShrink: 0 }}>×</button>
+                <span style={{
+                  color: 'var(--text-light)', fontSize: '0.8rem', flexShrink: 0,
+                  transform: isExpanded ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s', display: 'inline-block'
+                }}>▼</span>
               </div>
 
               {isExpanded && (
-                <div style={{ padding: '16px', borderTop: '1px solid var(--border)' }}>
+                <div style={{ padding: '16px 20px' }}>
+                  {/* Subject motivation banner */}
+                  {subjectTopics.length > 0 && (
+                    <div style={{
+                      marginBottom: '14px',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      background: `${motivation.color}12`,
+                      border: `1px solid ${motivation.color}30`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontSize: '0.85rem',
+                    }}>
+                      <span style={{ fontSize: '1.1rem' }}>{motivation.emoji}</span>
+                      <span style={{ color: motivation.color, fontWeight: '600' }}>{motivation.msg}</span>
+                    </div>
+                  )}
+
                   {subjectTopics.length === 0 ? (
-                    <div className="empty" style={{ padding: '1rem 0' }}>No topics yet.</div>
+                    <div style={{ padding: '1.5rem 0', textAlign: 'center', color: 'var(--text-light)', fontSize: '0.9rem' }}>
+                      No topics yet. Add your first topic below!
+                    </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    /* Grid of topic cards */
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                      gap: '12px',
+                      marginBottom: '14px',
+                    }}>
                       {subjectTopics.map(topic => {
+                        const st = topic.status || 'NOT_STARTED';
+                        const cfg = STATUS_CONFIG[st];
                         const subtopics = topics.filter(t => t.parentId === topic.id);
+                        const subCompleted = subtopics.filter(t => t.status === 'COMPLETED').length;
+
                         return (
-                          <div key={topic.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div style={{ fontWeight: '500' }}>{topic.name}</div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div onClick={() => cycleStatus(topic)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: STATUS_COLORS[topic.status || 'NOT_STARTED'] }}>
-                                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: STATUS_COLORS[topic.status || 'NOT_STARTED'] }}></div>
-                                  {STATUS_LABELS[topic.status || 'NOT_STARTED']}
-                                </div>
-                                <button className="btn btn-secondary btn-xs" onClick={() => addSubtopic(topic.id)}>+ Sub</button>
-                                <button className="del-btn" onClick={() => deleteTopic(topic.id)}>×</button>
-                              </div>
+                          <div key={topic.id}
+                            style={{
+                              background: cfg.gradient,
+                              border: `1.5px solid ${cfg.border}`,
+                              borderRadius: '12px',
+                              padding: '14px',
+                              position: 'relative',
+                              transition: 'transform 0.15s, box-shadow 0.15s',
+                            }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = `0 6px 20px ${cfg.color}25`;
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.transform = '';
+                              e.currentTarget.style.boxShadow = '';
+                            }}
+                          >
+                            {/* Status badge */}
+                            <div style={{
+                              position: 'absolute', top: '10px', right: '10px',
+                              fontSize: '0.65rem', fontWeight: '700',
+                              padding: '2px 7px', borderRadius: '20px',
+                              background: cfg.bg, color: cfg.color,
+                              border: `1px solid ${cfg.border}`,
+                            }}>
+                              {cfg.icon} {cfg.label}
                             </div>
-                            
+
+                            {/* Delete */}
+                            <button
+                              className="del-btn"
+                              onClick={() => deleteTopic(topic.id)}
+                              style={{ position: 'absolute', top: '6px', right: '82px', opacity: 0.45, fontSize: '0.85rem' }}
+                            >×</button>
+
+                            {/* Topic name */}
+                            <div style={{
+                              fontWeight: '600', fontSize: '0.95rem', color: 'var(--text-primary)',
+                              marginTop: '4px', paddingRight: '80px', lineHeight: 1.3, marginBottom: '10px'
+                            }}>
+                              {topic.name}
+                            </div>
+
+                            {/* Subtopics */}
                             {subtopics.length > 0 && (
-                              <div style={{ marginTop: '12px', paddingLeft: '16px', borderLeft: '2px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {subtopics.map(sub => (
-                                  <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}>
-                                    <div style={{ color: 'var(--text-light)' }}>{sub.name}</div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                      <div onClick={() => cycleStatus(sub)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: STATUS_COLORS[sub.status || 'NOT_STARTED'] }}>
-                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: STATUS_COLORS[sub.status || 'NOT_STARTED'] }}></div>
-                                        {STATUS_LABELS[sub.status || 'NOT_STARTED']}
-                                      </div>
-                                      <button className="del-btn" onClick={() => deleteTopic(sub.id)}>×</button>
+                              <div style={{ marginBottom: '10px' }}>
+                                {subtopics.map(sub => {
+                                  const subCfg = STATUS_CONFIG[sub.status || 'NOT_STARTED'];
+                                  return (
+                                    <div key={sub.id} style={{
+                                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                      fontSize: '0.78rem', padding: '4px 6px', borderRadius: '6px',
+                                      marginBottom: '3px', background: `${subCfg.color}10`,
+                                    }}>
+                                      <span style={{ color: 'var(--text-secondary)', flex: 1 }}>↳ {sub.name}</span>
+                                      <span
+                                        onClick={() => cycleStatus(sub)}
+                                        style={{ cursor: 'pointer', color: subCfg.color, fontWeight: '700', marginLeft: '6px', fontSize: '0.7rem' }}
+                                        title="Click to change status"
+                                      >{subCfg.icon}</span>
+                                      <button className="del-btn" onClick={() => deleteTopic(sub.id)} style={{ fontSize: '0.7rem', opacity: 0.5, marginLeft: '2px' }}>×</button>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '4px' }}>
+                                  {subCompleted}/{subtopics.length} subtopics done
+                                </div>
                               </div>
                             )}
+
+                            {/* Actions */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <button
+                                onClick={() => cycleStatus(topic)}
+                                style={{
+                                  fontSize: '0.75rem', fontWeight: '600',
+                                  padding: '5px 10px', borderRadius: '8px',
+                                  background: cfg.bg, color: cfg.color,
+                                  border: `1px solid ${cfg.border}`,
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                {st === 'NOT_STARTED' ? '▶ Start' :
+                                  st === 'IN_PROGRESS' ? '✓ Mark Done' :
+                                    st === 'COMPLETED' ? '↩ Revise' : '✓ Mark Done'}
+                              </button>
+                              <button
+                                className="btn btn-secondary"
+                                style={{ fontSize: '0.7rem', padding: '4px 8px', borderRadius: '8px' }}
+                                onClick={(e) => addSubtopic(topic.id, e)}
+                              >+ Sub</button>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
                   )}
-                  <button className="btn btn-secondary btn-sm w-full" style={{ marginTop: '12px' }} onClick={() => { setSelectedSubjectId(subject.id); setShowAddTopic(true); }}>
+
+                  <button
+                    className="btn btn-secondary btn-sm w-full"
+                    style={{ marginTop: '4px' }}
+                    onClick={() => { setSelectedSubjectId(subject.id); setShowAddTopic(true); }}
+                  >
                     + Add Topic
                   </button>
                 </div>
@@ -755,7 +998,7 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
       )}
 
       {showAddSubject && (
-        <AddSubjectModal 
+        <AddSubjectModal
           activeGoal={activeGoal}
           onClose={() => setShowAddSubject(false)}
           onAdd={(s) => { DataService.saveSubject({ ...s, colorHex: s.color }); setShowAddSubject(false); }}
