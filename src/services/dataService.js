@@ -437,8 +437,13 @@ export const DataService = {
   saveTopic: async (topic) => {
     const id = topic.id || generateId();
     const newTopic = { ...topic, id };
-    state.topics = state.topics.filter(t => t.id !== id);
-    state.topics.push(newTopic);
+    const existingIdx = state.topics.findIndex(t => t.id === id);
+    if (existingIdx !== -1) {
+      // Replace in-place to preserve original ordering
+      state.topics = state.topics.map(t => t.id === id ? newTopic : t);
+    } else {
+      state.topics.push(newTopic);
+    }
     notifyListeners('topics');
 
     const uid = currentUid || auth?.currentUser?.uid;

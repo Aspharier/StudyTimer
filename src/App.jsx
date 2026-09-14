@@ -668,9 +668,24 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
 
   const getMotivation = (pct) => MOTIVATIONS.find(m => pct >= m.threshold);
 
+  // Cycle a single topic/subtopic status. If it's a subtopic and all siblings are now
+  // COMPLETED, automatically mark the parent topic as COMPLETED too.
   const cycleStatus = (topic) => {
     const nextStatus = STATUS_CYCLE[topic.status || 'NOT_STARTED'];
-    DataService.saveTopic({ ...topic, status: nextStatus }).catch(() => showToast("Error updating status"));
+    const updated = { ...topic, status: nextStatus };
+    DataService.saveTopic(updated).catch(() => showToast('Error updating status'));
+
+    // Auto-complete parent if every sibling subtopic is now COMPLETED
+    if (topic.parentId) {
+      const siblings = topics.filter(t => t.parentId === topic.parentId && t.id !== topic.id);
+      const allSiblingsDone = siblings.every(t => t.status === 'COMPLETED');
+      if (allSiblingsDone && nextStatus === 'COMPLETED') {
+        const parent = topics.find(t => t.id === topic.parentId);
+        if (parent && parent.status !== 'COMPLETED') {
+          DataService.saveTopic({ ...parent, status: 'COMPLETED' }).catch(() => {});
+        }
+      }
+    }
   };
 
   const deleteTopic = (id) => {
@@ -686,6 +701,7 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
     }
   };
 
+
   const addSubtopic = (parentId, e) => {
     e.stopPropagation();
     const name = window.prompt("Subtopic name:");
@@ -699,12 +715,6 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
     }
   };
 
-  // Overall syllabus stats
-  const allTopics = topics.filter(t => goalSubjects.some(s => s.id === t.subjectId) && !t.parentId);
-  const totalCompleted = allTopics.filter(t => t.status === 'COMPLETED').length;
-  const overallPct = allTopics.length > 0 ? Math.round((totalCompleted / allTopics.length) * 100) : 0;
-  const overallMotivation = getMotivation(overallPct);
-
   return (
     <>
       {/* Header */}
@@ -716,41 +726,8 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => setShowAddSubject(true)}>+ Subject</button>
         </div>
-
-        {/* Overall Progress Banner */}
-        {allTopics.length > 0 && (
-          <div style={{
-            marginTop: '16px',
-            padding: '14px 20px',
-            borderRadius: '14px',
-            background: `linear-gradient(135deg, ${overallMotivation.color}18 0%, ${overallMotivation.color}08 100%)`,
-            border: `1.5px solid ${overallMotivation.color}40`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '14px',
-          }}>
-            <svg width="54" height="54" viewBox="0 0 54 54" style={{ flexShrink: 0 }}>
-              <circle cx="27" cy="27" r="22" fill="none" stroke={`${overallMotivation.color}20`} strokeWidth="5" />
-              <circle cx="27" cy="27" r="22" fill="none" stroke={overallMotivation.color} strokeWidth="5"
-                strokeDasharray={`${2 * Math.PI * 22}`}
-                strokeDashoffset={`${2 * Math.PI * 22 * (1 - overallPct / 100)}`}
-                strokeLinecap="round"
-                transform="rotate(-90 27 27)"
-                style={{ transition: 'stroke-dashoffset 0.6s ease' }}
-              />
-              <text x="27" y="32" textAnchor="middle" fill={overallMotivation.color} fontSize="11" fontWeight="700" fontFamily="Fredoka">{overallPct}%</text>
-            </svg>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '1.1rem', fontWeight: '700', color: overallMotivation.color }}>
-                {overallMotivation.emoji} {overallMotivation.msg}
-              </div>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-light)', marginTop: '2px' }}>
-                {totalCompleted} of {allTopics.length} topics completed across all subjects
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
 
       {goalSubjects.length === 0 ? (
         <div className="empty card" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
@@ -765,7 +742,6 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
           const inProgressCount = subjectTopics.filter(t => t.status === 'IN_PROGRESS').length;
           const needsRevisionCount = subjectTopics.filter(t => t.status === 'NEEDS_REVISION').length;
           const pct = subjectTopics.length > 0 ? Math.round((completedCount / subjectTopics.length) * 100) : 0;
-          const motivation = getMotivation(pct);
           const isExpanded = expandedSubjects[subject.id] !== false;
           const subjColor = subject.colorHex || subject.color || '#3b82f6';
 
@@ -847,23 +823,8 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
 
               {isExpanded && (
                 <div style={{ padding: '16px 20px' }}>
-                  {/* Subject motivation banner */}
-                  {subjectTopics.length > 0 && (
-                    <div style={{
-                      marginBottom: '14px',
-                      padding: '10px 14px',
-                      borderRadius: '10px',
-                      background: `${motivation.color}12`,
-                      border: `1px solid ${motivation.color}30`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '0.85rem',
-                    }}>
-                      <span style={{ fontSize: '1.1rem' }}>{motivation.emoji}</span>
-                      <span style={{ color: motivation.color, fontWeight: '600' }}>{motivation.msg}</span>
-                    </div>
-                  )}
+
+
 
                   {subjectTopics.length === 0 ? (
                     <div style={{ padding: '1.5rem 0', textAlign: 'center', color: 'var(--text-light)', fontSize: '0.9rem' }}>
@@ -889,9 +850,11 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                               background: cfg.gradient,
                               border: `1.5px solid ${cfg.border}`,
                               borderRadius: '12px',
-                              padding: '14px',
-                              position: 'relative',
+                              padding: '12px',
                               transition: 'transform 0.15s, box-shadow 0.15s',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '8px',
                             }}
                             onMouseEnter={e => {
                               e.currentTarget.style.transform = 'translateY(-2px)';
@@ -902,78 +865,81 @@ function SyllabusView({ activeGoal, subjects, topics, showToast, setActiveTab })
                               e.currentTarget.style.boxShadow = '';
                             }}
                           >
-                            {/* Status badge */}
-                            <div style={{
-                              position: 'absolute', top: '10px', right: '10px',
-                              fontSize: '0.65rem', fontWeight: '700',
-                              padding: '2px 7px', borderRadius: '20px',
-                              background: cfg.bg, color: cfg.color,
-                              border: `1px solid ${cfg.border}`,
-                            }}>
-                              {cfg.icon} {cfg.label}
+                            {/* Top row: status badge + delete */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                              <span style={{
+                                fontSize: '0.65rem', fontWeight: '700',
+                                padding: '2px 8px', borderRadius: '20px',
+                                background: cfg.bg, color: cfg.color,
+                                border: `1px solid ${cfg.border}`,
+                                whiteSpace: 'nowrap',
+                              }}>
+                                {cfg.icon} {cfg.label}
+                              </span>
+                              <button
+                                className="del-btn"
+                                onClick={() => deleteTopic(topic.id)}
+                                style={{ opacity: 0.5, fontSize: '0.85rem', flexShrink: 0 }}
+                              >×</button>
                             </div>
-
-                            {/* Delete */}
-                            <button
-                              className="del-btn"
-                              onClick={() => deleteTopic(topic.id)}
-                              style={{ position: 'absolute', top: '6px', right: '82px', opacity: 0.45, fontSize: '0.85rem' }}
-                            >×</button>
 
                             {/* Topic name */}
                             <div style={{
-                              fontWeight: '600', fontSize: '0.95rem', color: 'var(--text-primary)',
-                              marginTop: '4px', paddingRight: '80px', lineHeight: 1.3, marginBottom: '10px'
+                              fontWeight: '600', fontSize: '0.9rem', color: 'var(--text-primary)',
+                              lineHeight: 1.35,
                             }}>
                               {topic.name}
                             </div>
 
                             {/* Subtopics */}
                             {subtopics.length > 0 && (
-                              <div style={{ marginBottom: '10px' }}>
+                              <div>
                                 {subtopics.map(sub => {
                                   const subCfg = STATUS_CONFIG[sub.status || 'NOT_STARTED'];
                                   return (
                                     <div key={sub.id} style={{
-                                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                      fontSize: '0.78rem', padding: '4px 6px', borderRadius: '6px',
+                                      display: 'flex', alignItems: 'center', gap: '4px',
+                                      fontSize: '0.76rem', padding: '3px 6px', borderRadius: '6px',
                                       marginBottom: '3px', background: `${subCfg.color}10`,
                                     }}>
-                                      <span style={{ color: 'var(--text-secondary)', flex: 1 }}>↳ {sub.name}</span>
+                                      <span style={{ color: 'var(--text-secondary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>↳ {sub.name}</span>
                                       <span
                                         onClick={() => cycleStatus(sub)}
-                                        style={{ cursor: 'pointer', color: subCfg.color, fontWeight: '700', marginLeft: '6px', fontSize: '0.7rem' }}
+                                        style={{ cursor: 'pointer', color: subCfg.color, fontWeight: '700', fontSize: '0.7rem', flexShrink: 0 }}
                                         title="Click to change status"
                                       >{subCfg.icon}</span>
-                                      <button className="del-btn" onClick={() => deleteTopic(sub.id)} style={{ fontSize: '0.7rem', opacity: 0.5, marginLeft: '2px' }}>×</button>
+                                      <button className="del-btn" onClick={() => deleteTopic(sub.id)} style={{ fontSize: '0.7rem', opacity: 0.5, flexShrink: 0 }}>×</button>
                                     </div>
                                   );
                                 })}
-                                <div style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '4px' }}>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-light)', marginTop: '2px' }}>
                                   {subCompleted}/{subtopics.length} subtopics done
                                 </div>
                               </div>
                             )}
 
-                            {/* Actions */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <button
-                                onClick={() => cycleStatus(topic)}
-                                style={{
-                                  fontSize: '0.75rem', fontWeight: '600',
-                                  padding: '5px 10px', borderRadius: '8px',
-                                  background: cfg.bg, color: cfg.color,
-                                  border: `1px solid ${cfg.border}`,
-                                  cursor: 'pointer',
-                                }}
-                              >
-                                {st === 'NOT_STARTED' ? '▶ Start' :
-                                  st === 'IN_PROGRESS' ? '✓ Mark Done' :
-                                    st === 'COMPLETED' ? '↩ Revise' : '✓ Mark Done'}
-                              </button>
+                            {/* Bottom action row */}
+                            <div style={{ display: 'flex', justifyContent: subtopics.length > 0 ? 'flex-end' : 'space-between', alignItems: 'center', gap: '6px', marginTop: 'auto' }}>
+                              {/* Only show manual cycle button for topics WITHOUT subtopics */}
+                              {subtopics.length === 0 && (
+                                <button
+                                  onClick={() => cycleStatus(topic)}
+                                  style={{
+                                    fontSize: '0.72rem', fontWeight: '600',
+                                    padding: '5px 10px', borderRadius: '8px',
+                                    background: cfg.bg, color: cfg.color,
+                                    border: `1px solid ${cfg.border}`,
+                                    cursor: 'pointer', whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {st === 'NOT_STARTED' ? '▶ Start' :
+                                    st === 'IN_PROGRESS' ? '✓ Mark Done' :
+                                      st === 'COMPLETED' ? '↩ Revise' : '✓ Mark Done'}
+                                </button>
+                              )}
                               <button
                                 className="btn btn-secondary"
-                                style={{ fontSize: '0.7rem', padding: '4px 8px', borderRadius: '8px' }}
+                                style={{ fontSize: '0.7rem', padding: '4px 8px', borderRadius: '8px', whiteSpace: 'nowrap' }}
                                 onClick={(e) => addSubtopic(topic.id, e)}
                               >+ Sub</button>
                             </div>
