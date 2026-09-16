@@ -11,8 +11,7 @@ import {
   writeBatch,
   where
 } from 'firebase/firestore';
-
-const generateId = () => String(Date.now()) + Math.random().toString(36).substring(2, 7);
+import { generateId } from '../utils/idGenerator';
 
 const deepCleanForFirestore = (val) => {
   if (val === undefined) return null;
@@ -48,6 +47,33 @@ const commitInBatches = async (database, operations) => {
   }
 };
 
+export const migrateTopic = (topic) => {
+  if (!topic) return topic;
+  let status = topic.status || 'NOT_STARTED';
+  if (status === 'IN_PROGRESS') status = 'LEARNING';
+  else if (status === 'COMPLETED') status = 'MASTERED';
+  else if (status === 'NEEDS_REVISION') status = 'WEAK';
+
+  const defaultConfidence = 
+    status === 'MASTERED' ? 85 :
+    status === 'PRACTICING' ? 60 :
+    status === 'LEARNING' ? 35 :
+    status === 'WEAK' ? 25 : 0;
+
+  return {
+    ...topic,
+    status,
+    confidenceScore: typeof topic.confidenceScore === 'number' ? topic.confidenceScore : defaultConfidence,
+    accuracy: typeof topic.accuracy === 'number' ? topic.accuracy : 0,
+    totalQuestions: topic.totalQuestions || 0,
+    correctAnswers: topic.correctAnswers || 0,
+    totalStudyMinutes: topic.totalStudyMinutes || 0,
+    reviewCount: topic.reviewCount || 0,
+    nextReviewDate: topic.nextReviewDate || null,
+    lastStudiedAt: topic.lastStudiedAt || null
+  };
+};
+
 let currentUid = null;
 let authResolved = false;
 let currentUser = null;
@@ -67,7 +93,12 @@ const listeners = {
   subjects: [],
   topics: [],
   mockTests: [],
-  dailyPlans: []
+  dailyPlans: [],
+  studySessions: [],
+  questions: [],
+  mistakes: [],
+  reviews: [],
+  studyStats: []
 };
 
 const unsubs = {
@@ -75,7 +106,12 @@ const unsubs = {
   subjects: null,
   topics: null,
   mockTests: null,
-  dailyPlans: null
+  dailyPlans: null,
+  studySessions: null,
+  questions: null,
+  mistakes: null,
+  reviews: null,
+  studyStats: null
 };
 
 const state = {
@@ -83,7 +119,12 @@ const state = {
   subjects: [],
   topics: [],
   mockTests: [],
-  dailyPlans: []
+  dailyPlans: [],
+  studySessions: [],
+  questions: [],
+  mistakes: [],
+  reviews: [],
+  studyStats: []
 };
 
 const getCacheKey = (uid) => `focusly_cache_${uid}`;
@@ -108,9 +149,15 @@ const loadCache = (uid) => {
 
     state.examGoals = safeArray(parsed?.examGoals) || safeArray(legacyGet('focusly_exam_goals')) || [];
     state.subjects = safeArray(parsed?.subjects) || safeArray(legacyGet('focusly_subjects')) || [];
-    state.topics = safeArray(parsed?.topics) || safeArray(legacyGet('focusly_topics')) || [];
+    const loadedTopics = safeArray(parsed?.topics) || safeArray(legacyGet('focusly_topics')) || [];
+    state.topics = loadedTopics.map(migrateTopic);
     state.mockTests = safeArray(parsed?.mockTests) || safeArray(legacyGet('focusly_mock_tests')) || [];
     state.dailyPlans = safeArray(parsed?.dailyPlans) || safeArray(legacyGet('focusly_daily_plans')) || [];
+    state.studySessions = safeArray(parsed?.studySessions) || safeArray(legacyGet('focusly_study_sessions')) || [];
+    state.questions = safeArray(parsed?.questions) || safeArray(legacyGet('focusly_questions')) || [];
+    state.mistakes = safeArray(parsed?.mistakes) || safeArray(legacyGet('focusly_mistakes')) || [];
+    state.reviews = safeArray(parsed?.reviews) || safeArray(legacyGet('focusly_reviews')) || [];
+    state.studyStats = safeArray(parsed?.studyStats) || safeArray(legacyGet('focusly_study_stats')) || [];
   } catch (e) {
     console.warn("Failed to load local cache:", e);
   }
@@ -151,13 +198,13 @@ const notifyAuthListeners = (user) => {
 };
 
 // Reconcile collection between cloud and local
-const syncCollection = async (uid, collName, localItems, idField = 'id') => {
+const syncCollection = async (uid, collName, localItems, idField = 'id', transformItem = item => item) => {
   if (!db || !uid) return localItems;
   const collRef = collection(db, 'users', uid, collName);
   const snap = await getDocs(collRef);
-  const cloudDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const cloudDocs = snap.docs.map(d => transformItem({ id: d.id, ...d.data() }));
   const cloudMap = new Map(cloudDocs.map(d => [String(d.id), d]));
-  const localMap = new Map((localItems || []).map(d => [String(d[idField] || d.id || d.date), d]));
+  const localMap = new Map((localItems || []).map(d => [String(d[idField] || d.id || d.date), transformItem(d)]));
   
   const ops = [];
   
@@ -183,16 +230,26 @@ const syncCollection = async (uid, collName, localItems, idField = 'id') => {
   return Array.from(cloudMap.values());
 };
 
+const ALL_KEYS = [
+  'examGoals', 'subjects', 'topics', 'mockTests', 'dailyPlans',
+  'studySessions', 'questions', 'mistakes', 'reviews', 'studyStats'
+];
+
 const reconcileAllCollections = async (uid) => {
   if (!db || !uid) return;
   setSyncStatus(true);
   try {
-    const [goals, subjects, topics, tests, plans] = await Promise.all([
+    const [goals, subjects, topics, tests, plans, sessions, questions, mistakes, reviews, stats] = await Promise.all([
       syncCollection(uid, 'exam_goals', state.examGoals),
       syncCollection(uid, 'subjects', state.subjects),
-      syncCollection(uid, 'topics', state.topics),
+      syncCollection(uid, 'topics', state.topics, 'id', migrateTopic),
       syncCollection(uid, 'mock_tests', state.mockTests),
-      syncCollection(uid, 'daily_plans', state.dailyPlans, 'date')
+      syncCollection(uid, 'daily_plans', state.dailyPlans, 'date'),
+      syncCollection(uid, 'study_sessions', state.studySessions),
+      syncCollection(uid, 'questions', state.questions),
+      syncCollection(uid, 'mistakes', state.mistakes),
+      syncCollection(uid, 'reviews', state.reviews),
+      syncCollection(uid, 'study_stats', state.studyStats, 'date')
     ]);
 
     state.examGoals = goals;
@@ -200,8 +257,13 @@ const reconcileAllCollections = async (uid) => {
     state.topics = topics;
     state.mockTests = tests;
     state.dailyPlans = plans;
+    state.studySessions = sessions;
+    state.questions = questions;
+    state.mistakes = mistakes;
+    state.reviews = reviews;
+    state.studyStats = stats;
 
-    ['examGoals', 'subjects', 'topics', 'mockTests', 'dailyPlans'].forEach(notifyListeners);
+    ALL_KEYS.forEach(notifyListeners);
   } catch (err) {
     console.warn("reconcileAllCollections warning:", err);
   } finally {
@@ -212,7 +274,7 @@ const reconcileAllCollections = async (uid) => {
 const setupFirestoreListeners = (uid) => {
   currentUid = uid;
   loadCache(uid);
-  ['examGoals', 'subjects', 'topics', 'mockTests', 'dailyPlans'].forEach(notifyListeners);
+  ALL_KEYS.forEach(notifyListeners);
 
   if (!db) {
     console.error("Firestore database instance is not initialized!");
@@ -223,88 +285,49 @@ const setupFirestoreListeners = (uid) => {
     console.warn(`Firestore snapshot warning on ${name}:`, err.message);
   };
 
+  const bindCollection = (collName, stateKey, transformItem = item => item) => {
+    try {
+      unsubs[stateKey] = onSnapshot(
+        collection(db, 'users', uid, collName),
+        (snapshot) => {
+          const docs = snapshot.docs.map(d => transformItem({ id: d.id, ...d.data() }));
+          if (docs.length > 0 || state[stateKey].length === 0) {
+            state[stateKey] = docs;
+            notifyListeners(stateKey);
+          }
+        },
+        errHandler(collName)
+      );
+    } catch (err) {
+      console.error(`Error attaching listener for ${collName}:`, err);
+    }
+  };
+
   try {
-    // 1. Exam Goals
-    unsubs.examGoals = onSnapshot(
-      collection(db, 'users', uid, 'exam_goals'), 
-      (snapshot) => {
-        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (docs.length > 0 || state.examGoals.length === 0) {
-          state.examGoals = docs;
-          notifyListeners('examGoals');
-        }
-      },
-      errHandler('exam_goals')
-    );
+    bindCollection('exam_goals', 'examGoals');
+    bindCollection('subjects', 'subjects');
+    bindCollection('topics', 'topics', migrateTopic);
+    bindCollection('mock_tests', 'mockTests');
+    bindCollection('daily_plans', 'dailyPlans');
+    bindCollection('study_sessions', 'studySessions');
+    bindCollection('questions', 'questions');
+    bindCollection('mistakes', 'mistakes');
+    bindCollection('reviews', 'reviews');
+    bindCollection('study_stats', 'studyStats');
 
-    // 2. Subjects
-    unsubs.subjects = onSnapshot(
-      collection(db, 'users', uid, 'subjects'), 
-      (snapshot) => {
-        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (docs.length > 0 || state.subjects.length === 0) {
-          state.subjects = docs;
-          notifyListeners('subjects');
-        }
-      },
-      errHandler('subjects')
-    );
-
-    // 3. Topics
-    unsubs.topics = onSnapshot(
-      collection(db, 'users', uid, 'topics'), 
-      (snapshot) => {
-        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (docs.length > 0 || state.topics.length === 0) {
-          state.topics = docs;
-          notifyListeners('topics');
-        }
-      },
-      errHandler('topics')
-    );
-
-    // 4. Mock Tests
-    unsubs.mockTests = onSnapshot(
-      collection(db, 'users', uid, 'mock_tests'), 
-      (snapshot) => {
-        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (docs.length > 0 || state.mockTests.length === 0) {
-          state.mockTests = docs;
-          notifyListeners('mockTests');
-        }
-      },
-      errHandler('mock_tests')
-    );
-
-    // 5. Daily Plans
-    unsubs.dailyPlans = onSnapshot(
-      collection(db, 'users', uid, 'daily_plans'), 
-      (snapshot) => {
-        const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (docs.length > 0 || state.dailyPlans.length === 0) {
-          state.dailyPlans = docs;
-          notifyListeners('dailyPlans');
-        }
-      },
-      errHandler('daily_plans')
-    );
-
-    // Run two-way reconciliation to ensure any local items are pushed and cloud items pulled
     reconcileAllCollections(uid);
   } catch (err) {
-    console.error("Error attaching Firestore snapshot listeners:", err);
+    console.error("Error setting up listeners:", err);
   }
 };
 
 const clearFirestoreListeners = () => {
   Object.values(unsubs).forEach(unsub => unsub && unsub());
   currentUid = null;
-  state.examGoals = [];
-  state.subjects = [];
-  state.topics = [];
-  state.mockTests = [];
-  state.dailyPlans = [];
-  ['examGoals', 'subjects', 'topics', 'mockTests', 'dailyPlans'].forEach(notifyListeners);
+  ALL_KEYS.forEach(key => {
+    state[key] = [];
+    notifyListeners(key);
+  });
 };
 
 if (auth) {
@@ -320,6 +343,52 @@ if (auth) {
   });
 }
 
+// Generic entity persistence helper
+const saveEntity = async (collName, stateKey, entity, idField = 'id') => {
+  const id = entity[idField] || entity.id || generateId();
+  const newEntity = { ...entity, id };
+  const existingIdx = state[stateKey].findIndex(item => (item[idField] || item.id) === id);
+  if (existingIdx !== -1) {
+    state[stateKey] = state[stateKey].map(item => (item[idField] || item.id) === id ? newEntity : item);
+  } else {
+    state[stateKey].push(newEntity);
+  }
+  notifyListeners(stateKey);
+
+  const uid = currentUid || auth?.currentUser?.uid;
+  if (uid && db) {
+    try {
+      setSyncStatus(true);
+      const data = sanitizeForFirestore({ ...newEntity });
+      delete data.id;
+      await setDoc(doc(db, 'users', uid, collName, String(id)), data, { merge: true });
+    } catch (err) {
+      console.error(`Firestore save ${collName} failed:`, err);
+      throw err;
+    } finally {
+      setSyncStatus(false);
+    }
+  }
+  return newEntity;
+};
+
+const deleteEntity = async (collName, stateKey, id, idField = 'id') => {
+  state[stateKey] = state[stateKey].filter(item => (item[idField] || item.id) !== id);
+  notifyListeners(stateKey);
+
+  const uid = currentUid || auth?.currentUser?.uid;
+  if (uid && db) {
+    try {
+      setSyncStatus(true);
+      await deleteDoc(doc(db, 'users', uid, collName, String(id)));
+    } catch (err) {
+      console.error(`Firestore delete ${collName} failed:`, err);
+    } finally {
+      setSyncStatus(false);
+    }
+  }
+};
+
 export const DataService = {
   syncAllData: async () => {
     const uid = currentUid || auth?.currentUser?.uid;
@@ -330,7 +399,11 @@ export const DataService = {
       subjects: state.subjects.length,
       topics: state.topics.length,
       tests: state.mockTests.length,
-      plans: state.dailyPlans.length
+      plans: state.dailyPlans.length,
+      sessions: state.studySessions.length,
+      questions: state.questions.length,
+      mistakes: state.mistakes.length,
+      reviews: state.reviews.length
     };
   },
   subscribeToSyncStatus: (cb) => {
@@ -342,54 +415,68 @@ export const DataService = {
   },
   subscribeToAuth: (cb) => {
     listeners.auth.push(cb);
-    if (authResolved) {
-      cb(currentUser);
-    }
+    if (authResolved) cb(currentUser);
     return () => {
       listeners.auth = listeners.auth.filter(l => l !== cb);
     };
   },
+
+  // Subscriptions
   subscribeToExamGoals: (cb) => {
     listeners.examGoals.push(cb);
     cb(state.examGoals);
-    return () => {
-      listeners.examGoals = listeners.examGoals.filter(l => l !== cb);
-    };
+    return () => { listeners.examGoals = listeners.examGoals.filter(l => l !== cb); };
   },
   subscribeToSubjects: (cb) => {
     listeners.subjects.push(cb);
     cb(state.subjects);
-    return () => {
-      listeners.subjects = listeners.subjects.filter(l => l !== cb);
-    };
+    return () => { listeners.subjects = listeners.subjects.filter(l => l !== cb); };
   },
   subscribeToTopics: (cb) => {
     listeners.topics.push(cb);
     cb(state.topics);
-    return () => {
-      listeners.topics = listeners.topics.filter(l => l !== cb);
-    };
+    return () => { listeners.topics = listeners.topics.filter(l => l !== cb); };
   },
   subscribeToMockTests: (cb) => {
     listeners.mockTests.push(cb);
     cb(state.mockTests);
-    return () => {
-      listeners.mockTests = listeners.mockTests.filter(l => l !== cb);
-    };
+    return () => { listeners.mockTests = listeners.mockTests.filter(l => l !== cb); };
   },
   subscribeToDailyPlans: (cb) => {
     listeners.dailyPlans.push(cb);
     cb(state.dailyPlans);
-    return () => {
-      listeners.dailyPlans = listeners.dailyPlans.filter(l => l !== cb);
-    };
+    return () => { listeners.dailyPlans = listeners.dailyPlans.filter(l => l !== cb); };
+  },
+  subscribeToStudySessions: (cb) => {
+    listeners.studySessions.push(cb);
+    cb(state.studySessions);
+    return () => { listeners.studySessions = listeners.studySessions.filter(l => l !== cb); };
+  },
+  subscribeToQuestions: (cb) => {
+    listeners.questions.push(cb);
+    cb(state.questions);
+    return () => { listeners.questions = listeners.questions.filter(l => l !== cb); };
+  },
+  subscribeToMistakes: (cb) => {
+    listeners.mistakes.push(cb);
+    cb(state.mistakes);
+    return () => { listeners.mistakes = listeners.mistakes.filter(l => l !== cb); };
+  },
+  subscribeToReviews: (cb) => {
+    listeners.reviews.push(cb);
+    cb(state.reviews);
+    return () => { listeners.reviews = listeners.reviews.filter(l => l !== cb); };
+  },
+  subscribeToStudyStats: (cb) => {
+    listeners.studyStats.push(cb);
+    cb(state.studyStats);
+    return () => { listeners.studyStats = listeners.studyStats.filter(l => l !== cb); };
   },
 
+  // Exam Goals
   saveExamGoal: async (goal) => {
     const id = goal.id || generateId();
     const newGoal = { ...goal, id };
-    
-    // 1. Optimistic instant UI update
     if (newGoal.isActive) {
       state.examGoals = state.examGoals.map(g => ({ ...g, isActive: false }));
     }
@@ -397,7 +484,6 @@ export const DataService = {
     state.examGoals.push(newGoal);
     notifyListeners('examGoals');
 
-    // 2. Cloud Firestore sync
     const uid = currentUid || auth?.currentUser?.uid;
     if (uid && db) {
       try {
@@ -415,7 +501,6 @@ export const DataService = {
         delete data.id;
         batch.set(doc(db, 'users', uid, 'exam_goals', String(id)), data, { merge: true });
         await batch.commit();
-        console.log("Exam goal saved to cloud Firestore:", id);
       } catch (err) {
         console.error("Firestore saveExamGoal failed:", err);
         throw err;
@@ -424,24 +509,7 @@ export const DataService = {
       }
     }
   },
-
-  deleteExamGoal: async (id) => {
-    state.examGoals = state.examGoals.filter(g => g.id !== id);
-    notifyListeners('examGoals');
-
-    const uid = currentUid || auth?.currentUser?.uid;
-    if (uid && db) {
-      try {
-        setSyncStatus(true);
-        await deleteDoc(doc(db, 'users', uid, 'exam_goals', String(id)));
-      } catch (err) {
-        console.error("Firestore deleteExamGoal failed:", err);
-      } finally {
-        setSyncStatus(false);
-      }
-    }
-  },
-
+  deleteExamGoal: (id) => deleteEntity('exam_goals', 'examGoals', id),
   setActiveExamGoal: async (id) => {
     state.examGoals = state.examGoals.map(g => ({ ...g, isActive: g.id === id }));
     notifyListeners('examGoals');
@@ -464,28 +532,8 @@ export const DataService = {
     }
   },
 
-  saveSubject: async (subj) => {
-    const id = subj.id || generateId();
-    const newSubj = { ...subj, id };
-    state.subjects = state.subjects.filter(s => s.id !== id);
-    state.subjects.push(newSubj);
-    notifyListeners('subjects');
-
-    const uid = currentUid || auth?.currentUser?.uid;
-    if (uid && db) {
-      try {
-        setSyncStatus(true);
-        const data = sanitizeForFirestore({ ...newSubj });
-        delete data.id;
-        await setDoc(doc(db, 'users', uid, 'subjects', String(id)), data, { merge: true });
-      } catch (err) {
-        console.error("Firestore saveSubject failed:", err);
-      } finally {
-        setSyncStatus(false);
-      }
-    }
-  },
-
+  // Subjects
+  saveSubject: (subj) => saveEntity('subjects', 'subjects', subj),
   deleteSubject: async (id) => {
     state.subjects = state.subjects.filter(s => s.id !== id);
     state.topics = state.topics.filter(t => t.subjectId !== id);
@@ -510,33 +558,8 @@ export const DataService = {
     }
   },
 
-  saveTopic: async (topic) => {
-    const id = topic.id || generateId();
-    const newTopic = { ...topic, id };
-    const existingIdx = state.topics.findIndex(t => t.id === id);
-    if (existingIdx !== -1) {
-      // Replace in-place to preserve original ordering
-      state.topics = state.topics.map(t => t.id === id ? newTopic : t);
-    } else {
-      state.topics.push(newTopic);
-    }
-    notifyListeners('topics');
-
-    const uid = currentUid || auth?.currentUser?.uid;
-    if (uid && db) {
-      try {
-        setSyncStatus(true);
-        const data = sanitizeForFirestore({ ...newTopic });
-        delete data.id;
-        await setDoc(doc(db, 'users', uid, 'topics', String(id)), data, { merge: true });
-      } catch (err) {
-        console.error("Firestore saveTopic failed:", err);
-      } finally {
-        setSyncStatus(false);
-      }
-    }
-  },
-
+  // Topics
+  saveTopic: (topic) => saveEntity('topics', 'topics', migrateTopic(topic)),
   deleteTopic: async (id) => {
     state.topics = state.topics.filter(t => t.id !== id && t.parentId !== id);
     notifyListeners('topics');
@@ -559,81 +582,30 @@ export const DataService = {
     }
   },
 
-  saveMockTest: async (test) => {
-    const id = test.id || generateId();
-    const newTest = { ...test, id };
-    state.mockTests = state.mockTests.filter(t => t.id !== id);
-    state.mockTests.push(newTest);
-    notifyListeners('mockTests');
+  // Mock Tests
+  saveMockTest: (test) => saveEntity('mock_tests', 'mockTests', test),
+  deleteMockTest: (id) => deleteEntity('mock_tests', 'mockTests', id),
 
-    const uid = currentUid || auth?.currentUser?.uid;
-    if (uid && db) {
-      try {
-        setSyncStatus(true);
-        const data = sanitizeForFirestore({ ...newTest });
-        delete data.id;
-        await setDoc(doc(db, 'users', uid, 'mock_tests', String(id)), data, { merge: true });
-      } catch (err) {
-        console.error("Firestore saveMockTest failed:", err);
-      } finally {
-        setSyncStatus(false);
-      }
-    }
-  },
+  // Daily Plans
+  saveDailyPlan: (plan) => saveEntity('daily_plans', 'dailyPlans', plan, 'date'),
+  deleteDailyPlan: (id) => deleteEntity('daily_plans', 'dailyPlans', id, 'date'),
 
-  deleteMockTest: async (id) => {
-    state.mockTests = state.mockTests.filter(t => t.id !== id);
-    notifyListeners('mockTests');
+  // Focus & Study Sessions
+  saveStudySession: (session) => saveEntity('study_sessions', 'studySessions', session),
+  deleteStudySession: (id) => deleteEntity('study_sessions', 'studySessions', id),
 
-    const uid = currentUid || auth?.currentUser?.uid;
-    if (uid && db) {
-      try {
-        setSyncStatus(true);
-        await deleteDoc(doc(db, 'users', uid, 'mock_tests', String(id)));
-      } catch (err) {
-        console.error("Firestore deleteMockTest failed:", err);
-      } finally {
-        setSyncStatus(false);
-      }
-    }
-  },
+  // Questions
+  saveQuestion: (question) => saveEntity('questions', 'questions', question),
+  deleteQuestion: (id) => deleteEntity('questions', 'questions', id),
 
-  saveDailyPlan: async (plan) => {
-    const id = plan.id || plan.date || generateId();
-    const newPlan = { ...plan, id };
-    state.dailyPlans = state.dailyPlans.filter(p => p.id !== id && p.date !== newPlan.date);
-    state.dailyPlans.push(newPlan);
-    notifyListeners('dailyPlans');
+  // Mistakes
+  saveMistake: (mistake) => saveEntity('mistakes', 'mistakes', mistake),
+  deleteMistake: (id) => deleteEntity('mistakes', 'mistakes', id),
 
-    const uid = currentUid || auth?.currentUser?.uid;
-    if (uid && db) {
-      try {
-        setSyncStatus(true);
-        const data = sanitizeForFirestore({ ...newPlan });
-        delete data.id;
-        await setDoc(doc(db, 'users', uid, 'daily_plans', String(id)), data, { merge: true });
-      } catch (err) {
-        console.error("Firestore saveDailyPlan failed:", err);
-      } finally {
-        setSyncStatus(false);
-      }
-    }
-  },
+  // Reviews
+  saveReview: (review) => saveEntity('reviews', 'reviews', review),
+  deleteReview: (id) => deleteEntity('reviews', 'reviews', id),
 
-  deleteDailyPlan: async (id) => {
-    state.dailyPlans = state.dailyPlans.filter(p => p.id !== id);
-    notifyListeners('dailyPlans');
-
-    const uid = currentUid || auth?.currentUser?.uid;
-    if (uid && db) {
-      try {
-        setSyncStatus(true);
-        await deleteDoc(doc(db, 'users', uid, 'daily_plans', String(id)));
-      } catch (err) {
-        console.error("Firestore deleteDailyPlan failed:", err);
-      } finally {
-        setSyncStatus(false);
-      }
-    }
-  }
+  // Study Stats
+  saveStudyStat: (stat) => saveEntity('study_stats', 'studyStats', stat, 'date')
 };
