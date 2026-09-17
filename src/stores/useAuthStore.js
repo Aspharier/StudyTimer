@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { auth, signInWithPopup, googleProvider, signOut as fbSignOut } from '../firebase';
+import { DataService } from '../services/dataService';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -13,8 +14,16 @@ export const useAuthStore = create((set) => ({
     return await signInWithPopup(auth, googleProvider);
   },
 
+  loginAsGuest: () => {
+    const guestUser = DataService.loginAsGuest();
+    set({ user: guestUser, authLoading: false });
+  },
+
   signOut: async () => {
-    if (!auth) return;
-    return await fbSignOut(auth);
+    if (auth) {
+      await fbSignOut(auth).catch(() => {});
+    }
+    DataService.clearSession();
+    set({ user: null });
   }
 }));

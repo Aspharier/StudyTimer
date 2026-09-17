@@ -2,7 +2,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useUIStore } from '../../stores/useUIStore';
 
 export const SignInView = () => {
-  const { signIn } = useAuthStore();
+  const { signIn, loginAsGuest } = useAuthStore();
   const { showToast } = useUIStore();
 
   const handleLogin = async () => {
@@ -29,8 +29,15 @@ export const SignInView = () => {
         <button className="btn btn-primary w-full" onClick={handleLogin} style={{ padding: '12px' }}>
           [ AUTHENTICATE WITH GOOGLE ]
         </button>
+        <button 
+          className="btn btn-secondary w-full" 
+          onClick={loginAsGuest} 
+          style={{ padding: '10px', marginTop: '10px', borderColor: 'var(--border-accent)' }}
+        >
+          [ ENTER OFFLINE / DEMO SESSION ]
+        </button>
         <p className="sign-in-note">
-          Telemetry &amp; syllabus tree synchronize automatically to Firestore cloud database.
+          Telemetry &amp; syllabus tree synchronize automatically to Firestore cloud database or local offline storage.
         </p>
       </div>
     </div>
