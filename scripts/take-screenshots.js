@@ -19,18 +19,43 @@ async function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function findActivePort() {
+  for (const port of [4174, 4173, 5173]) {
+    try {
+      const res = await fetch(`http://localhost:${port}`);
+      if (res.status < 500) return port;
+    } catch {}
+  }
+  return null;
+}
+
 async function run() {
-  console.log('Starting preview server...');
-  const server = spawn('npx.cmd', ['vite', 'preview', '--port', '4173', '--strictPort'], {
-    cwd: rootDir,
-    stdio: 'pipe',
-    shell: true
-  });
+  let port = await findActivePort();
+  let server = null;
 
-  server.stdout.on('data', data => console.log(`[Vite]: ${data}`));
-  server.stderr.on('data', data => console.error(`[Vite Err]: ${data}`));
+  if (!port) {
+    console.log('Starting preview server on port 4173...');
+    server = spawn('npx.cmd', ['vite', 'preview', '--port', '4173'], {
+      cwd: rootDir,
+      stdio: 'pipe',
+      shell: true
+    });
 
-  await wait(3500);
+    server.stdout.on('data', data => console.log(`[Vite]: ${data}`));
+    server.stderr.on('data', data => console.error(`[Vite Err]: ${data}`));
+
+    for (let i = 0; i < 15; i++) {
+      await wait(1000);
+      port = await findActivePort();
+      if (port) break;
+    }
+  }
+
+  if (!port) {
+    throw new Error('Could not find active preview server.');
+  }
+
+  console.log(`Active server found on port ${port}!`);
 
   console.log('Launching browser...');
   const browser = await puppeteer.launch({
@@ -47,72 +72,63 @@ async function run() {
   const page = await browser.newPage();
   await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 2 });
 
-  console.log('Navigating to http://localhost:4173 ...');
-  await page.goto('http://localhost:4173', { waitUntil: 'networkidle0' });
+  const appUrl = `http://localhost:${port}`;
+  console.log(`Navigating to ${appUrl} ...`);
+  await page.goto(appUrl, { waitUntil: 'networkidle0' });
 
   // Clear previous local storage cache
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'networkidle0' });
+  await wait(1200);
 
   // 1. Capture Sign-In / Gateway View
   console.log('Capturing signin.png...');
   await page.screenshot({ path: path.join(screenshotsDir, 'signin.png'), fullPage: false });
 
-  // 2. Click [ ENTER OFFLINE / DEMO SESSION ]
+  // 2. Click [ Enter Offline Demo Session ]
   console.log('Clicking demo session button...');
   await page.evaluate(() => {
     const btns = Array.from(document.querySelectorAll('button'));
-    const btn = btns.find(b => b.textContent.includes('OFFLINE') || b.textContent.includes('DEMO'));
+    const btn = btns.find(b => b.textContent.includes('Offline') || b.textContent.includes('Demo') || b.textContent.includes('DEMO'));
     if (btn) btn.click();
   });
 
   await wait(2000);
 
-  // 3. Capture Dashboard Viewport & Full Page (Dark Mode)
-  console.log('Capturing dashboard-dark.png...');
+  // 3. Capture Aesthetic Planner Open Two-Page Spread
+  console.log('Capturing dashboard-dark.png (open planner spread)...');
   await page.screenshot({ path: path.join(screenshotsDir, 'dashboard-dark.png'), fullPage: false });
   await page.screenshot({ path: path.join(screenshotsDir, 'dashboard-dark-full.png'), fullPage: true });
 
-  // 4. Navigate to Daily Plan
-  console.log('Navigating to Plan (press key 2)...');
-  await page.keyboard.press('2');
-  await wait(1500);
-  console.log('Capturing plan-dark.png...');
-  await page.screenshot({ path: path.join(screenshotsDir, 'plan-dark.png'), fullPage: false });
-
-  // 5. Navigate to Syllabus Tree
-  console.log('Navigating to Syllabus (press key 3)...');
-  await page.keyboard.press('3');
-  await wait(1500);
-  console.log('Capturing syllabus-dark.png...');
-  await page.screenshot({ path: path.join(screenshotsDir, 'syllabus-dark.png'), fullPage: false });
-
-  // 6. Navigate to Telemetry / Settings
-  console.log('Navigating to Settings (press key 4)...');
-  await page.keyboard.press('4');
-  await wait(1500);
-  console.log('Capturing settings-dark.png...');
-  await page.screenshot({ path: path.join(screenshotsDir, 'settings-dark.png'), fullPage: false });
-
-  // 7. Toggle Light Theme & Return to Dashboard
-  console.log('Switching to light theme...');
+  // 4. Expand first syllabus module to showcase topics and mastery
+  console.log('Expanding first syllabus module...');
   await page.evaluate(() => {
-    const btns = Array.from(document.querySelectorAll('button'));
-    const themeBtn = btns.find(b => b.textContent.includes('LIGHT') || b.textContent.includes('THEME'));
-    if (themeBtn) themeBtn.click();
+    const chips = Array.from(document.querySelectorAll('span.chip'));
+    const expandChip = chips.find(c => c.textContent.includes('Expand') || c.textContent.includes('View'));
+    if (expandChip) expandChip.click();
   });
-  await wait(500);
-  console.log('Returning to dashboard in light theme (press key 1)...');
-  await page.keyboard.press('1');
-  await wait(1500);
-  console.log('Capturing dashboard-light.png...');
+  await wait(1200);
+  console.log('Capturing syllabus-dark.png (expanded syllabus)...');
+  await page.screenshot({ path: path.join(screenshotsDir, 'syllabus-dark.png'), fullPage: false });
   await page.screenshot({ path: path.join(screenshotsDir, 'dashboard-light.png'), fullPage: false });
 
-  console.log('All screenshots successfully refreshed!');
+  // 5. Open Settings Modal Popup (press key 's')
+  console.log('Opening settings modal popup (press key s)...');
+  await page.keyboard.press('s');
+  await wait(1200);
+  console.log('Capturing settings-dark.png (settings modal)...');
+  await page.screenshot({ path: path.join(screenshotsDir, 'settings-dark.png'), fullPage: false });
+
+  // Close Settings Modal
+  console.log('Closing settings modal (press Escape)...');
+  await page.keyboard.press('Escape');
+  await wait(800);
+
+  console.log('All screenshots successfully refreshed in docs/screenshots/!');
   await browser.close();
-  try {
-    server.kill();
-  } catch {}
+  if (server) {
+    try { server.kill(); } catch {}
+  }
   process.exit(0);
 }
 

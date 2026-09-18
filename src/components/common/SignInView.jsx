@@ -9,35 +9,49 @@ export const SignInView = () => {
     try {
       await signIn();
     } catch {
-      showToast("AUTH_FAIL: Local cache mode active");
+      showToast("Authentication Failed: Switching to offline mode");
     }
   };
 
   return (
     <div className="sign-in-container">
       <div className="sign-in-card">
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', letterSpacing: '1px', marginBottom: '4px' }}>
-          // ACCESS_GATEWAY
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+          <span className="chip chip-yellow" style={{ fontSize: '0.72rem', fontWeight: 800 }}>
+            Focusly Planner
+          </span>
+          <span style={{ color: 'var(--ink-muted)', fontSize: '0.76rem', fontWeight: 600 }}>
+            Paper Edition
+          </span>
         </div>
-        <div className="sign-in-logo">FOCUSLY.OS</div>
-        <p style={{ fontWeight: 700, fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px', letterSpacing: '0.5px' }}>
-          PERSONAL EXAM OPERATING SYSTEM
+
+        <div className="sign-in-logo">Focusly</div>
+        
+        <p style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--ink-primary)', marginBottom: '8px', letterSpacing: '-0.01em' }}>
+          Aesthetic Digital Study Planner &amp; Exam OS
         </p>
+
         <p className="sign-in-subtitle">
-          Retrieval practice, deterministic telemetry, and spaced revision engine.
+          Dual-page open notebook spread, daily time-blocked missions, syllabus mastery tree, and realtime Google cloud sync.
         </p>
-        <button className="btn btn-primary w-full" onClick={handleLogin} style={{ padding: '12px' }}>
-          [ AUTHENTICATE WITH GOOGLE ]
-        </button>
-        <button 
-          className="btn btn-secondary w-full" 
-          onClick={loginAsGuest} 
-          style={{ padding: '10px', marginTop: '10px', borderColor: 'var(--border-accent)' }}
-        >
-          [ ENTER OFFLINE / DEMO SESSION ]
-        </button>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <button className="btn btn-primary w-full" onClick={handleLogin} style={{ padding: '12px 18px', fontSize: '0.9rem' }}>
+            <span style={{ fontSize: '1.1rem' }}>G</span>
+            <span>Sign in with Google Account</span>
+          </button>
+          
+          <button 
+            className="btn btn-secondary w-full" 
+            onClick={loginAsGuest} 
+            style={{ padding: '11px 18px', fontSize: '0.86rem' }}
+          >
+            Enter Offline Demo Session
+          </button>
+        </div>
+
         <p className="sign-in-note">
-          Telemetry &amp; syllabus tree synchronize automatically to Firestore cloud database or local offline storage.
+          Your syllabus tree and missions automatically synchronize to Google Firebase Cloud with end-to-end multi-device persistence.
         </p>
       </div>
     </div>

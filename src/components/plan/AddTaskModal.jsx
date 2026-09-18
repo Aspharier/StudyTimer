@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { X } from 'lucide-react';
 import { PLAN_ITEM_TYPES, TYPE_LABELS } from '../../utils/constants';
 
 export const AddTaskModal = ({ onClose, onAdd, subjects, topics }) => {
@@ -20,12 +21,14 @@ export const AddTaskModal = ({ onClose, onAdd, subjects, topics }) => {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>// SCHEDULE_MISSION</h3>
-          <button className="del-btn" onClick={onClose}>[X]</button>
+          <h3>Schedule Task</h3>
+          <button className="del-btn" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">MISSION_TYPE</label>
+            <label className="form-label">Task Type</label>
             <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
               {PLAN_ITEM_TYPES.map(t => (
                 <button 
@@ -34,13 +37,13 @@ export const AddTaskModal = ({ onClose, onAdd, subjects, topics }) => {
                   className={`btn btn-xs ${type === t ? 'btn-primary' : 'btn-secondary'}`} 
                   onClick={() => setType(t)}
                 >
-                  [{TYPE_LABELS[t]}]
+                  {TYPE_LABELS[t]}
                 </button>
               ))}
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">OBJECTIVE_SPECIFICATION</label>
+            <label className="form-label">Task Description</label>
             <input 
               type="text" 
               className="input input-rect" 
@@ -52,22 +55,22 @@ export const AddTaskModal = ({ onClose, onAdd, subjects, topics }) => {
           </div>
           <div className="grid-2col" style={{ marginBottom: '16px', gap: '12px' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">MODULE_ID</label>
+              <label className="form-label">Subject</label>
               <select className="input input-rect" value={subjectId} onChange={e => { setSubjectId(e.target.value); setTopicId(''); }}>
-                <option value="">[NONE]</option>
+                <option value="">Select Subject</option>
                 {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">TOPIC_NODE</label>
+              <label className="form-label">Topic</label>
               <select className="input input-rect" value={topicId} onChange={e => setTopicId(e.target.value)} disabled={!subjectId}>
-                <option value="">[NONE]</option>
+                <option value="">Select Topic</option>
                 {subjectTopics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">ESTIMATED_DURATION (MINUTES)</label>
+            <label className="form-label">Estimated Duration</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <input 
                 type="range" 
@@ -78,11 +81,11 @@ export const AddTaskModal = ({ onClose, onAdd, subjects, topics }) => {
                 onChange={e => setDuration(e.target.value)} 
                 style={{ flex: 1 }} 
               />
-              <span style={{ minWidth: '40px', textAlign: 'right', fontWeight: 800 }}>{duration}m</span>
+              <span style={{ minWidth: '40px', textAlign: 'right', fontWeight: 700 }}>{duration}m</span>
             </div>
           </div>
           <button type="submit" className="btn btn-primary w-full" disabled={!title.trim()}>
-            [ COMMIT MISSION ]
+            Schedule Task
           </button>
         </form>
       </div>

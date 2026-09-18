@@ -2,9 +2,11 @@ import { create } from 'zustand';
 import { auth, signInWithPopup, googleProvider, signOut as fbSignOut } from '../firebase';
 import { DataService } from '../services/dataService';
 
+const initialUser = DataService.getCurrentUser();
+
 export const useAuthStore = create((set) => ({
-  user: null,
-  authLoading: true,
+  user: initialUser,
+  authLoading: !initialUser,
 
   setUser: (user) => set({ user, authLoading: false }),
   setAuthLoading: (authLoading) => set({ authLoading }),

@@ -1,13 +1,15 @@
 import { useState } from 'react';
+import { Trash2, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useExamStore } from '../stores/useExamStore';
 import { useUIStore } from '../stores/useUIStore';
 import { AddSubjectModal } from '../components/syllabus/AddSubjectModal';
 import { AddTopicModal } from '../components/syllabus/AddTopicModal';
+import { AddSubtopicModal } from '../components/syllabus/AddSubtopicModal';
 import { ConfidenceModal } from '../components/syllabus/ConfidenceModal';
 import { STATUS_CONFIG } from '../utils/constants';
 import { generateId } from '../utils/idGenerator';
 
-export const SyllabusPage = () => {
+export const SyllabusPage = ({ onOpenSettings }) => {
   const { 
     topics, 
     getActiveGoal, 
@@ -18,12 +20,13 @@ export const SyllabusPage = () => {
     deleteTopic, 
     cycleTopicStatus 
   } = useExamStore();
-  const { showToast, setActiveTab } = useUIStore();
+  const { showToast } = useUIStore();
 
   const [showAddSubject, setShowAddSubject] = useState(false);
   const [showAddTopic, setShowAddTopic] = useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
   const [ratingTopic, setRatingTopic] = useState(null);
+  const [subtopicParent, setSubtopicParent] = useState(null);
   const [expandedSubjects, setExpandedSubjects] = useState({});
 
   const activeGoal = getActiveGoal();
@@ -31,15 +34,15 @@ export const SyllabusPage = () => {
   if (!activeGoal) {
     return (
       <div className="card" style={{ padding: '28px', textAlign: 'left' }}>
-        <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem', marginBottom: '8px' }}>
-          // SYSTEM STATUS: NO ACTIVE TARGET
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '8px', fontWeight: 600 }}>
+          No Active Target Exam
         </div>
-        <h2 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>NO_EXAM_GOAL_CONFIGURED</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '0.85rem' }}>
-          Initialize an exam goal in settings to construct the syllabus tree.
+        <h2 style={{ fontSize: '1.25rem', marginBottom: '8px', fontWeight: 700 }}>No Target Exam Configured</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '18px', fontSize: '0.88rem', lineHeight: 1.5 }}>
+          Initialize an exam goal in settings to construct the interactive syllabus tree.
         </p>
-        <button className="btn btn-primary btn-sm" onClick={() => setActiveTab('settings')}>
-          [ CONFIGURE TARGET ]
+        <button className="btn btn-primary" onClick={onOpenSettings}>
+          Configure Target Exam
         </button>
       </div>
     );
@@ -55,79 +58,89 @@ export const SyllabusPage = () => {
     try {
       await cycleTopicStatus(topic);
     } catch {
-      showToast('ERROR: Status cycle failed');
+      showToast('Error: Status cycle failed');
     }
   };
 
   const handleDeleteTopic = async (id) => {
-    if (window.confirm("DELETE_TOPIC_CONFIRMATION: Delete topic & subtopics?")) {
+    if (window.confirm("Delete topic and its subtopics?")) {
       try {
         await deleteTopic(id);
-        showToast("TOPIC_DELETED");
+        showToast("Topic deleted");
       } catch {
-        showToast("ERROR: Deletion failed");
+        showToast("Error: Deletion failed");
       }
     }
   };
 
   const handleDeleteSubject = async (id, e) => {
     e.stopPropagation();
-    if (window.confirm("DELETE_SUBJECT_CONFIRMATION: Delete subject & ALL topics?")) {
+    if (window.confirm("Delete subject module and all its topics?")) {
       try {
         await deleteSubject(id);
-        showToast("SUBJECT_DELETED");
+        showToast("Subject deleted");
       } catch {
-        showToast("ERROR: Deletion failed");
+        showToast("Error: Deletion failed");
       }
     }
   };
 
-  const handleAddSubtopic = async (parentId, e) => {
-    e.stopPropagation();
-    const name = window.prompt("ENTER_SUBTOPIC_NAME:");
-    if (name && name.trim()) {
-      const parent = topics.find(t => t.id === parentId);
-      if (parent) {
-        await saveTopic({
-          id: generateId(),
-          examGoalId: activeGoal.id,
-          subjectId: parent.subjectId,
-          parentId,
-          name: name.trim(),
-          status: 'NOT_STARTED',
-          confidenceScore: 0
-        });
-        showToast("SUBTOPIC_ADDED");
-      }
+  const handleAddSubtopic = (topic, e) => {
+    if (e) e.stopPropagation();
+    setSubtopicParent(topic);
+  };
+
+  const handleSaveSubtopic = async (name) => {
+    if (!subtopicParent) return;
+    try {
+      await saveTopic({
+        id: generateId(),
+        examGoalId: activeGoal.id,
+        subjectId: subtopicParent.subjectId,
+        parentId: subtopicParent.id,
+        name: name.trim(),
+        status: 'NOT_STARTED',
+        confidenceScore: 0
+      });
+      showToast("Subtopic added");
+      setSubtopicParent(null);
+    } catch {
+      showToast("Error: Failed to add subtopic");
     }
   };
 
   return (
     <>
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+      <div style={{ marginBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '1.3rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              // SYLLABUS_ARCHITECTURE
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span className="planner-box-header" style={{ margin: 0, padding: '2px 8px', fontSize: '0.68rem' }}>
+                SPACE OF INFINITE POSSIBILITY®
+              </span>
+              <span className="chip chip-blue" style={{ fontSize: '0.68rem', padding: '1px 8px' }}>
+                {activeGoal.name}
+              </span>
+            </div>
+            <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: 'var(--ink-primary)', letterSpacing: '-0.02em' }}>
+              Curriculum & Syllabus
             </h2>
-            <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: '0.8rem' }}>
-              TARGET: {activeGoal.name} • 5-STAGE RETRIEVAL LIFECYCLE
-            </p>
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => setShowAddSubject(true)}>
-            [ + ADD SUBJECT ]
+            + Add Module
           </button>
         </div>
       </div>
 
       {goalSubjects.length === 0 ? (
-        <div className="empty card" style={{ padding: '32px', textAlign: 'center' }}>
-          <p style={{ fontWeight: '700', marginBottom: '6px' }}>NO_SUBJECTS_REGISTERED</p>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '16px' }}>
-            Initialize syllabus modules: [Subject] -&gt; [Topic] -&gt; [Subtopics].
+        <div className="empty card" style={{ padding: '36px 20px', textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📚</div>
+          <p style={{ fontWeight: '700', fontSize: '1rem', marginBottom: '6px' }}>No Syllabus Modules Added</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', marginBottom: '18px' }}>
+            Organize your syllabus hierarchy: Module / Subject → Topic → Subtopics.
           </p>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowAddSubject(true)}>
-            [ + INITIALIZE SUBJECT ]
+          <button className="btn btn-primary" onClick={() => setShowAddSubject(true)}>
+            + Add First Module
           </button>
         </div>
       ) : (
@@ -139,42 +152,47 @@ export const SyllabusPage = () => {
           const weakCount = subjectTopics.filter(t => t.status === 'WEAK').length;
           
           const pct = subjectTopics.length > 0 ? Math.round((masteredCount / subjectTopics.length) * 100) : 0;
-          const isExpanded = expandedSubjects[subject.id] !== false;
+          const isExpanded = !!expandedSubjects[subject.id];
 
           return (
-            <div key={subject.id} style={{
-              background: 'var(--bg-card)',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--border)',
-              marginBottom: '16px',
-              overflow: 'hidden',
-            }}>
+            <div 
+              key={subject.id} 
+              style={{
+                background: '#ffffff',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--paper-border)',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)',
+                marginBottom: '12px',
+                overflow: 'hidden',
+                transition: 'all 0.15s ease'
+              }}
+            >
               {/* Subject Header */}
               <div
                 onClick={() => toggleSubject(subject.id)}
                 style={{
                   padding: '14px 18px',
-                  background: 'var(--bg-secondary)',
-                  borderBottom: isExpanded ? '1px solid var(--border)' : 'none',
+                  background: isExpanded ? '#f8fafc' : '#ffffff',
+                  borderBottom: isExpanded ? '1px solid var(--paper-border)' : 'none',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '14px',
+                  gap: '12px',
                   userSelect: 'none',
+                  transition: 'background 0.15s ease'
                 }}
               >
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>// MODULE:</span>
-                    <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)', letterSpacing: '0.5px' }}>
+                    <strong style={{ fontSize: '1rem', color: 'var(--ink-primary)', letterSpacing: '-0.01em' }}>
                       {subject.name}
                     </strong>
                   </div>
-                  <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div className="progress-bar-bg" style={{ flex: 1, height: '4px' }}>
+                  <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div className="progress-bar-bg" style={{ flex: 1, height: '6px' }}>
                       <div className="progress-bar-fill" style={{ width: `${pct}%` }} />
                     </div>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, minWidth: '36px', textAlign: 'right' }}>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 800, minWidth: '36px', textAlign: 'right', color: '#0284c7' }}>
                       {pct}%
                     </span>
                   </div>
@@ -182,57 +200,70 @@ export const SyllabusPage = () => {
 
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                   {masteredCount > 0 && (
-                    <span className="chip" style={{ background: 'var(--text-primary)', color: 'var(--bg-primary)', fontWeight: 800 }}>
-                      {masteredCount} MASTERED
+                    <span className="chip chip-mint">
+                      {masteredCount} Mastered
                     </span>
                   )}
                   {practicingCount > 0 && (
-                    <span className="chip">
-                      {practicingCount} PRACTICING
+                    <span className="chip chip-blue">
+                      {practicingCount} Practicing
                     </span>
                   )}
                   {learningCount > 0 && (
-                    <span className="chip">
-                      {learningCount} LEARNING
+                    <span className="chip chip-yellow">
+                      {learningCount} Learning
                     </span>
                   )}
                   {weakCount > 0 && (
-                    <span className="chip" style={{ borderColor: 'var(--border-light)', color: 'var(--text-primary)' }}>
-                      {weakCount} WEAK
+                    <span className="chip chip-coral">
+                      {weakCount} Needs Work
                     </span>
                   )}
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '4px' }}>
-                    [{subjectTopics.length} TOPICS]
+                  <span style={{ fontSize: '0.72rem', color: 'var(--ink-muted)', marginLeft: '4px', fontWeight: 600 }}>
+                    {subjectTopics.length} Topics
                   </span>
                 </div>
 
                 <button 
                   className="del-btn" 
                   onClick={(e) => handleDeleteSubject(subject.id, e)} 
-                  title="Delete subject"
+                  title="Delete subject module"
+                  aria-label="Delete subject"
                 >
-                  [DEL]
+                  <Trash2 size={13} />
                 </button>
-                <span style={{
-                  color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 700,
-                  padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)'
-                }}>
-                  {isExpanded ? '[-] HIDE' : '[+] VIEW'}
+                <span 
+                  className="chip"
+                  style={{
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    padding: '3px 9px',
+                    background: isExpanded ? '#e2e8f0' : '#f1f5f9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  {isExpanded ? (
+                    <>Collapse <ChevronUp size={12} /></>
+                  ) : (
+                    <>Expand <ChevronDown size={12} /></>
+                  )}
                 </span>
               </div>
 
               {isExpanded && (
-                <div style={{ padding: '16px' }}>
+                <div style={{ padding: '20px' }}>
                   {subjectTopics.length === 0 ? (
-                    <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                      NO_TOPICS_CONFIGURED_YET
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                      No topics configured yet in this module.
                     </div>
                   ) : (
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-                      gap: '10px',
-                      marginBottom: '12px',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                      gap: '12px',
+                      marginBottom: '16px',
                     }}>
                       {subjectTopics.map(topic => {
                         const st = topic.status || 'NOT_STARTED';
@@ -245,18 +276,22 @@ export const SyllabusPage = () => {
                           <div 
                             key={topic.id}
                             className="topic-card"
-                            style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+                            style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <span 
                                 onClick={() => handleCycleStatus(topic)}
                                 title="Click to cycle status"
                                 style={{
-                                  fontSize: '0.68rem', fontWeight: 800,
-                                  padding: '2px 6px', borderRadius: 'var(--radius-sm)',
-                                  background: cfg.bg, color: cfg.color,
+                                  fontSize: '0.72rem', 
+                                  fontWeight: 700,
+                                  padding: '3px 10px', 
+                                  borderRadius: 'var(--radius-pill)',
+                                  background: cfg.bg, 
+                                  color: cfg.color,
                                   border: `1px solid ${cfg.border}`,
-                                  cursor: 'pointer'
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
                                 }}
                               >
                                 {cfg.label}
@@ -264,47 +299,48 @@ export const SyllabusPage = () => {
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <button
                                   onClick={() => setRatingTopic(topic)}
-                                  title="Calibrate recall confidence"
-                                  className="del-btn"
-                                  style={{ fontSize: '0.72rem' }}
+                                  title="Calibrate confidence"
+                                  className="btn btn-secondary btn-xs"
+                                  style={{ padding: '2px 8px', fontSize: '0.7rem' }}
                                 >
-                                  [EVAL]
+                                  Eval
                                 </button>
                                 <button
                                   className="del-btn"
                                   onClick={() => handleDeleteTopic(topic.id)}
                                   title="Delete topic"
+                                  aria-label="Delete topic"
                                 >
-                                  [X]
+                                  <Trash2 size={13} />
                                 </button>
                               </div>
                             </div>
 
-                            <div style={{ fontWeight: 700, fontSize: '0.88rem', letterSpacing: '0.3px', margin: '2px 0' }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.94rem', color: 'var(--text-primary)', margin: '2px 0' }}>
                               {topic.name}
                             </div>
 
                             <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '3px' }}>
-                                <span>MASTERY</span>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '5px', fontWeight: 600 }}>
+                                <span>Mastery Index</span>
                                 <strong>{confidence}%</strong>
                               </div>
-                              <div className="progress-bar-bg" style={{ height: '3px' }}>
+                              <div className="progress-bar-bg" style={{ height: '4px' }}>
                                 <div className="progress-bar-fill" style={{ width: `${confidence}%` }} />
                               </div>
                             </div>
 
                             {subtopics.length > 0 && (
-                              <div style={{ marginTop: '4px', borderTop: '1px solid var(--border)', paddingTop: '6px' }}>
+                              <div style={{ marginTop: '4px', borderTop: '1px solid var(--border-glass)', paddingTop: '8px' }}>
                                 {subtopics.map(sub => {
                                   const subCfg = STATUS_CONFIG[sub.status || 'NOT_STARTED'] || STATUS_CONFIG.NOT_STARTED;
                                   return (
-                                    <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', fontSize: '0.75rem' }}>
-                                      <span style={{ color: 'var(--text-secondary)' }}>- {sub.name}</span>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 0', fontSize: '0.78rem' }}>
+                                      <span style={{ color: 'var(--text-secondary)' }}>• {sub.name}</span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         <span
                                           onClick={() => handleCycleStatus(sub)}
-                                          style={{ cursor: 'pointer', fontSize: '0.65rem', padding: '1px 4px', border: `1px solid ${subCfg.border}` }}
+                                          style={{ cursor: 'pointer', fontSize: '0.68rem', padding: '1px 6px', borderRadius: 'var(--radius-pill)', border: `1px solid ${subCfg.border}`, color: subCfg.color }}
                                           title="Click to cycle status"
                                         >
                                           {subCfg.label}
@@ -312,32 +348,34 @@ export const SyllabusPage = () => {
                                         <button 
                                           className="del-btn" 
                                           onClick={() => handleDeleteTopic(sub.id)} 
-                                          style={{ fontSize: '0.65rem' }}
+                                          style={{ width: '22px', height: '22px' }}
+                                          title="Delete subtopic"
+                                          aria-label="Delete subtopic"
                                         >
-                                          ×
+                                          <Trash2 size={11} />
                                         </button>
                                       </div>
                                     </div>
                                   );
                                 })}
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                                  [{subCompleted}/{subtopics.length} SUBTOPICS MASTERED]
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                  {subCompleted}/{subtopics.length} Subtopics Mastered
                                 </div>
                               </div>
                             )}
 
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px', marginTop: 'auto', paddingTop: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginTop: 'auto', paddingTop: '8px' }}>
                               <button
                                 onClick={() => handleCycleStatus(topic)}
-                                className="btn btn-xs"
+                                className="btn btn-secondary btn-xs"
                               >
-                                {cfg.nextAction}
+                                {cfg.nextAction} →
                               </button>
                               <button
                                 className="btn btn-secondary btn-xs"
-                                onClick={(e) => handleAddSubtopic(topic.id, e)}
+                                onClick={(e) => handleAddSubtopic(topic, e)}
                               >
-                                [+ SUB]
+                                + Subtopic
                               </button>
                             </div>
                           </div>
@@ -350,7 +388,7 @@ export const SyllabusPage = () => {
                     className="btn btn-secondary btn-sm w-full"
                     onClick={() => { setSelectedSubjectId(subject.id); setShowAddTopic(true); }}
                   >
-                    [ + ADD TOPIC TO {subject.name.toUpperCase()} ]
+                    + Add Topic to {subject.name}
                   </button>
                 </div>
               )}
@@ -366,7 +404,7 @@ export const SyllabusPage = () => {
           onAdd={async (s) => { 
             await saveSubject(s); 
             setShowAddSubject(false); 
-            showToast("SUBJECT_INITIALIZED");
+            showToast("Subject module added");
           }}
         />
       )}
@@ -380,8 +418,16 @@ export const SyllabusPage = () => {
             await saveTopic(t); 
             setShowAddTopic(false); 
             setSelectedSubjectId(null); 
-            showToast("TOPIC_REGISTERED");
+            showToast("Topic added");
           }}
+        />
+      )}
+
+      {subtopicParent && (
+        <AddSubtopicModal
+          parentTopic={subtopicParent}
+          onClose={() => setSubtopicParent(null)}
+          onAdd={handleSaveSubtopic}
         />
       )}
 
@@ -392,7 +438,7 @@ export const SyllabusPage = () => {
           onSave={async (updatedTopic) => {
             await saveTopic(updatedTopic);
             setRatingTopic(null);
-            showToast(`TELEMETRY_UPDATED: ${updatedTopic.name}`);
+            showToast(`Confidence updated: ${updatedTopic.name}`);
           }}
         />
       )}

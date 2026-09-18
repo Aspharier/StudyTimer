@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { generateId } from '../../utils/idGenerator';
+import { X } from 'lucide-react';
 
 export const AddTopicModal = ({ activeGoal, subjectId, onClose, onAdd }) => {
   const [name, setName] = useState('');
@@ -25,12 +26,14 @@ export const AddTopicModal = ({ activeGoal, subjectId, onClose, onAdd }) => {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>// ADD_TOPIC_NODE</h3>
-          <button className="del-btn" onClick={onClose}>[X]</button>
+          <h3>Add Topic</h3>
+          <button className="del-btn" onClick={onClose} title="Close">
+            <X size={16} />
+          </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">TOPIC_TITLE</label>
+            <label className="form-label">Topic Title</label>
             <input 
               className="input input-rect" 
               value={name} 
@@ -39,8 +42,8 @@ export const AddTopicModal = ({ activeGoal, subjectId, onClose, onAdd }) => {
               autoFocus 
             />
           </div>
-          <button type="submit" className="btn btn-primary w-full" disabled={!name.trim()}>
-            [ REGISTER TOPIC ]
+          <button type="submit" className="btn btn-primary w-full" style={{ padding: '12px' }} disabled={!name.trim()}>
+            Add Topic
           </button>
         </form>
       </div>

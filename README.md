@@ -1,155 +1,143 @@
 <div align="center">
 
-# ⌘ FOCUSLY // EXAM OS
-### PERSONAL EXAM COMMAND CENTER & SPACED REVISION ENGINE
+# 📖 FOCUSLY • AESTHETIC DIGITAL STUDY PLANNER & EXAM OS
+### AESTHETIC PAPER PLANNER WORKSPACE & TWO-COLUMN EXAM COMMAND CENTER
 
-[![React](https://img.shields.io/badge/React-19.2-000000?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-8.0-000000?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Tailored UI](https://img.shields.io/badge/Theme-Monochrome_Terminal-000000?style=for-the-badge&logo=terminal&logoColor=white)](#-design-system)
-[![Storage](https://img.shields.io/badge/Database-Firestore_%2B_Offline_Cache-000000?style=for-the-badge&logo=firebase&logoColor=white)](https://firebase.google.com/)
-[![License](https://img.shields.io/badge/License-MIT-000000?style=for-the-badge)](LICENSE)
+[![React](https://img.shields.io/badge/React-19.2-27404a?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.0-27404a?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Theme](https://img.shields.io/badge/Theme-Digital_Paper_Planner-fef8d3?style=for-the-badge&logo=notion&logoColor=black)](#-design-tokens--aesthetic-paper-planner)
+[![Storage](https://img.shields.io/badge/Database-Firestore_%2B_Offline_Cache-0a84ff?style=for-the-badge&logo=firebase&logoColor=white)](https://firebase.google.com/)
+[![License](https://img.shields.io/badge/License-MIT-30d158?style=for-the-badge)](LICENSE)
 
 <br />
 
-> **Focusly Exam OS** is an ultra-focused, distraction-free command center engineered for competitive examination preparation. Built upon cognitive science principles—active retrieval practice, spaced repetition heuristics, deterministic velocity telemetry, and mastery stage tracking—all wrapped in a stark, high-contrast monochrome terminal aesthetic.
+> **Focusly** is an ultra-focused personal exam suite inspired by authentic **digital paper planners and notebook spreads**. Designed to eliminate distraction and digital fatigue, it combines cognitive science heuristics—active recall, spaced repetition, countdown velocity—with calming off-white paper textures, ruled checklist lines, dot-grid workspaces, pastel sticky notes, and right-edge index divider tabs.
 
 <br />
 
 <p align="center">
-  <img src="docs/screenshots/dashboard-dark.png" alt="Focusly OS Command Center" width="94%" style="border: 1px solid #33333a; border-radius: 4px;" />
+  <img src="docs/screenshots/dashboard-dark.png" alt="Focusly Aesthetic Digital Study Planner Dashboard" width="94%" style="border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);" />
 </p>
 
 </div>
 
 ---
 
-## ⚡ Key Highlights
+## ⚡ Core Highlights
 
-- **🎯 Target Countdown & Velocity Engine** — Real-time countdown to target examination deadlines, elapsed preparation timeline, and daily target velocity telemetry.
-- **🧠 Dispatch // Next-Best-Action Heuristic** — Automated recommendation engine determining the highest-leverage topic to review based on decay curves, weak confidence flags, and test error margins.
-- **📈 Deterministic Readiness Index** — Composite exam readiness formula dynamically calculated from syllabus coverage (35%), mock test score trends (40%), and 30-day execution consistency (25%).
-- **📋 Daily Missions Execution Board** — Granular daily task scheduling with categorized focus types (`LEARNING`, `PRACTICE`, `REVISION`, `MOCK_REVIEW`), planned vs. actual time tracking, and end-of-day reflection logging.
-- **🌳 5-Stage Syllabus Architecture Tree** — Structured subject-to-topic-to-subtopic hierarchy with real-time mastery tracking (`NOT_STARTED` → `LEARNING` → `PRACTICING` → `MASTERED` / `WEAK`) and active retrieval confidence ratings.
-- **📊 30-Day Execution Telemetry** — Interactive Recharts visual graphs rendering longitudinal consistency trends, 7-day completion matrices, and streak preservation.
-- **🌓 Dual Terminal Aesthetics** — Pixel-perfect Pitch-Black Terminal default alongside a crisp Stark Paper White mode, powered by `JetBrains Mono`.
-- **☁️ Cloud Sync & Zero-Config Offline Mode** — Instant Google Firebase Firestore synchronization across devices with transparent fallback to local cache and one-click demo session access.
+- **📖 Aesthetic Digital Notebook Spread** — Authentic dual-page open book spread framed in a deep slate-teal planner bezel (`#27404a`), shaded center spine crease, right-edge index divider tabs (`MISSIONS`, `SYLLABUS`, `TIPS`, `MANTRA`, `SETTINGS`), and bottom navigation ribbons.
+- **📱 Clean Two-Column Architecture**:
+  - **Left Page**: 
+    - **Planner Date Bar** — Live date display with active weekday dot circle indicator (`S M T W T [F] S`).
+    - **Active Exam Countdown** — Hero days-remaining countdown, target examination deadline, and velocity progress bar.
+    - **Today's Focus Missions** — Ruled-line paper checklist with circular hand-drawn checkmarks, category badges (`LECTURE`, `PRACTICE`, `REVISION`), target focus budgets, and delete triggers.
+    - **Daily Mood Tracker** — Quick daily emotional check-in (`😞 😕 😐 😃 🤩`).
+  - **Right Page**:
+    - **Hierarchical Syllabus Tree** — Dot-grid background, **closed & collapsed by default** for zero distraction, expandable on click to reveal topics, high-contrast mastery progress bars, status chips (`Mastered`, `Practicing`, `Learning`, `Needs Work`), and subtopic lists.
+    - **In-App Subtopic Creator** — Clean modal for adding subtopics without intrusive browser prompts.
+- **💡 Cognitive Study Tips & Daily Mantras** — Interactive wisdom deck loaded with learning science principles (Active Recall, Feynman Technique, Spaced Retrieval, Interleaving, Dopamine Detox) and focus mantras with one-click refresh buttons.
+- **⚙️ Centered Settings Modal Window** — Instant popup modal (triggered from the header icon or by pressing <kbd>S</kbd>) to configure target exams, manage your Google account, and monitor cloud sync status without full-page navigation.
+- **☁️ Multi-Device Google Cloud Persistence** — Seamless Firebase Firestore sync under your Gmail account with zero-latency local caching and instant offline demo session access.
+- **🎨 Single Calming Permanent Theme** — Carefully tuned cream paper, soft drop shadows, and high-contrast pastel stationery accents with zero distracting theme switches.
+- **📱 100% Fully Responsive** — Side-by-side open spread on desktop displays, gracefully collapsing into a fluid single-column layout on mobile devices and tablets.
 
 ---
 
 ## 🖥 Visual Walkthrough
 
-### 01 // Command Center Dashboard
-*Full telemetry overview displaying active countdown, next action dispatch, streak metrics, today's checklist, and 30-day execution curves.*
+### 01 • Open Digital Notebook Spread
+*Side-by-side view with active exam countdown, ruled-line daily missions, and closed-by-default syllabus modules.*
 
 <p align="center">
-  <img src="docs/screenshots/dashboard-dark-full.png" alt="Dashboard Full View" width="94%" style="border: 1px solid #33333a; border-radius: 4px;" />
+  <img src="docs/screenshots/dashboard-dark.png" alt="Focusly Two-Column Notebook Dashboard" width="94%" style="border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);" />
 </p>
 
 ---
 
-### 02 // Daily Missions Execution Board
-*Time-blocked preparation schedule with active task status toggles, subject color chips, duration budgets, and previous-day cloning.*
+### 02 • Dot Grid Syllabus Tree & High-Contrast Mastery Tags
+*Expanded subject module showcasing high-contrast pastel status badges, mastery progress bars, status cycle triggers, and subtopic hierarchies.*
 
 <p align="center">
-  <img src="docs/screenshots/plan-dark.png" alt="Daily Mission Board" width="94%" style="border: 1px solid #33333a; border-radius: 4px;" />
+  <img src="docs/screenshots/syllabus-dark.png" alt="Syllabus Architecture" width="94%" style="border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);" />
 </p>
 
 ---
 
-### 03 // Hierarchical Syllabus Architecture
-*Multi-tiered syllabus management with progress telemetry, topic confidence evaluation modal, and status lifecycle triggers.*
+### 03 • Centered Settings Insert Modal
+*Paper-styled popup window to calibrate target exam goals, deadlines, and view real-time Google cloud persistence status.*
 
 <p align="center">
-  <img src="docs/screenshots/syllabus-dark.png" alt="Syllabus Architecture" width="94%" style="border: 1px solid #33333a; border-radius: 4px;" />
+  <img src="docs/screenshots/settings-dark.png" alt="Settings Modal Insert" width="94%" style="border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);" />
 </p>
 
 ---
 
-### 04 // Telemetry & Configuration Gateway
-*Session management, cloud datastore telemetry, exam goal parameters, and mock score log with percentile analytics.*
+### 04 • Sign-In Gateway Card
+*Clean paper planner gateway card with Google Account authentication and zero-config offline demo session access.*
 
 <p align="center">
-  <img src="docs/screenshots/settings-dark.png" alt="Settings and Telemetry" width="94%" style="border: 1px solid #33333a; border-radius: 4px;" />
+  <img src="docs/screenshots/signin.png" alt="Sign-In Gateway" width="94%" style="border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);" />
 </p>
 
 ---
 
-### 05 // Stark Paper Light Theme
-*High-contrast light monochrome theme optimized for daylight study sessions and paper-like aesthetic clarity.*
+## ⌨️ Fast Keyboard Shortcuts
 
-<p align="center">
-  <img src="docs/screenshots/dashboard-light.png" alt="Light Theme Dashboard" width="94%" style="border: 1px solid #e4e4e7; border-radius: 4px;" />
-</p>
+Focusly is built for keyboard speed:
 
----
-
-## ⌨️ Global Keyboard Navigation
-
-Focusly OS is built for keyboard-first workflow speed. Navigate the operating system without reaching for the mouse:
-
-| Key Command | Action / Route | Description |
+| Shortcut | Action | Description |
 |:---:|:---|:---|
-| <kbd>1</kbd> | `[01] DASHBOARD` | Switch to primary telemetry command center |
-| <kbd>2</kbd> | `[02] DAILY_PLAN` | Open daily mission scheduler & time-blocking |
-| <kbd>3</kbd> | `[03] SYLLABUS` | Inspect syllabus tree & topic mastery matrix |
-| <kbd>4</kbd> | `[04] SETTINGS` | Open telemetry config, goals, & mock test ledger |
-| <kbd>?</kbd> | `HELP // SHORTCUTS` | Toggle global keyboard shortcuts modal |
+| <kbd>S</kbd> | `TOGGLE SETTINGS` | Open or close the centered settings popup modal |
+| <kbd>?</kbd> | `KEYBOARD HELP` | Display global keyboard accelerator overlay |
+| <kbd>Esc</kbd> | `DISMISS` | Close any active modal dialog or popup |
 
 ---
 
-## 🏛 Architecture & Engineering
+## 🏛 Clean Architecture & Structure
 
 ```
 StudyTimer/
 ├── src/
 │   ├── components/
-│   │   ├── common/             # Sign-in gateway, shortcuts modal
-│   │   ├── dashboard/          # Exam countdown, next action card
-│   │   ├── layout/             # AppHeader with live clock, NavigationTabs
-│   │   ├── plan/               # AddTaskModal, ReflectionModal
-│   │   ├── settings/           # AddGoalModal, MockTestSection
+│   │   ├── common/             # Sign-in paper gateway, shortcuts overlay
+│   │   ├── dashboard/          # Exam countdown hero card & date bar
+│   │   ├── layout/             # AppHeader with book badge, sync pill, settings button & clock
+│   │   ├── plan/               # TodayTaskList with ruled paper & circular checkmarks
+│   │   ├── settings/           # SettingsModal (centered popup insert), AddGoalModal
 │   │   └── syllabus/           # Subject & topic cards, confidence modal
 │   ├── pages/
-│   │   ├── DashboardPage.jsx   # Telemetry, readiness formula, trend charts
-│   │   ├── PlanPage.jsx        # Daily mission planner, calendar scroller
-│   │   ├── SyllabusPage.jsx    # Module tree, mastery cycle triggers
-│   │   └── SettingsPage.jsx    # Goal targets, mock analytics, cloud status
+│   │   └── SyllabusPage.jsx    # Dot-grid curriculum tree (closed by default, expand-on-click)
 │   ├── services/
-│   │   ├── dataService.js      # Dual-layer Firestore cloud sync + local cache
-│   │   └── recommendationEngine.js # Spaced retrieval next-best-action algorithm
+│   │   └── dataService.js      # Dual-layer Firestore cloud sync + local cache
 │   ├── stores/                 # Zustand state slices (Auth, Exam, Plan, Mock, UI)
-│   ├── utils/                  # Date helpers, ID generator, constants
-│   ├── index.css               # Monochrome terminal design tokens & layouts
-│   └── App.jsx                 # Main application router & listener hub
+│   ├── utils/                  # Date helpers, constants, ID generator
+│   ├── index.css               # Aesthetic Digital Paper Planner design system & tokens
+│   └── App.jsx                 # Dual-page notebook layout orchestrator & modal hub
 ├── docs/
-│   └── screenshots/            # Hi-res captures of all OS interfaces
+│   └── screenshots/            # High-resolution screenshots of all views
+├── scripts/
+│   └── take-screenshots.js    # Automated Puppeteer screenshot generation
 └── vite.config.js              # Vite bundler configuration
 ```
 
-### Readiness Index Formula
-$$\text{Readiness} = 0.35 \times \text{Syllabus Mastery \%} + 0.40 \times \text{Mock Score Avg \%} + 0.25 \times \text{Consistency Score}$$
-
-Where:
-- $\text{Syllabus Mastery}$ is the percentage of syllabus topics in `MASTERED` state.
-- $\text{Mock Score Avg}$ is the mean score percentage across registered simulations for the active goal.
-- $\text{Consistency Score}$ is a weighted blend of 30-day plan creation frequency, daily mission completion rates, and active study streak.
-
 ---
 
-## 🎨 Design System — Monochrome Terminal
+## 🎨 Design Tokens — Aesthetic Paper Planner
 
 ```css
-/* Core Terminal Design Tokens */
---bg-primary:      #000000;   /* Pitch black deep canvas */
---bg-secondary:    #0a0a0c;   /* Elevated command surface */
---bg-card:         #0d0d10;   /* Card frame */
---border:          #222226;   /* Subtle structural divider */
---border-accent:   #33333a;   /* Active / focused boundary */
---border-light:    #52525c;   /* High-contrast border */
---text-primary:    #f4f4f5;   /* Stark white typography */
---text-secondary:  #a1a1aa;   /* Secondary metadata */
---text-muted:      #71717a;   /* Dimmed terminal comments */
---font-mono:       'JetBrains Mono', monospace;
+/* Core Paper Planner Tokens */
+--bg-desk:              #1e313b;                         /* Deep desk surface */
+--bezel-color:          #27404a;                         /* Slate-teal binder frame */
+--paper-bg:             #ffffff;                         /* Crisp paper page */
+--paper-bg-warm:        #fcfbfa;                         /* Shaded page edge */
+--text-primary:         #1d2a30;                         /* Deep ink text */
+--text-secondary:       #5c6e76;                         /* Soft slate pencil notes */
+--ruled-line:           rgba(0, 40, 70, 0.07);           /* Ruled checklist lines */
+--dot-grid:             radial-gradient(circle, rgba(0, 40, 70, 0.16) 1px, transparent 1px);
+--sticky-blue:          #e4f3fd;                         /* Pastel sky sticky note */
+--sticky-yellow:        #fef8d3;                         /* Pastel sunshine note */
+--accent-teal:          #16808f;                         /* Planner primary accent */
+--radius-notebook:      20px;                            /* Rounded book corners */
 ```
 
 ---
@@ -172,47 +160,32 @@ npm install
 
 # 3. (Optional) Configure Firebase Cloud Datastore
 cp .env.example .env
-# Enter your Firebase configuration in .env if cross-device sync is desired
+# Enter your Firebase configuration in .env for cross-device Gmail sync
 
-# 4. Start local development server
+# 4. Start development server
 npm run dev
 ```
 
-> **Note on Zero-Config Offline / Guest Mode**: Firebase credentials are completely optional. Clicking `[ ENTER OFFLINE / DEMO SESSION ]` at the access gateway activates the built-in offline engine with local storage caching and pre-populated sample exam preparation modules.
+> **Zero-Config Offline Mode**: Firebase setup is optional. Clicking `Enter Offline Demo Session` activates local caching with pre-populated exam preparation modules.
 
-### Production Build
+### Production Build & Automated Screenshots
 
 ```bash
-# Compile and optimize for production
+# Build optimized production bundle
 npm run build
 
-# Preview production build locally
-npm run preview
+# Capture fresh screenshots of the UI
+node scripts/take-screenshots.js
 ```
-
----
-
-## 🛠 Tech Stack
-
-| Layer | Technology | Purpose |
-|:---|:---|:---|
-| **Core Framework** | React 19 | High-performance reactive UI rendering |
-| **Tooling & Bundler** | Vite 8 | Instant HMR development server & production bundler |
-| **State Management** | Zustand 5 | Atomic, subscription-based reactive stores |
-| **Telemetry Visuals** | Recharts 3 | Responsive SVG line charts and telemetry graphs |
-| **Cloud Database** | Firebase Firestore | Real-time multi-device cloud datastore & snapshot syncing |
-| **Authentication** | Firebase Auth | Google OAuth provider integration |
-| **Offline Cache** | Web Storage API (`localStorage`) | Zero-latency client persistence with batch reconciliation |
-| **Typography** | JetBrains Mono & Inter | Precision monospace terminal typography |
 
 ---
 
 ## 📄 License
 
-Distributed under the **MIT License**. See `LICENSE` for more information.
+Distributed under the **MIT License**. See `LICENSE` for more details.
 
 ---
 
 <div align="center">
-  <sub>Engineered with precision for serious exam candidates by <a href="https://github.com/Aspharier">Aspharier</a>.</sub>
+  <sub>Designed with precision and elegance by <a href="https://github.com/Aspharier">Aspharier</a>.</sub>
 </div>

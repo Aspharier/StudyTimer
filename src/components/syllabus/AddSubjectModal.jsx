@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { generateId } from '../../utils/idGenerator';
+import { X } from 'lucide-react';
 
 export const AddSubjectModal = ({ activeGoal, onClose, onAdd }) => {
   const [name, setName] = useState('');
@@ -22,12 +23,14 @@ export const AddSubjectModal = ({ activeGoal, onClose, onAdd }) => {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <h3>// ADD_SUBJECT_MODULE</h3>
-          <button className="del-btn" onClick={onClose}>[X]</button>
+          <h3>Add Subject Module</h3>
+          <button className="del-btn" onClick={onClose} title="Close">
+            <X size={16} />
+          </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">MODULE_NAME</label>
+            <label className="form-label">Module Name</label>
             <input 
               className="input input-rect" 
               value={name} 
@@ -37,16 +40,16 @@ export const AddSubjectModal = ({ activeGoal, onClose, onAdd }) => {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">MODULE_CODE [OPTIONAL]</label>
+            <label className="form-label">Module Code (Optional)</label>
             <input 
               className="input input-rect" 
               value={code} 
               onChange={e => setCode(e.target.value)} 
-              placeholder="e.g. OS_2026"
+              placeholder="e.g. OS"
             />
           </div>
-          <button type="submit" className="btn btn-primary w-full" disabled={!name.trim()}>
-            [ REGISTER MODULE ]
+          <button type="submit" className="btn btn-primary w-full" style={{ padding: '12px' }} disabled={!name.trim()}>
+            Add Module
           </button>
         </form>
       </div>

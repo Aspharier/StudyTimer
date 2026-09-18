@@ -26,48 +26,48 @@ export const STATUS_CYCLE = {
 
 export const STATUS_CONFIG = {
   NOT_STARTED: {
-    label: '[NOT_STARTED]',
-    color: 'var(--text-muted)',
-    bg: 'transparent',
-    border: 'var(--border)',
-    nextAction: '[START]'
+    label: 'Not Started',
+    color: '#475569',
+    bg: '#f1f5f9',
+    border: '#cbd5e1',
+    nextAction: 'Start'
   },
   LEARNING: {
-    label: '[LEARNING]',
-    color: 'var(--text-secondary)',
-    bg: 'var(--bg-card)',
-    border: 'var(--border-accent)',
-    nextAction: '[PRACTICE]'
+    label: 'Learning',
+    color: '#854d0e',
+    bg: '#fef9c3',
+    border: '#fde047',
+    nextAction: 'Practice'
   },
   PRACTICING: {
-    label: '[PRACTICING]',
-    color: 'var(--text-primary)',
-    bg: 'var(--bg-card)',
-    border: 'var(--border-light)',
-    nextAction: '[MASTER]'
+    label: 'Practicing',
+    color: '#0369a1',
+    bg: '#e0f2fe',
+    border: '#7dd3fc',
+    nextAction: 'Master'
   },
   WEAK: {
-    label: '[NEEDS_WORK]',
-    color: 'var(--text-primary)',
-    bg: 'var(--bg-secondary)',
-    border: 'var(--border-light)',
-    nextAction: '[REVISE]'
+    label: 'Needs Work',
+    color: '#9f1239',
+    bg: '#ffe4e6',
+    border: '#fca5a5',
+    nextAction: 'Revise'
   },
   MASTERED: {
-    label: '[MASTERED]',
-    color: 'var(--bg-primary)',
-    bg: 'var(--text-primary)',
-    border: 'var(--text-primary)',
-    nextAction: '[REVIEW]'
+    label: 'Mastered',
+    color: '#166534',
+    bg: '#dcfce7',
+    border: '#86efac',
+    nextAction: 'Review'
   }
 };
 
 export const RECALL_RATINGS = {
-  COULDNT_RECALL: { value: 1, label: '01 // NO_RECALL' },
-  STRUGGLED: { value: 2, label: '02 // STRUGGLED' },
-  MOSTLY_KNEW: { value: 3, label: '03 // PARTIAL' },
-  COULD_EXPLAIN: { value: 4, label: '04 // CLEAR' },
-  CONFIDENT: { value: 5, label: '05 // MASTERED' }
+  COULDNT_RECALL: { value: 1, label: '1 • No Recall' },
+  STRUGGLED: { value: 2, label: '2 • Struggled' },
+  MOSTLY_KNEW: { value: 3, label: '3 • Partial' },
+  COULD_EXPLAIN: { value: 4, label: '4 • Clear' },
+  CONFIDENT: { value: 5, label: '5 • Mastered' }
 };
 
 export const REVISION_INTERVAL_RATINGS = {

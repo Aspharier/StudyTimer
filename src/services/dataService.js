@@ -74,9 +74,37 @@ export const migrateTopic = (topic) => {
   };
 };
 
-let currentUid = null;
-let authResolved = false;
-let currentUser = null;
+const SESSION_USER_KEY = 'focusly_active_user';
+
+const DEFAULT_GUEST_USER = {
+  uid: 'local_guest',
+  displayName: 'Operator (Local)',
+  email: 'scholar@focusly.terminal',
+  isGuest: true
+};
+
+const getStoredUser = () => {
+  try {
+    const raw = localStorage.getItem(SESSION_USER_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.warn("Error reading stored user:", e);
+  }
+  return null;
+};
+
+// Auto-restore session from localStorage, or default to guest user so app is never blank
+let storedUser = getStoredUser();
+if (!storedUser) {
+  storedUser = DEFAULT_GUEST_USER;
+  try {
+    localStorage.setItem(SESSION_USER_KEY, JSON.stringify(DEFAULT_GUEST_USER));
+  } catch {}
+}
+
+let currentUid = storedUser ? storedUser.uid : null;
+let authResolved = true;
+let currentUser = storedUser;
 let syncStatusListeners = [];
 let isSyncing = false;
 
@@ -277,6 +305,11 @@ const loadCache = (uid) => {
   }
 };
 
+// Immediate pre-load for active user on script initialization
+if (currentUid) {
+  loadCache(currentUid);
+}
+
 const saveCache = (uid) => {
   if (!uid) return;
   try {
@@ -448,13 +481,32 @@ if (auth) {
   onAuthStateChanged(auth, (user) => {
     authResolved = true;
     if (user) {
-      currentUser = user;
-      notifyAuthListeners(user);
+      const googleUser = {
+        uid: user.uid,
+        displayName: user.displayName || 'Google Account User',
+        email: user.email,
+        photoURL: user.photoURL,
+        isGoogle: true
+      };
+      currentUser = googleUser;
+      currentUid = user.uid;
+      try {
+        localStorage.setItem(SESSION_USER_KEY, JSON.stringify(googleUser));
+      } catch {}
+      notifyAuthListeners(googleUser);
       setupFirestoreListeners(user.uid);
-    } else if (currentUid !== 'local_guest') {
-      currentUser = null;
-      notifyAuthListeners(null);
-      clearFirestoreListeners();
+    } else {
+      const active = getStoredUser();
+      if (active && (active.isGuest || active.uid === 'local_guest')) {
+        currentUser = active;
+        currentUid = active.uid;
+        notifyAuthListeners(active);
+      } else if (!active) {
+        currentUser = null;
+        currentUid = null;
+        notifyAuthListeners(null);
+        clearFirestoreListeners();
+      }
     }
   });
 }
@@ -725,24 +777,29 @@ export const DataService = {
   // Study Stats
   saveStudyStat: (stat) => saveEntity('study_stats', 'studyStats', stat, 'date'),
 
+  // Synchronous user getter
+  getCurrentUser: () => currentUser,
+  getIsAuthResolved: () => authResolved,
+
   // Guest / Offline Mode
   loginAsGuest: () => {
-    const guestUser = {
-      uid: 'local_guest',
-      displayName: 'Operator (Local)',
-      email: 'scholar@focusly.terminal'
-    };
     currentUid = 'local_guest';
-    currentUser = guestUser;
+    currentUser = DEFAULT_GUEST_USER;
     authResolved = true;
+    try {
+      localStorage.setItem(SESSION_USER_KEY, JSON.stringify(DEFAULT_GUEST_USER));
+    } catch {}
     loadCache('local_guest');
     saveCache('local_guest');
     ALL_KEYS.forEach(notifyListeners);
-    notifyAuthListeners(guestUser);
-    return guestUser;
+    notifyAuthListeners(DEFAULT_GUEST_USER);
+    return DEFAULT_GUEST_USER;
   },
 
   clearSession: () => {
+    try {
+      localStorage.removeItem(SESSION_USER_KEY);
+    } catch {}
     clearFirestoreListeners();
     currentUser = null;
     currentUid = null;

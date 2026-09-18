@@ -1,18 +1,20 @@
+import { X } from 'lucide-react';
+
 export const ShortcutsModal = ({ onClose }) => {
   const shortcuts = [
-    { key: '1', desc: 'NAV_DISPATCH -> DASHBOARD' },
-    { key: '2', desc: 'NAV_DISPATCH -> DAILY_PLAN' },
-    { key: '3', desc: 'NAV_DISPATCH -> SYLLABUS_TREE' },
-    { key: '4', desc: 'NAV_DISPATCH -> SETTINGS_CONFIG' },
-    { key: '?', desc: 'TOGGLE_SHORTCUTS_OVERLAY' }
+    { key: 's', desc: 'Open / Close Settings' },
+    { key: '?', desc: 'Toggle Keyboard Shortcuts' },
+    { key: 'Esc', desc: 'Close Active Modal' }
   ];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
         <div className="modal-header">
-          <h3>KEYBOARD_CONTROLS // CLI_ACCELERATORS</h3>
-          <button className="del-btn" onClick={onClose}>[X]</button>
+          <h3>Keyboard Shortcuts</h3>
+          <button className="del-btn" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginBottom: '16px' }}>
           Execute fast single-key controls directly from keyboard:
