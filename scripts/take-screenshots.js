@@ -100,16 +100,27 @@ async function run() {
   await page.screenshot({ path: path.join(screenshotsDir, 'dashboard-dark.png'), fullPage: false });
   await page.screenshot({ path: path.join(screenshotsDir, 'dashboard-dark-full.png'), fullPage: true });
 
-  // 4. Expand first syllabus module to showcase topics and mastery
-  console.log('Expanding first syllabus module...');
+  // 4. Switch to Rows view or All Modules to showcase compact syllabus layout
+  console.log('Switching to Rows view...');
   await page.evaluate(() => {
-    const chips = Array.from(document.querySelectorAll('span.chip'));
-    const expandChip = chips.find(c => c.textContent.includes('Expand') || c.textContent.includes('View'));
-    if (expandChip) expandChip.click();
+    const btns = Array.from(document.querySelectorAll('button'));
+    const rowsBtn = btns.find(b => b.textContent.includes('Rows'));
+    if (rowsBtn) rowsBtn.click();
   });
-  await wait(1200);
-  console.log('Capturing syllabus-dark.png (expanded syllabus)...');
+  await wait(800);
+  console.log('Capturing syllabus-dark.png (compact rows view)...');
   await page.screenshot({ path: path.join(screenshotsDir, 'syllabus-dark.png'), fullPage: false });
+
+  // Switch to All Modules in Shelf view
+  console.log('Switching to All Modules in Shelf view...');
+  await page.evaluate(() => {
+    const btns = Array.from(document.querySelectorAll('button'));
+    const shelfBtn = btns.find(b => b.textContent.includes('Shelf'));
+    if (shelfBtn) shelfBtn.click();
+    const allBtn = btns.find(b => b.textContent.includes('All Modules'));
+    if (allBtn) allBtn.click();
+  });
+  await wait(800);
   await page.screenshot({ path: path.join(screenshotsDir, 'dashboard-light.png'), fullPage: false });
 
   // 5. Open Settings Modal Popup (press key 's')

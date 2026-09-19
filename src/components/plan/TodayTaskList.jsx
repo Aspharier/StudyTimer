@@ -74,9 +74,9 @@ export const TodayTaskList = () => {
 
   return (
     <>
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, minHeight: 0 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', flexShrink: 0 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <span className="planner-box-header" style={{ margin: 0, padding: '2px 8px', fontSize: '0.68rem' }}>
@@ -98,7 +98,7 @@ export const TodayTaskList = () => {
       </div>
 
       {/* Progress Bar */}
-      <div>
+      <div style={{ flexShrink: 0 }}>
         <div className="progress-bar-bg" style={{ height: '6px' }}>
           <div className="progress-bar-fill" style={{ width: `${progress * 100}%` }}></div>
         </div>
@@ -106,7 +106,7 @@ export const TodayTaskList = () => {
 
       {/* Task List or Empty State */}
       {items.length === 0 ? (
-        <div className="empty" style={{ padding: '24px 16px', textAlign: 'center', border: '1px dashed #cbd5e1', borderRadius: '12px' }}>
+        <div className="empty" style={{ padding: '20px 16px', textAlign: 'center', border: '1px dashed #cbd5e1', borderRadius: '12px', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontSize: '1.6rem', marginBottom: '4px' }}>📝</div>
           <p style={{ marginBottom: '12px', color: 'var(--ink-secondary)', fontSize: '0.86rem', fontWeight: 600 }}>
             No missions scheduled for today yet.
@@ -116,7 +116,7 @@ export const TodayTaskList = () => {
           </button>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '4px' }}>
           {items.map(item => {
             const subject = subjects.find(s => s.id === item.subjectId);
             const duration = item.duration || item.estimatedMinutes || 60;
@@ -177,7 +177,7 @@ export const TodayTaskList = () => {
       )}
 
       {/* Daily Mood & Reflection Tracker at bottom of left page (matching reference screenshot) */}
-      <div className="mood-tracker">
+      <div className="mood-tracker" style={{ flexShrink: 0, marginTop: 'auto' }}>
         <span style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.6px', color: 'var(--ink-secondary)', textTransform: 'uppercase' }}>
           MOOD:
         </span>

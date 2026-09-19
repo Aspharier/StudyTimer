@@ -108,7 +108,27 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px 20px 48px;
+  justify-content: center;
+  padding: 12px 24px 16px;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1081px) and (min-height: 600px) {
+  html, body {
+    height: 100vh;
+    overflow: hidden;
+  }
+  .app-container {
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+    padding: 8px 24px 12px;
+  }
+  .planner-desk {
+    height: calc(100vh - 16px);
+    max-height: calc(100vh - 16px);
+    justify-content: center;
+  }
 }
 
 .planner-desk {
@@ -116,7 +136,8 @@ body {
   max-width: 1360px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
+  min-height: 0;
 }
 
 /* ============ TOP PLANNER HEADER BAR ============ */
@@ -124,8 +145,9 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 12px;
+  padding: 4px 12px;
   color: #ffffff;
+  flex-shrink: 0;
 }
 
 .planner-logo-badge {
@@ -188,8 +210,13 @@ body {
   background: var(--bezel-color);
   border: 2px solid var(--bezel-border);
   border-radius: 28px;
-  padding: 16px 20px 22px 18px;
+  padding: 14px 18px 14px 16px;
   box-shadow: var(--bezel-shadow);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: visible;
 }
 
 /* Right Edge Divider Tabs */
@@ -254,9 +281,10 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 6px;
   padding-left: 8px;
   overflow-x: auto;
+  flex-shrink: 0;
 }
 
 .bottom-tab {
@@ -295,7 +323,9 @@ body {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
   position: relative;
-  min-height: 720px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 
 /* Shaded Center Book Crease / Spine */
@@ -318,11 +348,13 @@ body {
 
 /* Pages Styling */
 .notebook-page {
-  padding: 24px 28px;
+  padding: 18px 22px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
   position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .left-page {
@@ -341,8 +373,10 @@ body {
 .page-inner-content {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
   height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ============ PLANNER CARDS & BLOCKS ============ */
@@ -623,6 +657,128 @@ body {
 .topic-card:hover {
   border-color: #cbd5e1;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+/* ============ HORIZONTAL SYLLABUS LAYOUT ============ */
+.module-tab-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 8px 2px;
+  scrollbar-width: thin;
+}
+
+.module-tab-strip::-webkit-scrollbar {
+  height: 4px;
+}
+
+.module-tab-strip::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.module-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 1px solid var(--paper-border);
+  border-radius: var(--radius-pill);
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.module-tab:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: var(--ink-primary);
+}
+
+.module-tab.active {
+  background: #1e293b;
+  color: #ffffff;
+  border-color: #0f172a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.module-tab.active .badge-pct {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.badge-pct {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #0284c7;
+}
+
+.topics-horizontal-shelf {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 2px 10px 2px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+
+.topics-horizontal-shelf::-webkit-scrollbar {
+  height: 5px;
+}
+
+.topics-horizontal-shelf::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.topic-card-horizontal {
+  width: 230px;
+  min-width: 230px;
+  max-width: 230px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid var(--paper-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: all 0.15s ease;
+}
+
+.topic-card-horizontal:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
+  transform: translateY(-2px);
+}
+
+.topic-row-compact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid var(--paper-border);
+  border-radius: var(--radius-xs);
+  transition: all 0.12s ease;
+}
+
+.topic-row-compact:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 /* ============ CUTE STICKER ACCENTS (FROM SCREENSHOT) ============ */

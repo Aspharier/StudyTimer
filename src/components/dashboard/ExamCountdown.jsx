@@ -44,7 +44,7 @@ export const ExamCountdown = ({ onOpenSettings }) => {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flexShrink: 0 }}>
       {/* Top Planner Date Bar with Weekday Indicator Dots */}
       <div className="planner-date-bar">
         <div>
