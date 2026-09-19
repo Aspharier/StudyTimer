@@ -1,6 +1,6 @@
 <div align="center">
 
-# 📖 FOCUSLY • AESTHETIC DIGITAL STUDY PLANNER & EXAM OS
+# FOCUSLY
 ### AESTHETIC PAPER PLANNER WORKSPACE & TWO-COLUMN EXAM COMMAND CENTER
 
 [![React](https://img.shields.io/badge/React-19.2-27404a?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
