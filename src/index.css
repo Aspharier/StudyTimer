@@ -781,6 +781,23 @@ body {
   border-color: #cbd5e1;
 }
 
+.topic-bar-card {
+  background: #ffffff;
+  border: 1px solid var(--paper-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.topic-bar-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+}
+
 /* ============ CUTE STICKER ACCENTS (FROM SCREENSHOT) ============ */
 .sticker-starburst {
   display: inline-flex;
